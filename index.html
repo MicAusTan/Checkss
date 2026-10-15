@@ -28,6 +28,9 @@
   .pc-r,.pc-b,.pc-y,.pc-g,.pc-dead { text-shadow:0 0 2px #000,0 0 2px #000,0 0 2px #000; }
   .pc-r { color:#ff5a5a; } .pc-b { color:#5aa0ff; } .pc-y { color:#ffd84d; } .pc-g { color:#5fd16a; }
   .pc-dead { color:#8a8a8a; opacity:.85; }
+  .pc-n { color:#c79bff; text-shadow:0 0 3px #000,0 0 8px #a45cff,0 0 2px #000; }
+  .sq.neu::before { content:''; position:absolute; inset:7%; border:2px dashed #b57bff; border-radius:50%; pointer-events:none; }
+  .fairy { font-weight:bold; }
   .w-piece { color:#fff; text-shadow:0 0 2px #000,0 0 2px #000,0 0 2px #000; }
   #status { margin:10px 0; font-weight:600; min-height:1.4em; }
   #link { word-break:break-all; font-size:.85rem; opacity:.8; }
@@ -43,6 +46,16 @@
   #austSettings { max-width:480px; margin-top:12px; font-size:.9rem; }
   #austSettings label { display:inline-block; margin:4px 10px 4px 0; }
   #austSettings input { width:64px; padding:6px; }
+  #board.hexb { display:block; position:relative; border:0; aspect-ratio:auto; }
+  #board.hexb .sq { position:absolute; clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); }
+  .hx0 { background:var(--light); } .hx1 { background:var(--dark); } .hx2 { background:#d1b08a; }
+  .sq.hx0.sel,.sq.hx1.sel,.sq.hx2.sel { background:var(--sel); }
+  .sq.fog { filter:brightness(.42) saturate(.5); }
+  #gsBox label, #gsBox div { display:block; margin:4px 0; }
+  #roster { margin:8px 0; } #roster div { margin:4px 0; }
+  #roster button { padding:2px 10px; font-size:.85rem; background:#8b3a3a; }
+  #gsBox { max-width:480px; margin-top:12px; font-size:.9rem; }
+  .hand.others { font-size:.85rem; opacity:.85; min-height:0; }
   .hidden { display:none; }
 </style>
 </head>
@@ -57,6 +70,27 @@
     <button id="joinBtn">Join game</button>
   </div>
   <p id="lobbyMsg"></p>
+  <div id="lobbyCtl" class="hidden">
+    <div id="roster"></div>
+    <label><input type="checkbox" id="autoChk"> Start automatically when the room is full</label><br>
+    <button id="startBtn">Start game</button>
+  </div>
+</div>
+<div id="gsBox" class="hidden">
+  <b>Game options</b> <span style="opacity:.7">(they apply when the next game starts — use New game after changing them)</span>
+  <div id="gsDrop">Crazyhouse drops:
+    <select id="dropSel"><option value="any">Anywhere empty (standard)</option><option value="own">Own side only (4-player: own arm + centre)</option></select>
+  </div>
+  <div id="gsNeutral">Neutral pieces:
+    <select id="nsetSel"><option value="commoner">Commoners (1 step any direction)</option><option value="mixed">Mixed (imps = knights, wraiths = 2 diagonal)</option></select>
+    <label><input type="checkbox" id="fallenChk"> Fallen armies: a knocked-out player's pieces turn neutral</label>
+  </div>
+  <label id="gsFog"><input type="checkbox" id="fogChk"> Fog of war (you only see squares your pieces can move to or attack)</label>
+  <label id="gsTeams"><input type="checkbox" id="teamsChk"> 2v2 teams (partners can't capture or check each other; a team wins when both opponents are out)</label>
+  <div id="gsBoard">Team board:
+    <select id="boardSel"><option value="cross">Cross board (partners sit opposite)</option><option value="wide">Wide board (teams face each other)</option></select>
+    Height: <select id="heightSel"><option>8</option><option selected>10</option><option>12</option><option>16</option></select>
+  </div>
 </div>
 
 <div id="game" class="hidden">
@@ -108,31 +142,42 @@
 /* ============ MODES ============ */
 // Add a mode = add a variant object here (see engine.js for the format).
 const MODES = {
-  standard:   { name: 'Standard Chess', v: Engine.STANDARD },
-  crazyhouse: { name: 'Crazyhouse',     v: Engine.CRAZYHOUSE },
-  marseillais: { name: 'Marseillais (2 moves per turn)', v: Engine.MARSEILLAIS },
+  standard:   { name: 'Standard Chess', opts: ['fog'], v: Engine.STANDARD },
+  crazyhouse: { name: 'Crazyhouse',     opts: ['drop', 'fog'], v: Engine.CRAZYHOUSE },
+  marseillais: { name: 'Marseillais (2 moves per turn)', opts: ['fog'], v: Engine.MARSEILLAIS },
   // hidden:true is read by the UI only: you see just your own pieces, the referee announces things
   kriegspiel: { name: 'Kriegspiel (hidden pieces)', v: Object.assign({}, Engine.STANDARD, { hidden: true }) },
   // The real game is built each round from both players' setups; v here only supplies flags.
-  austang: { name: 'Austang (build your army)', match: true, v: Object.assign({}, Engine.STANDARD, { castling: false }) },
+  austang: { name: 'Austang (build your army)', match: true, opts: ['fog'], v: Object.assign({}, Engine.STANDARD, { castling: true }) },
   alice:    { name: 'Alice Chess (two boards)', v: Engine.ALICE },
-  infinite: { name: 'Infinite Chess (32×32 board)', v: Engine.INFINITE },
-  fourplayer:  { name: '4-Player Chess (cross board)', multi: true, seats: ['r', 'b', 'y', 'g'], v: Engine.FOUR },
-  threeplayer: { name: '3-Player Chess (cross board, gray wall)', multi: true, seats: ['r', 'b', 'y'], v: Engine.THREE }
+  infinite: { name: 'Infinite Chess (32×32 board)', opts: ['fog'], v: Engine.INFINITE },
+  // multi:true modes are hosted as a hub; `all` = every seat on that board, 2..n players may start.
+  fourplayer:  { name: '4-Player Chess (cross board)', multi: true, opts: ['fog', 'teams'], all: ['r', 'b', 'y', 'g'], v: Engine.FOUR },
+  fourmars:    { name: '4-Player Marseillais (2 moves per turn)', multi: true, opts: ['fog', 'teams'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { movesPerTurn: 2, firstSingle: true }) },
+  fourcrazy:   { name: '4-Player Crazyhouse', multi: true, opts: ['drop', 'fog', 'teams'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { drops: true }) },
+  fourkrieg:   { name: '4-Player Kriegspiel (hidden pieces)', multi: true, opts: ['teams'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { hidden: true }) },
+  fourneutral: { name: '4-Player Neutral Pieces (centre monsters)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['fog', 'teams', 'neutral'], v: Object.assign({}, Engine.FOUR, { neutral: true, drops: true }) },
+  bughouse:    { name: 'Bughouse (2v2, two boards, partner passes pieces)', multi: true, bug: true, all: ['r', 'b', 'y', 'g'], opts: [], v: Engine.BUGHOUSE },
+  fouralice:   { name: '4-Player Alice Chess (two cross boards)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['teams'], v: Object.assign({}, Engine.FOUR, { alice: true, castling: false }) },
+  fourinfinite: { name: '4-Player Infinite Chess (open 32×32 board)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['fog', 'teams'], v: Object.assign({}, Engine.FOUR, { board: 'infinite' }) },
+  threeplayer: { name: '3-Player Chess (hexagonal board)', multi: true, opts: ['fog'], all: ['r', 'b', 'y'], v: Engine.THREE }
 };
 const CN = { r: 'Red', b: 'Blue', y: 'Yellow', g: 'Green' };
 
 /* ============ STATE ============ */
 const PREFIX = 'chessfriends-';
-const GLYPH = { p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚' };
+// c/i/w/o are the neutral-mode fairy pieces; they use the hollow glyphs so they never look like real pieces.
+const GLYPH = { p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', c:'♔', i:'♘', w:'♗', o:'♖' };
+const FAIRY = 'ciwo';
 const $ = id => document.getElementById(id);
 let mode = 'standard', game = null, peer, conn, myColor = 'w', isHost = false, sel = null, over = null;
 let overRes = null, M = null, pal = 'p', setupMsg = '', centered = false;   // M = Austang match state
 const COST = { k: 0, p: 1, n: 3, b: 3, r: 5, q: 9 };
 const LET = 'abcdefghijklmnopqrstuvwxyz';
 const sqName = (x, y) => (x < 26 ? LET[x] : LET[Math.floor(x / 26) - 1] + LET[x % 26]) + (y + 1);
-let mySeat = 'r', conns = [], mstarted = false, lobbyBase = '';   // multiplayer (3/4 players): host is the hub
-const ended = () => over || (game && (game.multi ? !!game.winner() : ['checkmate', 'stalemate'].includes(game.status())));
+let mySeat = 'r', conns = [], mstarted = false, lobbyBase = '', mseats = null, gs = { dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false };
+let nBusy = false;   // multiplayer (3/4 players): host is the hub
+const ended = () => over || (game && (game.multi ? (!!game.winner() || game.drawn) : ['checkmate', 'stalemate', 'draw'].includes(game.status())));
 const broadcast = msg => conns.forEach(c => c.open && c.send(msg));
 const inPlay = () => game && (!M || M.phase === 'play');
 
@@ -150,6 +195,7 @@ function announce() {
   const s = game.status();
   if (s === 'checkmate') parts.push('Checkmate!');
   else if (s === 'stalemate') parts.push('Stalemate.');
+  else if (s === 'draw') parts.push('Draw: not enough material.');
   else if (s === 'check') parts.push('Check!');
   addChat('', 'Referee: ' + parts.join(' '), true);
 }
@@ -158,20 +204,46 @@ function announce() {
 // Every message is {type, ...}. Add new features by adding new types here.
 function send(msg) { if (conn && conn.open) conn.send(msg); }
 
-function newGame(m, s) {
+function readGS() {
+  return { dropZone: $('dropSel').value, fog: $('fogChk').checked, teams: $('teamsChk').checked, board: $('boardSel').value, height: +$('heightSel').value,
+    neutralSet: $('nsetSel').value, fallen: $('fallenChk').checked };
+}
+const seatsFor = (m, n) => { const all = MODES[m].all; return n >= all.length ? all.slice() : n === 2 ? (all.length === 4 ? ['r', 'y'] : ['r', 'b']) : all.slice(0, n); };
+
+function newGame(m, s, o) {
+  o = o || {};
   mode = m; sel = null; over = null; overRes = null; setupMsg = ''; pal = 'p'; centered = false;
+  gs = Object.assign({ dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false }, o.gs || gs);
   if (MODES[m].match) {
     s = s || { start: 20, base: 8, step: 2, catchup: 3, cap: 24, rounds: 5 };
     M = { s, round: 1, scores: { w: 0, b: 0 }, pool: { w: s.start, b: s.start },
           setups: { w: { '4,0': 'k' }, b: { '4,7': 'k' } }, phase: 'setup', sentRound: 0, opp: null };
     game = null;
-  } else { M = null; game = Engine.create(MODES[m].v); }
+  } else if (MODES[m].multi) {
+    const all = MODES[m].all;
+    mseats = (o.seats || mseats || all).filter(c => all.includes(c));
+    if (mseats.length < 2) mseats = all.slice();
+    const op = MODES[m].opts || [];
+    gs.fog = !!gs.fog && op.includes('fog');
+    let teams = gs.teams && op.includes('teams') ? { r: 0, y: 0, b: 1, g: 1 } : null;
+    if (teams && new Set(mseats.map(c => teams[c])).size < 2) teams = null;
+    gs.teams = !!teams;
+    const dead = all.filter(c => !mseats.includes(c));
+    const neu = !!MODES[m].v.neutral;
+    nBusy = false;
+    M = null; game = Engine.create(Object.assign({}, MODES[m].v, { seats: mseats, dead, dropZone: neu ? 'arm' : gs.dropZone, teams,
+      board: MODES[m].v.board || (teams && gs.board === 'wide' && !neu && !MODES[m].v.alice ? 'wide' : undefined), height: +gs.height || 10,
+      neutralSet: gs.neutralSet, fallen: !!gs.fallen }));
+  } else {
+    gs.fog = !!gs.fog && (MODES[m].opts || []).includes('fog');
+    M = null; game = Engine.create(Object.assign({}, MODES[m].v, { dropZone: gs.dropZone }));
+  }
 }
 
 function handleMessage(msg) {
   switch (msg.type) {
     case 'init':
-      newGame(msg.mode, msg.settings); if (game) msg.moves.forEach(m => game.move(m));
+      newGame(msg.mode, msg.settings, { gs: msg.gs }); if (game) msg.moves.forEach(m => game.move(m));
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       $('rematchBtn').classList.remove('hidden'); render(); break;
     case 'move': if (game.move(msg.m)) { sel = null; announce(); render(); } break;
@@ -179,16 +251,20 @@ function handleMessage(msg) {
       over = (msg.color === 'w' ? 'White' : 'Black') + ' resigned.';
       overRes = msg.color === 'w' ? 'b' : 'w'; render(); break;
     case 'newgame':
-      newGame(msg.mode || mode, msg.settings);
+      newGame(msg.mode || mode, msg.settings, { gs: msg.gs, seats: msg.seats });
       if (msg.swap) myColor = myColor === 'w' ? 'b' : 'w';
       $('modeSel2').value = mode; $('promo').classList.add('hidden'); $('drawBanner').classList.add('hidden');
       addChat('', 'New game: ' + MODES[mode].name + (MODES[mode].multi ? '.' : '. You are ' + (myColor === 'w' ? 'White' : 'Black') + '.'), true);
       render(); break;
     case 'minit':
-      newGame(msg.mode); mySeat = msg.seat;
+      newGame(msg.mode, null, { seats: msg.seats, gs: msg.gs }); mySeat = msg.seat;
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
-      addChat('', 'You are ' + CN[mySeat] + '. Turn order: ' + game.seats.map(c => CN[c]).join(' → ') + '.', true);
+      if (game.teams) addChat('', 'Teams: ' + teamNames('r') + ' vs ' + teamNames('b') + '.', true);
+  addChat('', game.bug ? 'You are ' + CN[mySeat] + ' (Board ' + game.info[mySeat][0] + ', ' + (game.info[mySeat][1] === 'w' ? 'White' : 'Black') + '). Your partner is ' + CN[game.partner[mySeat]] + '. Both boards play at the same time.' : 'You are ' + CN[mySeat] + '. Turn order: ' + game.seats.map(c => CN[c]).join(' → ') + '.', true);
       render(); break;
+    case 'nmove': if (game && game.neutralApply && game.neutralApply(msg.m)) { noteNeutral(msg.m); render(); if (!game.neutralPending) announceMulti(); } break;
+    case 'mwait': $('lobbyMsg').textContent = msg.text; break;
+    case 'kicked': $('lobbyMsg').textContent = 'The host removed you from the room.'; $('lobby').classList.remove('hidden'); $('game').classList.add('hidden'); break;
     case 'mmove': if (game && game.move(msg.m)) { sel = null; announceMulti(); render(); } break;
     case 'mresign': if (game) { game.resign(msg.seat); announceMulti(); render(); } break;
     case 'mchat': addChat(CN[msg.from], String(msg.text).slice(0, 300)); break;
@@ -211,7 +287,7 @@ function setupConn(c) {
     if (isHost) {
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       $('hostCtl').classList.remove('hidden'); $('modeSel2').value = mode;
-      send({ type: 'init', mode, moves: game ? game.history() : [], settings: M && M.s });
+      send({ type: 'init', mode, moves: game ? game.history() : [], settings: M && M.s, gs });
       render();
     }
   });
@@ -220,13 +296,14 @@ function setupConn(c) {
 }
 
 function host() {
-  isHost = true; myColor = 'w'; newGame($('modeSel').value, readSettings());
+  isHost = true; myColor = 'w'; mseats = null; newGame($('modeSel').value, readSettings(), { gs: readGS() });
   const code = Math.random().toString(36).slice(2, 7);
   peer = new Peer(PREFIX + code);
   peer.on('open', () => {
     const url = location.origin + location.pathname + '?join=' + code;
     lobbyBase = 'Room code: <b>' + code + '</b><br>Send this link to your friend' + (MODES[mode].multi ? 's' : '') + ':<br><span id="link">' + url + '</span>';
-    $('lobbyMsg').innerHTML = lobbyBase + (MODES[mode].multi ? '<br>Players joined: 1/' + MODES[mode].seats.length : '<br>Waiting for them to join…');
+    $('lobbyMsg').innerHTML = lobbyBase + (MODES[mode].multi ? '' : '<br>Waiting for them to join…');
+    if (MODES[mode].multi) { $('lobbyCtl').classList.remove('hidden'); renderRoster(); }
   });
   peer.on('connection', c => (MODES[mode].multi ? hostMultiConn(c) : setupConn(c)));
   peer.on('error', e => $('lobbyMsg').textContent = 'Error: ' + e.type);
@@ -276,7 +353,7 @@ function renderHand(c, el) {
   el.innerHTML = '';
   if (!MODES[mode].v.drops) return;
   const hand = game.hand(c);
-  'qrbnp'.split('').forEach(t => {
+  'qrbnpciwo'.split('').forEach(t => {
     if (!(hand[t] > 0)) return;
     const b = document.createElement('button');
     b.textContent = GLYPH[t] + '×' + hand[t];
@@ -291,7 +368,7 @@ function renderHand(c, el) {
 
 function matchLine() {
   const me = myColor, opp = me === 'w' ? 'b' : 'w', r = M.lastRes, fin = M.round >= M.s.rounds;
-  const outcome = r === 'd' ? 'Round drawn.' : (r === me ? 'You won the round!' : 'You lost the round.');
+  const outcome = r === 'd' ? (M.why === 'stalemate' ? 'Round drawn by stalemate.' : M.why === 'draw' ? 'Round drawn: not enough material.' : 'Round drawn.') : (r === me ? 'You won the round!' : 'You lost the round.');
   const sc = 'Score: you ' + M.scores[me] + ' – ' + M.scores[opp] + ' opponent.';
   const tail = fin
     ? (M.scores[me] > M.scores[opp] ? ' You win the match!' : M.scores[me] < M.scores[opp] ? ' You lose the match.' : ' The match is drawn.')
@@ -299,12 +376,31 @@ function matchLine() {
   return 'Round ' + M.round + '/' + M.s.rounds + ': ' + outcome + ' ' + sc + tail;
 }
 
+function bugStatus() {
+  const g = game, r = g.result;
+  if (r) {
+    if (r.team === null) return 'Game drawn — both boards are stuck.';
+    const w = g.winner();
+    return 'Game over — ' + teamNames(w) + (sameSide(w, mySeat) ? ' (you) win!' : ' win.') + (r.why === 'checkmate' ? ' (checkmate on Board ' + r.board + ')' : ' (' + CN[r.loser] + ' resigned)');
+  }
+  const [bd, col] = g.info[mySeat], mine = g.canMove(mySeat), opp = g.seatOf(bd, col === 'w' ? 'b' : 'w');
+  let t = (mine ? 'Your move' : 'Waiting for ' + CN[opp]) + ' (you are ' + CN[mySeat] + ', Board ' + bd + ', partner ' + CN[g.partner[mySeat]] + ')';
+  if (g.inCheck(bd)) t += mine ? ' — you are in check!' : ' — ' + CN[opp] + ' is in check';
+  if (g.stuck(bd)) t += mine ? ' — no legal move: wait for a piece from your partner' : ' — they have no legal move and must wait for a piece';
+  return t;
+}
+
 function multiStatus() {
+  if (game.bug) return bugStatus();
+  if (game.drawn) return 'Game drawn — nobody left can move.';
   const w = game.winner();
-  if (w) return 'Game over — ' + CN[w] + (w === mySeat ? ' (you) wins!' : ' wins.');
+  if (w) return 'Game over — ' + teamNames(w) + (sameSide(w, mySeat) ? ' (you) win!' : game.teams ? ' win.' : ' wins.');
   if (!game.alive(mySeat)) return 'You are eliminated — spectating. ' + CN[game.turn] + "'s turn.";
-  return (game.turn === mySeat ? 'Your turn' : CN[game.turn] + "'s turn") + ' (you are ' + CN[mySeat] + ')' +
-         (game.inCheck(game.turn) ? ' — ' + CN[game.turn] + ' is in check!' : '');
+  const hidK = MODES[mode].v.hidden;
+  if (game.neutralPending) return 'Neutral pieces are moving…';
+  return (game.turn === mySeat ? 'Your turn' : CN[game.turn] + "'s turn") + ' (you are ' + CN[mySeat] + (game.teams ? ', partner: ' + (game.seats.filter(c => c !== mySeat && game.teams[c] === game.teams[mySeat]).map(c => CN[c]).join('') || 'none') : '') + ')' +
+         (MODES[mode].v.movesPerTurn > 1 ? ' — ' + game.left + ' move' + (game.left > 1 ? 's' : '') + ' left' : '') +
+         (!hidK && game.inCheck(game.turn) ? ' — ' + CN[game.turn] + ' is in check!' : '');
 }
 
 function statusText() {
@@ -314,15 +410,19 @@ function statusText() {
   const s = game.status();
   if (s === 'checkmate') return 'Checkmate! ' + (game.turn === 'w' ? 'Black' : 'White') + ' wins.';
   if (s === 'stalemate') return 'Stalemate — draw.';
+  if (s === 'draw') return 'Draw — not enough material to checkmate.';
   return (M ? 'Round ' + M.round + '/' + M.s.rounds + ' · ' : '') + (game.turn === myColor ? 'Your turn' : "Opponent's turn") + ' (you are ' + (myColor === 'w' ? 'White' : 'Black') +
          ', ' + MODES[mode].name + ')' + (s === 'check' ? ' — check!' : '') +
          (MODES[mode].v.movesPerTurn > 1 ? ' — ' + game.left + ' move' + (game.left > 1 ? 's' : '') + ' left' : '');
 }
 
 function render() {
+  $('board').classList.remove('hexb'); $('board').style.height = ''; $('board2').style.width = '';
   if (M && M.phase === 'play' && game && ended()) finishRound();
   updateAustUI();
   if (M && M.phase === 'setup') return renderSetup();
+  if (game && game.bug) return renderBug();
+  if (game && game.multi && game.layers) return renderAlice4();
   if (game && game.multi) return renderMulti();
   if (game && game.layers) return renderAlice();
   const g = game, W = g.w, H = g.h, el = $('board');
@@ -340,13 +440,15 @@ function render() {
   if (g.inCheck()) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const p = g.at(x, y); if (p && p.t === 'k' && p.c === g.turn) kingSq = x + ',' + y;
   }
+  const seen = gs.fog && !ended() ? g.sees(myColor) : null;
   for (let i = 0; i < W * H; i++) {
     const r = Math.floor(i / W), c = i % W;
     const x = myColor === 'w' ? c : W - 1 - c, y = myColor === 'w' ? H - 1 - r : r;
-    const p0 = g.at(x, y), p = (hid && p0 && p0.c !== myColor) ? null : p0, d = document.createElement('div');
+    const p0 = g.at(x, y), fogged = !!seen && !seen.has(y * W + x), p = ((hid && p0 && p0.c !== myColor) || fogged) ? null : p0, d = document.createElement('div');
     d.className = 'sq ' + ((x + y) % 2 === 1 ? 'l' : 'd');
     if (sel && sel.x === x && sel.y === y) d.classList.add('sel');
     if (last && !hid && ((last.tx === x && last.ty === y) || (last.fx === x && last.fy === y))) d.classList.add('last');
+    if (fogged) d.classList.add('fog');
     if (kingSq === x + ',' + y) d.classList.add('check');
     if (hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (p) d.classList.add('cap'); }
     if (p) {
@@ -382,6 +484,13 @@ function updateAustUI() {
   const room = !$('game').classList.contains('hidden');
   const v = room ? (isHost ? $('modeSel2').value : '') : $('modeSel').value;
   $('austSettings').classList.toggle('hidden', v !== 'austang');
+  const op = (MODES[v] && MODES[v].opts) || [];
+  $('gsBox').classList.toggle('hidden', !op.length);
+  $('gsDrop').classList.toggle('hidden', !op.includes('drop'));
+  $('gsFog').classList.toggle('hidden', !op.includes('fog'));
+  $('gsTeams').classList.toggle('hidden', !op.includes('teams'));
+  $('gsNeutral').classList.toggle('hidden', !op.includes('neutral'));
+  $('gsBoard').classList.toggle('hidden', !(op.includes('teams') && $('teamsChk').checked && !op.includes('neutral') && !(MODES[v].v.alice || MODES[v].v.board)));
   $('drawBtn').classList.toggle('hidden', !!(game && game.multi));
   const hostMulti = !!(game && game.multi && isHost);
   $('removeSel').classList.toggle('hidden', !hostMulti); $('removeBtn').classList.toggle('hidden', !hostMulti);
@@ -481,7 +590,7 @@ function finishRound() {
   const gain = M.s.base + M.s.step * (M.round - 1);
   M.pool.w += gain; M.pool.b += gain;
   if (res === 'w' || res === 'b') M.pool[res === 'w' ? 'b' : 'w'] += M.s.catchup;
-  M.phase = 'between'; M.lastRes = res;
+  M.phase = 'between'; M.lastRes = res; M.why = over ? '' : (['stalemate', 'draw'].includes(game.status()) ? game.status() : '');
   $('drawBanner').classList.add('hidden');
   addChat('', 'Round ' + M.round + ' over. Everyone gains ' + gain + ' points' + (res === 'd' ? '.' : ', loser +' + M.s.catchup + '.') +
     ' Now you have ' + M.pool[myColor] + ' to spend.', true);
@@ -499,6 +608,7 @@ $('nextBtn').onclick = () => {
   render();
 };
 $('modeSel').onchange = updateAustUI;
+$('teamsChk').onchange = () => { updateAustUI(); if (isHost && !mstarted) renderRoster(); };
 $('modeSel2').onchange = updateAustUI;
 
 /* ============ ALICE CHESS (two boards) ============ */
@@ -552,33 +662,89 @@ function renderAlice() {
 
 /* ============ 3/4-PLAYER (host is the hub) ============ */
 // Guests only talk to the host. The host validates every move, then broadcasts it to everyone.
+const maxSeats = () => MODES[mode].all.length;
+let hostTeam = 0;
+const teamsOn = () => !!MODES[mode].bug || (!!(MODES[mode].opts || []).includes('teams') && $('teamsChk').checked);
+function lobbySeats() {
+  const players = [{ team: hostTeam }].concat(conns.filter(c => c.ready));
+  if (teamsOn()) {
+    const slots = [['r', 'y'], ['b', 'g']], used = [0, 0];
+    const by = players.map(p => slots[p.team][used[p.team]++]);
+    return { seats: ['r', 'b', 'y', 'g'].filter(c => by.includes(c)), by };
+  }
+  const seats = seatsFor(mode, players.length);
+  return { seats, by: seats.slice() };
+}
+function renderRoster() {
+  const r = $('roster'); r.innerHTML = '';
+  const tOn = teamsOn(), ready = conns.filter(c => c.ready);
+  const row = (name, team, toggle, kick) => {
+    const d = document.createElement('div'); d.textContent = name + ' ';
+    if (tOn) { const t = document.createElement('button'); t.textContent = 'Team ' + 'AB'[team]; t.style.background = team ? '#2b5d9b' : '#a33'; t.onclick = toggle; d.appendChild(t); d.appendChild(document.createTextNode(' ')); }
+    if (kick) { const k = document.createElement('button'); k.textContent = 'Kick'; k.onclick = kick; d.appendChild(k); }
+    r.appendChild(d);
+  };
+  row('1. You (host)', hostTeam, () => { hostTeam ^= 1; renderRoster(); });
+  ready.forEach((c, i) => row((i + 2) + '. Player joined', c.team, () => { c.team ^= 1; renderRoster(); }, () => kickConn(c)));
+  const n = ready.length + 1;
+  let ok = n >= 2;
+  if (tOn) {
+    const cnt = [0, 0]; cnt[hostTeam]++; ready.forEach(c => cnt[c.team]++);
+    ok = cnt[0] >= 1 && cnt[1] >= 1 && cnt[0] <= 2 && cnt[1] <= 2;
+    if (MODES[mode].bug) ok = cnt[0] === 2 && cnt[1] === 2;
+    const note = document.createElement('div');
+    note.textContent = MODES[mode].bug
+      ? (ok ? 'Board A: Red (White) vs Blue (Black). Board B: Green (White) vs Yellow (Black). Team A = Red + Yellow, Team B = Blue + Green. No clocks.' : 'Bughouse needs exactly 2 players on each team (4 total). Click a team button to move a player.')
+      : (ok ? 'Team A = Red & Yellow, Team B = Blue & Green. Teams alternate turns.' : 'Each team needs 1–2 players. Click a team button to move a player.');
+    r.appendChild(note);
+  }
+  $('startBtn').disabled = !ok;
+  $('startBtn').textContent = 'Start game (' + n + ' player' + (n > 1 ? 's' : '') + ')';
+  ready.forEach((c, i) => c.send({ type: 'mwait', text: 'Connected. You are player ' + (i + 2) + ' of ' + n + ' so far — waiting for the host to start…' }));
+}
+function kickConn(c) {
+  if (c.open) c.send({ type: 'kicked' });
+  setTimeout(() => c.close(), 150);
+  conns = conns.filter(x => x !== c); renderRoster();
+}
 function hostMultiConn(c) {
-  const seats = MODES[mode].seats;
-  if (mstarted || conns.length >= seats.length - 1) { c.on('open', () => c.close()); return; }
-  c.seat = seats[conns.length + 1]; conns.push(c);
+  if (mstarted || conns.length >= maxSeats() - 1) { c.on('open', () => { c.send({ type: 'mwait', text: 'Room is full or already started.' }); setTimeout(() => c.close(), 150); }); return; }
+  conns.push(c); c.team = conns.length % 2;
   c.on('open', () => {
-    c.ready = true;
-    const n = conns.filter(x => x.ready).length;
-    $('lobbyMsg').innerHTML = lobbyBase + '<br>Players joined: ' + (n + 1) + '/' + seats.length;
-    if (n === seats.length - 1) startMulti();
+    c.ready = true; renderRoster();
+    if ($('autoChk').checked && conns.filter(x => x.ready).length === maxSeats() - 1) startMulti();
   });
   c.on('data', msg => hostRecv(c, msg));
-  c.on('close', () => addChat('', CN[c.seat] + ' disconnected.', true));
+  c.on('close', () => {
+    if (!mstarted) { conns = conns.filter(x => x !== c); renderRoster(); }
+    else addChat('', CN[c.seat] + ' disconnected.', true);
+  });
 }
 
 function startMulti() {
-  mstarted = true; mySeat = 'r'; newGame(mode);
-  conns.forEach(c => c.send({ type: 'minit', mode, seat: c.seat }));
+  const players = conns.filter(c => c.ready);
+  if (mstarted || players.length < 1) return;
+  if ($('startBtn').disabled) return;
+  conns = players; mstarted = true;
+  const { seats, by } = lobbySeats();
+  mySeat = by[0];
+  conns.forEach((c, i) => { c.seat = by[i + 1]; });
+  newGame(mode, null, { seats, gs: readGS() });
+  conns.forEach(c => c.send({ type: 'minit', mode, seat: c.seat, seats, gs }));
   $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
   $('hostCtl').classList.remove('hidden'); $('modeSel2').value = mode;
   addChat('', 'You are ' + CN[mySeat] + '. Turn order: ' + game.seats.map(c => CN[c]).join(' → ') + '.', true);
   render();
 }
+$('startBtn').onclick = startMulti;
+function teamNames(s) { return game.teams ? game.seats.filter(c => game.teams[c] === game.teams[s]).map(c => CN[c]).join(' & ') : CN[s]; }
+const sameSide = (a, b) => a === b || !!(game && game.teams && game.teams[a] === game.teams[b]);
 
 function hostRecv(c, msg) {
   if (!game || !game.multi) return;
   if (msg.type === 'tryMove') {
-    if (!ended() && game.turn === c.seat && game.move(msg.m)) { broadcast({ type: 'mmove', m: msg.m }); announceMulti(); render(); }
+    if (game.bug && msg.m) msg.m.seat = c.seat;
+    if (!ended() && (game.bug ? game.canMove(c.seat) : game.turn === c.seat) && game.move(msg.m)) { broadcast({ type: 'mmove', m: msg.m }); announceMulti(); render(); }
   } else if (msg.type === 'tryResign') {
     if (!ended() && game.alive(c.seat)) { game.resign(c.seat); broadcast({ type: 'mresign', seat: c.seat }); announceMulti(); render(); }
   } else if (msg.type === 'chat') {
@@ -588,12 +754,53 @@ function hostRecv(c, msg) {
 }
 
 function announceMulti() {
+  if (MODES[mode].v.hidden) {
+    const h = game.history(), m = h[h.length - 1];
+    if (m) {
+      const parts = [CN[m.c] + (m.drop ? ' dropped a piece.' : ' moved.')];
+      if (m.cap) parts.push('Capture on ' + sqName(m.tx, m.ty) + ' (' + (m.cap === 'p' ? 'pawn' : 'piece') + ').');
+      game.seats.filter(c => game.alive(c) && game.inCheck(c)).forEach(c => parts.push('Check on ' + CN[c] + '!'));
+      addChat('', 'Referee: ' + parts.join(' '), true);
+    }
+  }
   game.drainEvents().forEach(e => {
+    if (e.e === 'skip') { addChat('', CN[e.c] + ' has no legal move (stalemate) and is skipped.', true); return; }
     const why = e.reason === 'checkmate' ? 'was checkmated' : e.reason === 'stalemate' ? 'was stalemated' : 'resigned';
-    addChat('', CN[e.c] + ' ' + why + ' and is out. Their pieces turn gray.', true);
+    addChat('', CN[e.c] + ' ' + why + ' and is out. ' + (e.fallen ? 'Their pieces are now neutral!' : 'Their pieces turn gray.'), true);
   });
+  if (game.drawn) addChat('', 'Nobody left can move — the game is a draw.', true);
   const w = game.winner();
-  if (w) addChat('', CN[w] + ' wins!', true);
+  if (w) addChat('', teamNames(w) + (game.teams ? ' win!' : ' wins!'), true);
+  maybeRunNeutral();
+}
+
+// ---- neutral pieces: the host picks each move (captures first, otherwise random) and broadcasts it ----
+const NVAL = { q: 9, r: 5, b: 3, n: 3, i: 3, w: 3, o: 3, c: 2, p: 1, k: 0 };
+function pickNeutral(nx) {
+  const val = m => { const t = game.at(m.tx, m.ty); return t ? 1 + (NVAL[t.t] || 0) : 0; };
+  const best = Math.max(...nx.moves.map(val));
+  const pool = best > 0 ? nx.moves.filter(m => val(m) === best) : nx.moves;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+function noteNeutral(m) {
+  const h = game.history(), last = h[h.length - 1];
+  if (last && last.c === 'n' && last.cap) addChat('', 'A neutral piece captured a ' + (CN[last.capc] || 'piece') + ' ' + ({ p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', c: 'commoner', i: 'imp', w: 'wraith', o: 'ox', k: 'king' }[last.cap] || 'piece') + ' on ' + sqName(last.tx, last.ty) + '!', true);
+  game.drainEvents().forEach(e => { if (e.e === 'elim') addChat('', CN[e.c] + ' was ' + (e.reason === 'checkmate' ? 'checkmated' : 'knocked out') + '.', true); });
+}
+function maybeRunNeutral() {
+  if (!isHost || nBusy || !game || !game.neutral || !game.neutralPending) return;
+  nBusy = true; stepNeutral(game);
+}
+function stepNeutral(g) {
+  setTimeout(() => {
+    if (game !== g) { nBusy = false; return; }
+    const nx = g.neutralNext();
+    if (!nx) { nBusy = false; render(); return; }
+    const m = pickNeutral(nx);
+    if (!g.neutralApply(m)) { nBusy = false; return; }
+    broadcast({ type: 'nmove', m }); noteNeutral(m); render();
+    if (g.neutralPending) stepNeutral(g); else { nBusy = false; render(); announceMulti(); }
+  }, 750);
 }
 
 // Host-only: knock out a player who left or is stalling. Their pieces turn gray like any elimination.
@@ -607,6 +814,7 @@ $('removeBtn').onclick = () => {
 
 function playMulti(m) {
   sel = null;
+  if (game.bug) m = Object.assign({}, m, { seat: mySeat });
   if (isHost) {
     if (game.move(m)) { broadcast({ type: 'mmove', m }); announceMulti(); }
   } else send({ type: 'tryMove', m });
@@ -614,49 +822,88 @@ function playMulti(m) {
 }
 
 // Board is rotated so your own side is always at the bottom.
-function fromView(c, X, Y) {
-  return c === 'r' ? [X, Y] : c === 'b' ? [Y, 13 - X] : c === 'y' ? [13 - X, 13 - Y] : [13 - Y, X];
+function fromView(c, X, Y, N = 14) {
+  const m = N - 1;
+  return c === 'r' ? [X, Y] : c === 'b' ? [Y, m - X] : c === 'y' ? [m - X, m - Y] : [m - Y, X];
 }
 
 function clickMulti(x, y) {
   $('promo').classList.add('hidden');
-  if (ended() || game.turn !== mySeat || !game.alive(mySeat)) return;
+  if (ended() || game.neutralPending || game.turn !== mySeat || !game.alive(mySeat)) return;
+  const hid = MODES[mode].v.hidden;
   if (sel) {
-    const cand = game.moves(sel.x, sel.y).filter(m => m.tx === x && m.ty === y);
+    const cand = sel.drop
+      ? game.drops().filter(m => m.drop === sel.drop && m.tx === x && m.ty === y)
+      : game.moves(sel.x, sel.y).filter(m => m.tx === x && m.ty === y);
     if (cand.length) { cand[0].promo ? showPromo(cand) : playMulti(cand[0]); return; }
+    const own = game.at(x, y) && game.at(x, y).c === mySeat;
+    if (hid && !sel.drop && !own && !(x === sel.x && y === sel.y)) { addChat('', 'Referee: illegal move, try again.', true); return; }
   }
   const p = game.at(x, y);
   sel = (p && p.c === mySeat && !p.dead && !(sel && sel.x === x && sel.y === y)) ? { x, y } : null;
   render();
 }
 
-function renderMulti() {
-  const g = game, el = $('board'), cell = Math.min(innerWidth - 32, 480) / 14;
-  el.innerHTML = '';
-  el.style.gridTemplateColumns = 'repeat(14,minmax(0,1fr))'; el.style.aspectRatio = '1'; el.style.width = '100%';
-  el.style.fontSize = (cell * 0.75) + 'px';
-  $('board2Wrap').classList.add('hidden'); $('capA').classList.add('hidden');
-  $('handTop').innerHTML = ''; $('handBot').innerHTML = '';
-  const hist = g.history(), last = hist[hist.length - 1];
-  const hints = sel ? g.moves(sel.x, sel.y) : [];
-  const k = g.alive(g.turn) && g.inCheck(g.turn) ? g.kingPos(g.turn) : null;
-  for (let r = 0; r < 14; r++) for (let c = 0; c < 14; c++) {
-    const [x, y] = fromView(mySeat, c, 13 - r), d = document.createElement('div');
-    if (!g.valid(x, y)) { d.style.visibility = 'hidden'; el.appendChild(d); continue; }
-    const p = g.at(x, y);
-    d.className = 'sq ' + ((x + y) % 2 === 1 ? 'l' : 'd');
-    if (sel && sel.x === x && sel.y === y) d.classList.add('sel');
-    if (last && ((last.fx === x && last.fy === y) || (last.tx === x && last.ty === y))) d.classList.add('last');
-    if (k && k.x === x && k.y === y) d.classList.add('check');
-    if (hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (p) d.classList.add('cap'); }
-    if (p) {
-      const s = document.createElement('span');
-      s.textContent = GLYPH[p.t]; s.className = p.dead ? 'pc-dead' : 'pc-' + p.c;
-      d.appendChild(s);
-    }
-    d.onclick = () => clickMulti(x, y);
-    el.appendChild(d);
+function renderMultiHands() {
+  const g = game, V = MODES[mode].v, top = $('handTop'), bot = $('handBot');
+  top.innerHTML = ''; bot.innerHTML = ''; top.classList.remove('others');
+  if (!V.drops) return;
+  const txt = h => 'qrbnpciwo'.split('').filter(t => h[t] > 0).map(t => GLYPH[t] + '×' + h[t]).join(' ') || '—';
+  top.classList.add('others');
+  top.textContent = 'Hands: ' + g.seats.filter(c => c !== mySeat).map(c => CN[c] + ' ' + txt(g.hand(c))).join(' · ');
+  const hand = g.hand(mySeat);
+  'qrbnp'.split('').forEach(t => {
+    if (!(hand[t] > 0)) return;
+    const b = document.createElement('button');
+    b.textContent = GLYPH[t] + '×' + hand[t];
+    if (sel && sel.drop === t) b.className = 'on';
+    b.onclick = () => {
+      if (ended() || game.turn !== mySeat || !game.alive(mySeat)) return;
+      sel = (sel && sel.drop === t) ? null : { drop: t }; render();
+    };
+    bot.appendChild(b);
+  });
+}
+
+function clickAlice4(x, y, l) {
+  $('promo').classList.add('hidden');
+  if (ended() || game.turn !== mySeat || !game.alive(mySeat)) return;
+  if (sel && sel.l === l) {
+    const cand = game.moves(sel.x, sel.y, sel.l).filter(m => m.tx === x && m.ty === y);
+    if (cand.length) { cand[0].promo ? showPromo(cand) : playMulti(cand[0]); return; }
   }
+  const p = game.at(x, y, l);
+  sel = (p && p.c === mySeat && !p.dead && !(sel && sel.x === x && sel.y === y && sel.l === l)) ? { x, y, l } : null;
+  render();
+}
+
+function renderAlice4() {
+  const g = game, hist = g.history(), last = hist[hist.length - 1];
+  const hints = sel ? g.moves(sel.x, sel.y, sel.l) : [];
+  const k = g.alive(g.turn) && g.inCheck(g.turn) ? g.kingPos(g.turn) : null;
+  const size = Math.min(innerWidth - 32, 420);
+  $('board').classList.remove('hexb');
+  [0, 1].forEach(l => {
+    const el = l ? $('board2') : $('board'); el.innerHTML = '';
+    el.style.gridTemplateColumns = 'repeat(14,minmax(0,1fr))'; el.style.aspectRatio = '1';
+    el.style.width = size + 'px'; el.style.fontSize = (size / 14 * 0.72) + 'px';
+    for (let r = 0; r < 14; r++) for (let c = 0; c < 14; c++) {
+      const [x, y] = fromView(mySeat, c, 13 - r), d = document.createElement('div');
+      if (!g.valid(x, y)) { d.style.visibility = 'hidden'; el.appendChild(d); continue; }
+      const p = g.at(x, y, l);
+      d.className = 'sq ' + ((x + y) % 2 === 1 ? 'l' : 'd');
+      if (sel && sel.l === l && sel.x === x && sel.y === y) d.classList.add('sel');
+      if (last && ((last.fl === l && last.fx === x && last.fy === y) || (last.fl !== l && last.tx === x && last.ty === y))) d.classList.add('last');
+      if (k && k.l === l && k.x === x && k.y === y) d.classList.add('check');
+      if (sel && sel.l === l && hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (p) d.classList.add('cap'); }
+      if (p) { const sp = document.createElement('span'); sp.textContent = GLYPH[p.t]; sp.className = p.dead ? 'pc-dead' : 'pc-' + p.c; d.appendChild(sp); }
+      d.onclick = () => clickAlice4(x, y, l);
+      el.appendChild(d);
+    }
+  });
+  $('board2Wrap').classList.remove('hidden'); $('capA').classList.remove('hidden');
+  $('capA').textContent = 'Board A'; $('board2Wrap').querySelector('.lbl').textContent = 'Board B';
+  $('handTop').innerHTML = ''; $('handBot').innerHTML = '';
   $('status').textContent = statusText();
   $('drawBanner').classList.add('hidden');
   if (isHost) {
@@ -665,7 +912,160 @@ function renderMulti() {
     g.seats.filter(c => c !== mySeat && g.alive(c)).forEach(c => rs.add(new Option(CN[c], c)));
     if (prev) rs.value = prev;
   }
-  $('history').textContent = 'Order: ' + g.seats.map(c => CN[c] + (g.alive(c) ? '' : ' ✖')).join(' → ');
+  $('history').textContent = 'Order: ' + g.seats.map(c => CN[c] + (g.alive(c) ? '' : ' ✖')).join(' → ') +
+    '   |   Alice rules: a piece moves on its own board, the square must be empty on the other board, and it then jumps to the other board. Check only counts on the king\'s own board.';
+}
+
+function clickBug(x, y) {
+  $('promo').classList.add('hidden');
+  if (ended() || !game.canMove(mySeat)) return;
+  const [bd, col] = game.info[mySeat];
+  if (sel) {
+    const cand = sel.drop
+      ? game.drops(bd).filter(m => m.drop === sel.drop && m.tx === x && m.ty === y)
+      : game.moves(bd, sel.x, sel.y).filter(m => m.tx === x && m.ty === y);
+    if (cand.length) { cand[0].promo ? showPromo(cand) : playMulti(cand[0]); return; }
+  }
+  const p = game.at(bd, x, y);
+  sel = (p && p.c === col && !(sel && sel.x === x && sel.y === y)) ? { x, y } : null;
+  render();
+}
+
+function drawBugBoard(el, bd, color, interactive, cellPx) {
+  const g = game;
+  el.innerHTML = '';
+  el.style.gridTemplateColumns = 'repeat(8,minmax(0,1fr))'; el.style.aspectRatio = '1'; el.style.fontSize = (cellPx * 0.75) + 'px';
+  const hist = g.history().filter(h => h.board === bd), last = hist[hist.length - 1];
+  let kingSq = null;
+  if (g.inCheck(bd)) for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { const p = g.at(bd, x, y); if (p && p.t === 'k' && p.c === g.turnOf(bd)) kingSq = x + ',' + y; }
+  const hints = interactive && sel && !ended() && g.canMove(mySeat)
+    ? (sel.drop ? g.drops(bd).filter(m => m.drop === sel.drop) : g.moves(bd, sel.x, sel.y)) : [];
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+    const x = color === 'w' ? c : 7 - c, y = color === 'w' ? 7 - r : r;
+    const p = g.at(bd, x, y), d = document.createElement('div');
+    d.className = 'sq ' + ((x + y) % 2 === 1 ? 'l' : 'd');
+    if (interactive && sel && sel.x === x && sel.y === y) d.classList.add('sel');
+    if (last && ((last.tx === x && last.ty === y) || (last.fx === x && last.fy === y))) d.classList.add('last');
+    if (kingSq === x + ',' + y) d.classList.add('check');
+    if (hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (p) d.classList.add('cap'); }
+    if (p) { const sp = document.createElement('span'); sp.textContent = GLYPH[p.t]; if (p.c === 'w') sp.className = 'w-piece'; d.appendChild(sp); }
+    if (interactive) d.onclick = () => clickBug(x, y);
+    el.appendChild(d);
+  }
+}
+
+function renderBug() {
+  const g = game, [bd, col] = g.info[mySeat], ob = bd === 'A' ? 'B' : 'A', partner = g.partner[mySeat], pcol = g.info[partner][1];
+  const cell = Math.min(innerWidth - 32, 480) / 8, nm = c => (c === 'w' ? 'White' : 'Black');
+  $('board').classList.remove('hexb'); $('board').style.width = '100%';
+  drawBugBoard($('board'), bd, col, true, cell);
+  $('board2Wrap').classList.remove('hidden'); $('capA').classList.remove('hidden');
+  $('capA').textContent = 'Your board (Board ' + bd + ') — you play ' + nm(col) + ' vs ' + CN[g.seatOf(bd, col === 'w' ? 'b' : 'w')];
+  $('board2Wrap').querySelector('.lbl').textContent = "Partner's board (Board " + ob + ') — ' + CN[partner] + ' plays ' + nm(pcol);
+  const b2 = $('board2'); b2.style.width = '62%';
+  drawBugBoard(b2, ob, pcol, false, cell * 0.62);
+  const top = $('handTop'), bot = $('handBot'), txt = h => 'qrbnp'.split('').filter(t => h[t] > 0).map(t => GLYPH[t] + '×' + h[t]).join(' ') || '—';
+  top.innerHTML = ''; bot.innerHTML = ''; top.classList.add('others');
+  top.textContent = 'Hands — partner ' + CN[partner] + ': ' + txt(g.hand(partner)) + '  ·  opponents: ' +
+    g.seats.filter(c => g.teams[c] !== g.teams[mySeat]).map(c => CN[c] + ' ' + txt(g.hand(c))).join(', ');
+  const hand = g.hand(mySeat);
+  'qrbnp'.split('').forEach(t => {
+    if (!(hand[t] > 0)) return;
+    const b = document.createElement('button');
+    b.textContent = GLYPH[t] + '×' + hand[t];
+    if (sel && sel.drop === t) b.className = 'on';
+    b.onclick = () => { if (ended() || !g.canMove(mySeat)) return; sel = (sel && sel.drop === t) ? null : { drop: t }; render(); };
+    bot.appendChild(b);
+  });
+  $('status').textContent = bugStatus();
+  $('drawBanner').classList.add('hidden');
+  if (isHost) {
+    const rs = $('removeSel'), prev = rs.value;
+    rs.innerHTML = '';
+    g.seats.filter(c => c !== mySeat && g.alive(c)).forEach(c => rs.add(new Option(CN[c], c)));
+    if (prev) rs.value = prev;
+  }
+  $('history').textContent = 'Board A: Red (White) vs Blue (Black) · Board B: Green (White) vs Yellow (Black) · Teams: Red & Yellow vs Blue & Green. A piece you capture goes to your partner. No clocks.';
+}
+
+// Rotate a hex cell (axial q,r) in 120-degree steps so that `seat`'s corner ends up at the bottom.
+function viewRot(seat, q, r) {
+  const k = { r: 0, b: 1, y: 2 }[seat];
+  for (let i = 0; i < (3 - k) % 3; i++) [q, r] = [-q - r, q];
+  return [q, r];
+}
+
+function renderMulti() {
+  const g = game, el = $('board'), V = MODES[mode].v, hex = !!g.hex;
+  const hid = !!V.hidden && !ended() && g.alive(mySeat);
+  const seen = gs.fog && !ended() && g.alive(mySeat) ? g.sees(mySeat) : null;
+  el.innerHTML = '';
+  $('board2Wrap').classList.add('hidden'); $('capA').classList.add('hidden');
+  const hist = g.history(), last = hist[hist.length - 1];
+  const hints = sel && !hid ? (sel.drop ? g.drops().filter(m => m.drop === sel.drop) : g.moves(sel.x, sel.y)) : [];
+  const kp = g.alive(g.turn) && g.inCheck(g.turn) && (!hid || g.turn === mySeat) ? g.kingPos(g.turn) : null;
+
+  const decorate = (d, x, y) => {
+    const p = g.at(x, y), fogged = !!seen && !seen.has(y * g.w + x);
+    const shown = p && !(hid && !p.dead && !sameSide(p.c, mySeat)) && !fogged;
+    if (fogged) d.classList.add('fog');
+    if (sel && sel.x === x && sel.y === y) d.classList.add('sel');
+    if (last && !hid && last.fx !== undefined && ((last.fx === x && last.fy === y) || (last.tx === x && last.ty === y))) d.classList.add('last');
+    if (last && !hid && last.drop && last.tx === x && last.ty === y) d.classList.add('last');
+    if (kp && kp.x === x && kp.y === y) d.classList.add('check');
+    if (hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (shown) d.classList.add('cap'); }
+    if (shown) {
+      const sp = document.createElement('span');
+      sp.textContent = GLYPH[p.t]; sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (FAIRY.includes(p.t) ? ' fairy' : '');
+      if (p.c === 'n') d.classList.add('neu');
+      d.appendChild(sp);
+    }
+    d.onclick = () => clickMulti(x, y);
+  };
+
+  if (hex) {
+    const R = g.radius, s = Math.min(innerWidth - 32, 480) / (3 * R + 2), hh = Math.sqrt(3) * s;
+    const W = s * (3 * R + 2), H = hh * (2 * R + 1);
+    el.classList.add('hexb'); el.style.aspectRatio = 'auto'; el.style.width = W + 'px'; el.style.height = H + 'px';
+    el.style.fontSize = (hh * 0.72) + 'px';
+    for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+      if (!g.valid(x, y)) continue;
+      const q = x - R, r = y - R, [Q, Rr] = viewRot(mySeat, q, r), d = document.createElement('div');
+      d.className = 'sq hx' + (((q - r) % 3) + 3) % 3;
+      d.style.width = (2 * s) + 'px'; d.style.height = hh + 'px';
+      d.style.left = (W / 2 + s * 1.5 * Q - s) + 'px';
+      d.style.top = (H / 2 + hh * (Rr + Q / 2) - hh / 2) + 'px';
+      decorate(d, x, y); el.appendChild(d);
+    }
+  } else {
+    const W = g.w, H = g.h, inf = !g.wide && W === 32, cell = Math.min(innerWidth - 32, 480) / W, north = mySeat === 'b' || mySeat === 'g';
+    el.style.gridTemplateColumns = 'repeat(' + W + ',minmax(0,1fr))'; el.style.aspectRatio = W + '/' + H;
+    el.style.width = inf ? (W * 34) + 'px' : '100%';
+    el.style.fontSize = inf ? '24px' : (cell * 0.75) + 'px';
+    for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+      const [x, y] = g.wide ? (north ? [W - 1 - c, r] : [c, H - 1 - r]) : fromView(mySeat, c, H - 1 - r, W), d = document.createElement('div');
+      if (!g.valid(x, y)) { d.style.visibility = 'hidden'; el.appendChild(d); continue; }
+      d.className = 'sq ' + ((x + y) % 2 === 1 ? 'l' : 'd');
+      decorate(d, x, y); el.appendChild(d);
+    }
+    if (inf && !centered) {
+      const wr = $('boardWrap');
+      wr.scrollLeft = (wr.scrollWidth - wr.clientWidth) / 2;
+      wr.scrollTop = (wr.scrollHeight - wr.clientHeight) / 2;
+      centered = true;
+    }
+  }
+  renderMultiHands();
+  $('status').textContent = statusText();
+  $('drawBanner').classList.add('hidden');
+  if (isHost) {
+    const rs = $('removeSel'), prev = rs.value;
+    rs.innerHTML = '';
+    g.seats.filter(c => c !== mySeat && g.alive(c)).forEach(c => rs.add(new Option(CN[c], c)));
+    if (prev) rs.value = prev;
+  }
+  $('history').textContent = 'Order: ' + g.seats.map(c => CN[c] + (g.alive(c) ? '' : ' ✖')).join(' → ') +
+    (g.neutral ? '   |   Neutral (purple, dashed ring): ♔ commoner = 1 step any way, ♘ imp = knight jump, ♗ wraith = up to 2 diagonally, ♖ ox = up to 2 straight. They always capture when they can. Capture one to tame it — drop it on your own arm.' : '');
 }
 
 /* ============ CHAT ============ */
@@ -714,14 +1114,14 @@ $('newBtn').onclick = () => {
   const m = $('modeSel2').value, swap = $('swapChk').checked;
   if (MODES[mode].multi || MODES[m].multi) {
     if (m !== mode) { addChat('', "Can't switch between 2-player and multiplayer modes in one room — create a new room.", true); $('modeSel2').value = mode; return; }
-    newGame(mode); sel = null;
-    broadcast({ type: 'newgame', mode });
+    newGame(mode, null, { gs: readGS(), seats: mseats }); sel = null;
+    broadcast({ type: 'newgame', mode, seats: mseats, gs });
     addChat('', 'New game: ' + MODES[mode].name + '.', true);
     render(); return;
   }
-  newGame(m, m === 'austang' ? readSettings() : null);
+  newGame(m, m === 'austang' ? readSettings() : null, { gs: readGS() });
   if (swap) myColor = myColor === 'w' ? 'b' : 'w';
-  send({ type: 'newgame', mode: m, swap, settings: M && M.s });
+  send({ type: 'newgame', mode: m, swap, settings: M && M.s, gs });
   $('promo').classList.add('hidden'); $('drawBanner').classList.add('hidden');
   addChat('', 'New game: ' + MODES[m].name + '. You are ' + (myColor === 'w' ? 'White' : 'Black') + '.', true);
   render();
