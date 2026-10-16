@@ -5,7 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chess with Friends</title>
 <style>
-  :root { --light:#f0d9b5; --dark:#b58863; --sel:#f6f669; --move:rgba(0,0,0,.25); --bg:#262421; --fg:#eee; }
+  :root { --light:#f0d9b5; --dark:#b58863; --mid:#d3b08c; --sel:#f6f669; --move:rgba(0,0,0,.25); --bg:#262421; --fg:#eee; }
+  :root[data-theme="green"] { --light:#eeeed2; --dark:#769656; --mid:#aac07c; }
+  :root[data-theme="blue"] { --light:#dee3e6; --dark:#8ca2ad; --mid:#b4c1c8; }
+  :root[data-theme="slate"] { --light:#c9c9c9; --dark:#6f6f6f; --mid:#9c9c9c; }
+  :root[data-theme="rose"] { --light:#f3dede; --dark:#b86f7a; --mid:#d6a2a8; }
+  #prefs { display:flex; gap:14px; align-items:center; flex-wrap:wrap; font-size:.85rem; opacity:.9; margin:-4px 0 10px; }
+  #prefs select { padding:3px 6px; font-size:.85rem; }
+  .sq svg { display:block; width:1em; height:1em; }
+  .fairy svg { filter:drop-shadow(0 0 1px #000); }
+  #moveBox { margin:8px 0; font-size:.85rem; }
+  #moveBox summary { cursor:pointer; opacity:.85; }
+  #moveList { display:flex; flex-wrap:wrap; gap:3px 5px; max-height:150px; overflow:auto; margin-top:4px; }
+  #moveList .mn { opacity:.55; align-self:center; margin-left:4px; }
+  #moveList .mv { cursor:pointer; padding:1px 5px; border-radius:4px; background:#34322e; border-left:3px solid #666; }
+  #moveList .mv:hover { background:#46433e; } #moveList .mv.cur { background:#779556; }
+  .m-r { border-left-color:#d9534f !important; } .m-b { border-left-color:#4a90d9 !important; } .m-y { border-left-color:#e6c229 !important; }
+  .m-g { border-left-color:#5cb85c !important; } .m-n { border-left-color:#b57bff !important; } .p-w { border-left-color:#f2f2f2 !important; } .p-b { border-left-color:#222 !important; }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,sans-serif;
          display:flex; flex-direction:column; align-items:center; padding:16px; }
@@ -17,6 +33,11 @@
   input, select { padding:10px; border-radius:6px; border:1px solid #555; background:#1b1a18; color:var(--fg); font-size:1rem; }
   #board, #board2 { display:grid; width:100%; border:2px solid #111; grid-auto-rows:minmax(0,1fr); box-sizing:border-box; }
   #boardWrap { overflow:auto; max-height:80vh; max-width:100%; }
+  #boardWrap.zoomable { overflow:hidden; max-height:none; position:relative; touch-action:none; cursor:grab; border:1px solid #333; background:#1b1b1b; }
+  #boardWrap.zoomable #board { border:0; }
+  #zoomCtl { position:absolute; top:6px; right:6px; z-index:5; display:flex; gap:4px; }
+  #zoomCtl button { margin:0; padding:2px 9px; font-size:.9rem; opacity:.9; }
+  #gsBox summary { cursor:pointer; }
   .lbl { font-size:.8rem; opacity:.7; margin:6px 0 2px; }
   .sq { min-width:0; min-height:0; overflow:hidden; display:flex; align-items:center; justify-content:center; position:relative; cursor:pointer; user-select:none; line-height:1; }
   .sq.l { background:var(--light); color:#000; } .sq.d { background:var(--dark); color:#000; }
@@ -48,10 +69,16 @@
   #austSettings input { width:64px; padding:6px; }
   #board.hexb { display:block; position:relative; border:0; aspect-ratio:auto; }
   #board.hexb .sq { position:absolute; clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); }
-  .hx0 { background:var(--light); } .hx1 { background:var(--dark); } .hx2 { background:#d1b08a; }
+  .hx0 { background:var(--light); } .hx1 { background:var(--dark); } .hx2 { background:var(--mid); }
   .sq.hx0.sel,.sq.hx1.sel,.sq.hx2.sel { background:var(--sel); }
   .sq.fog { filter:brightness(.42) saturate(.5); }
   #gsBox label, #gsBox div { display:block; margin:4px 0; }
+  #draftBox { border:1px solid #8a8a8a; border-radius:8px; padding:8px 10px; margin:8px 0; }
+  #draftBox button.trait { display:block; width:100%; text-align:left; margin:6px 0; }
+  #draftBox button.trait span { font-weight:normal; opacity:.85; font-size:.85rem; }
+  body.spec #hostCtl, body.spec #resignBtn, body.spec #drawBtn, body.spec #rematchBtn, body.spec #readyBtn, body.spec #nextBtn, body.spec #drawBanner { display:none !important; }
+  #replayBar { border:1px solid #888; border-radius:8px; padding:6px 8px; margin:8px 0; }
+  #replayBar button { margin:0 2px; padding:2px 10px; }
   #roster { margin:8px 0; } #roster div { margin:4px 0; }
   #roster button { padding:2px 10px; font-size:.85rem; background:#8b3a3a; }
   #gsBox { max-width:480px; margin-top:12px; font-size:.9rem; }
@@ -61,6 +88,10 @@
 </head>
 <body>
 <h1>♞ Chess with Friends</h1>
+<div id="prefs">
+  <label>Board colours <select id="themeSel"><option value="classic">Classic</option><option value="green">Green</option><option value="blue">Blue</option><option value="slate">Slate</option><option value="rose">Rose</option></select></label>
+  <label><input type="checkbox" id="soundChk" checked> Soft turn sound</label>
+</div>
 
 <div id="lobby">
   <select id="modeSel"></select>
@@ -76,25 +107,32 @@
     <button id="startBtn">Start game</button>
   </div>
 </div>
-<div id="gsBox" class="hidden">
-  <b>Game options</b> <span style="opacity:.7">(they apply when the next game starts — use New game after changing them)</span>
+<details id="gsBox" class="hidden" open>
+  <summary><b>Game options</b> <span id="gsNote" style="opacity:.7"></span></summary>
   <div id="gsDrop">Crazyhouse drops:
     <select id="dropSel"><option value="any">Anywhere empty (standard)</option><option value="own">Own side only (4-player: own arm + centre)</option></select>
   </div>
   <div id="gsNeutral">Neutral pieces:
-    <select id="nsetSel"><option value="commoner">Commoners (1 step any direction)</option><option value="mixed">Mixed (imps = knights, wraiths = 2 diagonal)</option></select>
+    <select id="nsetSel"><option value="commoner">Commoners (1 step any direction)</option><option value="mixed">Mixed (imps = knights, wraiths = 2 diagonal)</option><option value="oxen">Oxen &amp; commoners (oxen charge up to 2 squares in straight lines)</option></select>
     <label><input type="checkbox" id="fallenChk"> Fallen armies: a knocked-out player's pieces turn neutral</label>
   </div>
+  <div id="gsTraits"><label><input type="checkbox" id="traitsChk"> Class traits: each player secretly picks 1 of a few random traits</label>
+    <span id="offerWrap">Offers per player: <select id="offerSel"><option>3</option><option selected>4</option></select></span>
+  </div>
+  <label id="gsC960"><input type="checkbox" id="c960Chk"> Chess960: shuffled back rank, the same random layout for everyone (castle by moving your king onto your own rook)</label>
   <label id="gsFog"><input type="checkbox" id="fogChk"> Fog of war (you only see squares your pieces can move to or attack)</label>
   <label id="gsTeams"><input type="checkbox" id="teamsChk"> 2v2 teams (partners can't capture or check each other; a team wins when both opponents are out)</label>
   <div id="gsBoard">Team board:
     <select id="boardSel"><option value="cross">Cross board (partners sit opposite)</option><option value="wide">Wide board (teams face each other)</option></select>
     Height: <select id="heightSel"><option>8</option><option selected>10</option><option>12</option><option>16</option></select>
   </div>
-</div>
+</details>
 
 <div id="game" class="hidden">
+  <div id="draftBox" class="hidden"></div>
+  <div id="replayBar" class="hidden"><b>Replay</b> <button id="rpStart" title="Start">⏮</button><button id="rpBack" title="Back one move">◀</button><button id="rpPlay" title="Play / pause">▶▶</button><button id="rpFwd" title="Forward one move">▶</button><button id="rpEnd" title="Latest">⏭</button> <input type="range" id="rpSlider" min="0" max="0" value="0" style="width:38%;vertical-align:middle"> <span id="rpLabel"></span> <button id="rpExit">Back to game</button></div>
   <div id="status"></div>
+  <details id="moveBox" class="hidden" open><summary>Moves <span id="moveCount"></span></summary><div id="moveList"></div></details>
   <div id="drawBanner" class="hidden">
     Your opponent offers a draw.
     <button id="acceptDraw">Accept</button><button id="declineDraw">Decline</button>
@@ -102,17 +140,19 @@
   <div id="promo" class="hidden"></div>
   <div id="handTop" class="hand"></div>
   <div id="capA" class="lbl hidden">Board A</div>
-  <div id="boardWrap"><div id="board"></div></div>
+  <div id="boardWrap"><div id="zoomCtl" class="hidden"><button id="zIn" title="Zoom in">+</button><button id="zOut" title="Zoom out">−</button><button id="zFit" title="Show the whole board">Fit all</button><button id="zMid" title="Back to the starting area">Centre</button></div><div id="board"></div></div>
   <div id="board2Wrap" class="hidden"><div class="lbl">Board B</div><div id="board2"></div></div>
   <div id="handBot" class="hand"></div>
   <div id="history"></div>
   <div style="margin-top:10px">
     <span id="hostCtl" class="hidden">
       <select id="modeSel2"></select>
-      <label><input type="checkbox" id="swapChk" checked> swap colors</label>
+      <label id="swapLbl"><input type="checkbox" id="swapChk" checked> swap colors</label>
       <button id="newBtn">New game</button>
+      <button id="specLinkBtn">Copy spectator link</button>
       <select id="removeSel" class="hidden"></select><button id="removeBtn" class="hidden">Remove player</button>
     </span>
+    <button id="replayBtn" class="hidden">Replay</button>
     <button id="rematchBtn" class="hidden">Ask for rematch</button>
     <button id="readyBtn" class="hidden">Ready</button>
     <button id="nextBtn" class="hidden">Continue to next round</button>
@@ -142,24 +182,24 @@
 /* ============ MODES ============ */
 // Add a mode = add a variant object here (see engine.js for the format).
 const MODES = {
-  standard:   { name: 'Standard Chess', opts: ['fog'], v: Engine.STANDARD },
-  crazyhouse: { name: 'Crazyhouse',     opts: ['drop', 'fog'], v: Engine.CRAZYHOUSE },
-  marseillais: { name: 'Marseillais (2 moves per turn)', opts: ['fog'], v: Engine.MARSEILLAIS },
+  standard:   { name: 'Standard Chess', opts: ['fog', 'traits', 'c960'], v: Engine.STANDARD },
+  crazyhouse: { name: 'Crazyhouse',     opts: ['drop', 'fog', 'traits', 'c960'], v: Engine.CRAZYHOUSE },
+  marseillais: { name: 'Marseillais (2 moves per turn)', opts: ['fog', 'traits', 'c960'], v: Engine.MARSEILLAIS },
   // hidden:true is read by the UI only: you see just your own pieces, the referee announces things
-  kriegspiel: { name: 'Kriegspiel (hidden pieces)', v: Object.assign({}, Engine.STANDARD, { hidden: true }) },
+  kriegspiel: { opts: ['traits', 'c960'], name: 'Kriegspiel (hidden pieces)', v: Object.assign({}, Engine.STANDARD, { hidden: true }) },
   // The real game is built each round from both players' setups; v here only supplies flags.
   austang: { name: 'Austang (build your army)', match: true, opts: ['fog'], v: Object.assign({}, Engine.STANDARD, { castling: true }) },
   alice:    { name: 'Alice Chess (two boards)', v: Engine.ALICE },
   infinite: { name: 'Infinite Chess (32×32 board)', opts: ['fog'], v: Engine.INFINITE },
   // multi:true modes are hosted as a hub; `all` = every seat on that board, 2..n players may start.
-  fourplayer:  { name: '4-Player Chess (cross board)', multi: true, opts: ['fog', 'teams'], all: ['r', 'b', 'y', 'g'], v: Engine.FOUR },
-  fourmars:    { name: '4-Player Marseillais (2 moves per turn)', multi: true, opts: ['fog', 'teams'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { movesPerTurn: 2, firstSingle: true }) },
-  fourcrazy:   { name: '4-Player Crazyhouse', multi: true, opts: ['drop', 'fog', 'teams'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { drops: true }) },
-  fourkrieg:   { name: '4-Player Kriegspiel (hidden pieces)', multi: true, opts: ['teams'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { hidden: true }) },
-  fourneutral: { name: '4-Player Neutral Pieces (centre monsters)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['fog', 'teams', 'neutral'], v: Object.assign({}, Engine.FOUR, { neutral: true, drops: true }) },
+  fourplayer:  { name: '4-Player Chess (cross board)', multi: true, opts: ['fog', 'teams', 'traits', 'c960'], all: ['r', 'b', 'y', 'g'], v: Engine.FOUR },
+  fourmars:    { name: '4-Player Marseillais (2 moves per turn)', multi: true, opts: ['fog', 'teams', 'traits', 'c960'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { movesPerTurn: 2, firstSingle: true }) },
+  fourcrazy:   { name: '4-Player Crazyhouse', multi: true, opts: ['drop', 'fog', 'teams', 'traits', 'c960'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { drops: true }) },
+  fourkrieg:   { name: '4-Player Kriegspiel (hidden pieces)', multi: true, opts: ['teams', 'traits', 'c960'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { hidden: true }) },
+  fourneutral: { name: '4-Player Neutral Pieces (centre monsters)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['fog', 'teams', 'neutral', 'traits', 'c960'], v: Object.assign({}, Engine.FOUR, { neutral: true, drops: true }) },
   bughouse:    { name: 'Bughouse (2v2, two boards, partner passes pieces)', multi: true, bug: true, all: ['r', 'b', 'y', 'g'], opts: [], v: Engine.BUGHOUSE },
   fouralice:   { name: '4-Player Alice Chess (two cross boards)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['teams'], v: Object.assign({}, Engine.FOUR, { alice: true, castling: false }) },
-  fourinfinite: { name: '4-Player Infinite Chess (open 32×32 board)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['fog', 'teams'], v: Object.assign({}, Engine.FOUR, { board: 'infinite' }) },
+  fourinfinite: { name: '4-Player Infinite Chess (open 32×32 board)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['fog', 'teams', 'traits', 'c960'], v: Object.assign({}, Engine.FOUR, { board: 'infinite' }) },
   threeplayer: { name: '3-Player Chess (hexagonal board)', multi: true, opts: ['fog'], all: ['r', 'b', 'y'], v: Engine.THREE }
 };
 const CN = { r: 'Red', b: 'Blue', y: 'Yellow', g: 'Green' };
@@ -169,6 +209,15 @@ const PREFIX = 'chessfriends-';
 // c/i/w/o are the neutral-mode fairy pieces; they use the hollow glyphs so they never look like real pieces.
 const GLYPH = { p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', c:'♔', i:'♘', w:'♗', o:'♖' };
 const FAIRY = 'ciwo';
+const SVG = inner => '<svg viewBox="0 0 24 24" aria-hidden="true">' + inner + '</svg>';
+const FAIRY_SVG = {   // custom icons for the neutral / fairy pieces (they take the owner's colour)
+  c: SVG('<path d="M12 2.5l8 3v6c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10v-6z" fill="currentColor"/><path d="M12 7v9M8 11h8" stroke="#000a" stroke-width="1.6" fill="none"/>'),
+  i: SVG('<path d="M4 3l4.5 4.5h7L20 3l-1 8a7.5 7.5 0 1 1-14 0z" fill="currentColor"/><circle cx="9" cy="13" r="1.4" fill="#000a"/><circle cx="15" cy="13" r="1.4" fill="#000a"/><path d="M9 17q3 2 6 0" stroke="#000a" stroke-width="1.3" fill="none"/>'),
+  w: SVG('<path d="M12 2a7.5 7.5 0 0 0-7.5 7.5V22l3.2-2.4L12 22l4.3-2.4 3.2 2.4V9.5A7.5 7.5 0 0 0 12 2z" fill="currentColor"/><circle cx="9.3" cy="10" r="1.5" fill="#000a"/><circle cx="14.7" cy="10" r="1.5" fill="#000a"/>'),
+  o: SVG('<path d="M2 4c0 5.5 3.2 8 5.5 8h9c2.3 0 5.5-2.5 5.5-8-2.2 2.2-4.2 2.4-5.3 1H7.3C6.2 6.4 4.2 6.2 2 4z" fill="currentColor"/><rect x="7" y="11" width="10" height="10" rx="4" fill="currentColor"/><circle cx="10.2" cy="17" r="1" fill="#000a"/><circle cx="13.8" cy="17" r="1" fill="#000a"/>')
+};
+const glyphHTML = t => FAIRY_SVG[t] || GLYPH[t];
+const setGlyph = (el, t) => { if (FAIRY_SVG[t]) el.innerHTML = FAIRY_SVG[t]; else el.textContent = GLYPH[t]; };
 const $ = id => document.getElementById(id);
 let mode = 'standard', game = null, peer, conn, myColor = 'w', isHost = false, sel = null, over = null;
 let overRes = null, M = null, pal = 'p', setupMsg = '', centered = false;   // M = Austang match state
@@ -176,9 +225,16 @@ const COST = { k: 0, p: 1, n: 3, b: 3, r: 5, q: 9 };
 const LET = 'abcdefghijklmnopqrstuvwxyz';
 const sqName = (x, y) => (x < 26 ? LET[x] : LET[Math.floor(x / 26) - 1] + LET[x % 26]) + (y + 1);
 let mySeat = 'r', conns = [], mstarted = false, lobbyBase = '', mseats = null, gs = { dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false };
-let nBusy = false;   // multiplayer (3/4 players): host is the hub
+let nBusy = false, gtraits = null, draft = null, revealedAll = false;
+let myToken = null, roomCode = null, spectateMode = false, spectating = false, specs = [], everJoined = false, peerToken = null;
+let resignLog = [], replay = null, retryTimer = null, retries = 0;   // multiplayer (3/4 players): host is the hub
 const ended = () => over || (game && (game.multi ? (!!game.winner() || game.drawn) : ['checkmate', 'stalemate', 'draw'].includes(game.status())));
-const broadcast = msg => conns.forEach(c => c.open && c.send(msg));
+const SPEC_OK = new Set(['move', 'resign', 'drawAccept', 'newgame', 'traits', 'mmove', 'nmove', 'mresign', 'mchat', 'schat']);
+function sendSpecs(msg) {
+  if (!isHost || !specs.length || !SPEC_OK.has(msg.type)) return;
+  specs.forEach(c => c.open && c.send(msg));
+}
+const broadcast = msg => { conns.forEach(c => c.open && c.send(msg)); sendSpecs(msg); };
 const inPlay = () => game && (!M || M.phase === 'play');
 
 Object.keys(MODES).forEach(k => {
@@ -202,48 +258,84 @@ function announce() {
 
 /* ============ NETWORKING ============ */
 // Every message is {type, ...}. Add new features by adding new types here.
-function send(msg) { if (conn && conn.open) conn.send(msg); }
+function send(msg) {
+  if (conn && conn.open) conn.send(msg);
+  if (msg.type === 'chat') sendSpecs({ type: 'schat', who: myColor === 'w' ? 'White' : 'Black', text: msg.text });
+  else sendSpecs(msg);
+}
 
 function readGS() {
   return { dropZone: $('dropSel').value, fog: $('fogChk').checked, teams: $('teamsChk').checked, board: $('boardSel').value, height: +$('heightSel').value,
-    neutralSet: $('nsetSel').value, fallen: $('fallenChk').checked };
+    neutralSet: $('nsetSel').value, fallen: $('fallenChk').checked, traits: $('traitsChk').checked, offers: +$('offerSel').value,
+    c960: $('c960Chk').checked, back960: $('c960Chk').checked ? Engine.randomBack960() : null };
 }
 const seatsFor = (m, n) => { const all = MODES[m].all; return n >= all.length ? all.slice() : n === 2 ? (all.length === 4 ? ['r', 'y'] : ['r', 'b']) : all.slice(0, n); };
+
+const GS_DEFAULTS = { dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false, traits: false, offers: 4, c960: false, back960: null };
+// Builds an engine for a mode from plain settings, without touching any globals (also used to rebuild games for replay).
+function makeEngine(m, seatsIn, gsIn, traits) {
+  const g2 = Object.assign({}, GS_DEFAULTS, gsIn || {}), op = MODES[m].opts || [];
+  g2.traits = !!g2.traits && op.includes('traits');
+  g2.fog = !!g2.fog && op.includes('fog');
+  g2.c960 = !!g2.c960 && op.includes('c960');
+  if (g2.c960 && !g2.back960) g2.back960 = Engine.randomBack960();
+  if (!g2.c960) g2.back960 = null;
+  if (MODES[m].multi) {
+    const all = MODES[m].all;
+    let seats = (seatsIn || all).filter(c => all.includes(c));
+    if (seats.length < 2) seats = all.slice();
+    let teams = g2.teams && op.includes('teams') ? { r: 0, y: 0, b: 1, g: 1 } : null;
+    if (teams && new Set(seats.map(c => teams[c])).size < 2) teams = null;
+    g2.teams = !!teams;
+    const dead = all.filter(c => !seats.includes(c)), neu = !!MODES[m].v.neutral;
+    const game = Engine.create(Object.assign({}, MODES[m].v, { seats, dead, dropZone: neu ? 'arm' : g2.dropZone, teams,
+      board: MODES[m].v.board || (teams && g2.board === 'wide' && !neu && !MODES[m].v.alice ? 'wide' : undefined), height: +g2.height || 10,
+      neutralSet: g2.neutralSet, fallen: !!g2.fallen, traits, back960: g2.back960 || undefined }));
+    return { game, gs: g2, seats };
+  }
+  return { game: Engine.create(Object.assign({}, MODES[m].v, { dropZone: g2.dropZone, traits, back960: g2.back960 || undefined })), gs: g2, seats: null };
+}
 
 function newGame(m, s, o) {
   o = o || {};
   mode = m; sel = null; over = null; overRes = null; setupMsg = ''; pal = 'p'; centered = false;
-  gs = Object.assign({ dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false }, o.gs || gs);
+  gs = Object.assign({}, GS_DEFAULTS, o.gs || gs);
+  gtraits = o.traits || null; draft = null; revealedAll = false; resignLog = [];
+  gs.traits = !!gs.traits && ((MODES[m].opts || []).includes('traits'));
   if (MODES[m].match) {
     s = s || { start: 20, base: 8, step: 2, catchup: 3, cap: 24, rounds: 5 };
     M = { s, round: 1, scores: { w: 0, b: 0 }, pool: { w: s.start, b: s.start },
           setups: { w: { '4,0': 'k' }, b: { '4,7': 'k' } }, phase: 'setup', sentRound: 0, opp: null };
     game = null;
-  } else if (MODES[m].multi) {
-    const all = MODES[m].all;
-    mseats = (o.seats || mseats || all).filter(c => all.includes(c));
-    if (mseats.length < 2) mseats = all.slice();
-    const op = MODES[m].opts || [];
-    gs.fog = !!gs.fog && op.includes('fog');
-    let teams = gs.teams && op.includes('teams') ? { r: 0, y: 0, b: 1, g: 1 } : null;
-    if (teams && new Set(mseats.map(c => teams[c])).size < 2) teams = null;
-    gs.teams = !!teams;
-    const dead = all.filter(c => !mseats.includes(c));
-    const neu = !!MODES[m].v.neutral;
-    nBusy = false;
-    M = null; game = Engine.create(Object.assign({}, MODES[m].v, { seats: mseats, dead, dropZone: neu ? 'arm' : gs.dropZone, teams,
-      board: MODES[m].v.board || (teams && gs.board === 'wide' && !neu && !MODES[m].v.alice ? 'wide' : undefined), height: +gs.height || 10,
-      neutralSet: gs.neutralSet, fallen: !!gs.fallen }));
   } else {
-    gs.fog = !!gs.fog && (MODES[m].opts || []).includes('fog');
-    M = null; game = Engine.create(Object.assign({}, MODES[m].v, { dropZone: gs.dropZone }));
+    const r = makeEngine(m, o.seats || mseats, gs, gtraits);
+    M = null; nBusy = false; game = r.game; gs = r.gs;
+    if (MODES[m].multi) mseats = r.seats;
+    if (gs.c960 && gs.back960) addChat('', 'Chess960 layout: ' + gs.back960.toUpperCase().split('').join(' ') + ' — castle by moving your king onto your own rook.', true);
   }
 }
 
 function handleMessage(msg) {
+  if (replay && !['chat', 'mchat', 'schat'].includes(msg.type)) { replay.queue.push({ msg }); return; }
+  if (isHost && (msg.type === 'move' || msg.type === 'resign' || msg.type === 'drawAccept')) sendSpecs(msg);
   switch (msg.type) {
+    case 'resume':
+      stopRetry(); loadRecord(msg.rec);
+      if (msg.seat) mySeat = msg.seat;
+      if (msg.color) myColor = msg.color;
+      draft = msg.draft && msg.draft.offers ? { mine: msg.draft.offers, picked: msg.draft.picked } : null;
+      $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
+      if (game && game.multi) $('rematchBtn').classList.add('hidden'); else $('rematchBtn').classList.remove('hidden');
+      addChat('', 'Reconnected — you are back in the game.', true); render(); break;
+    case 'spec':
+      stopRetry(); spectating = true; loadRecord(msg.rec);
+      myColor = 'w'; if (game && game.multi) mySeat = game.seats[0];
+      $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
+      addChat('', 'You are watching this game as a spectator.', true); render(); break;
+    case 'schat': addChat(String(msg.who), String(msg.text).slice(0, 300)); break;
     case 'init':
       newGame(msg.mode, msg.settings, { gs: msg.gs }); if (game) msg.moves.forEach(m => game.move(m));
+      if (gs.traits) draft = { mine: null, picked: null };
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       $('rematchBtn').classList.remove('hidden'); render(); break;
     case 'move': if (game.move(msg.m)) { sel = null; announce(); render(); } break;
@@ -252,21 +344,28 @@ function handleMessage(msg) {
       overRes = msg.color === 'w' ? 'b' : 'w'; render(); break;
     case 'newgame':
       newGame(msg.mode || mode, msg.settings, { gs: msg.gs, seats: msg.seats });
-      if (msg.swap) myColor = myColor === 'w' ? 'b' : 'w';
+      if (msg.swap && !spectating) myColor = myColor === 'w' ? 'b' : 'w';
+      if (gs.traits && !spectating) draft = { mine: null, picked: null };
       $('modeSel2').value = mode; $('promo').classList.add('hidden'); $('drawBanner').classList.add('hidden');
       addChat('', 'New game: ' + MODES[mode].name + (MODES[mode].multi ? '.' : '. You are ' + (myColor === 'w' ? 'White' : 'Black') + '.'), true);
       render(); break;
     case 'minit':
       newGame(msg.mode, null, { seats: msg.seats, gs: msg.gs }); mySeat = msg.seat;
+      if (gs.traits) draft = { mine: null, picked: null };
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       if (game.teams) addChat('', 'Teams: ' + teamNames('r') + ' vs ' + teamNames('b') + '.', true);
   addChat('', game.bug ? 'You are ' + CN[mySeat] + ' (Board ' + game.info[mySeat][0] + ', ' + (game.info[mySeat][1] === 'w' ? 'White' : 'Black') + '). Your partner is ' + CN[game.partner[mySeat]] + '. Both boards play at the same time.' : 'You are ' + CN[mySeat] + '. Turn order: ' + game.seats.map(c => CN[c]).join(' → ') + '.', true);
       render(); break;
     case 'nmove': if (game && game.neutralApply && game.neutralApply(msg.m)) { noteNeutral(msg.m); render(); if (!game.neutralPending) announceMulti(); } break;
+    case 'draft': draft = { mine: msg.offers, picked: null }; render(); break;
+    case 'pick': if (isHost && !game.multi) recvPick(myColor === 'w' ? 'b' : 'w', msg.id); break;
+    case 'traits':
+      newGame(msg.mode || mode, null, { seats: msg.seats, gs: msg.gs, traits: msg.traits }); draft = null;
+      announceTraitStart(); render(); break;
     case 'mwait': $('lobbyMsg').textContent = msg.text; break;
     case 'kicked': $('lobbyMsg').textContent = 'The host removed you from the room.'; $('lobby').classList.remove('hidden'); $('game').classList.add('hidden'); break;
     case 'mmove': if (game && game.move(msg.m)) { sel = null; announceMulti(); render(); } break;
-    case 'mresign': if (game) { game.resign(msg.seat); announceMulti(); render(); } break;
+    case 'mresign': if (game) { logResign(msg.seat); game.resign(msg.seat); announceMulti(); render(); } break;
     case 'mchat': addChat(CN[msg.from], String(msg.text).slice(0, 300)); break;
     case 'rematchReq': addChat('', 'Opponent wants a rematch.', true); break;
     case 'drawOffer':
@@ -277,22 +376,33 @@ function handleMessage(msg) {
       if (M) { M.opp = { round: msg.round, setup: msg.setup }; addChat('', 'Opponent is ready.', true); tryStart(); render(); }
       break;
     case 'drawDecline': addChat('', 'Opponent declined the draw.', true); break;
-    case 'chat': addChat('Opponent', String(msg.text).slice(0, 300)); break;
+    case 'chat':
+      addChat('Opponent', String(msg.text).slice(0, 300));
+      if (isHost) sendSpecs({ type: 'schat', who: myColor === 'w' ? 'Black' : 'White', text: String(msg.text).slice(0, 300) });
+      break;
   }
 }
 
 function setupConn(c) {
   conn = c;
-  conn.on('open', () => {
+  onOpen(c, () => {
     if (isHost) {
+      everJoined = true; peerToken = c.token || null;
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       $('hostCtl').classList.remove('hidden'); $('modeSel2').value = mode;
       send({ type: 'init', mode, moves: game ? game.history() : [], settings: M && M.s, gs });
+      if (gs.traits && !gtraits) beginDraft();
       render();
+    } else {
+      c.send({ type: 'hello', token: myToken, spectate: spectateMode });
     }
   });
-  conn.on('data', handleMessage);
-  conn.on('close', () => { $('status').textContent = 'Opponent disconnected.'; });
+  c.on('data', handleMessage);
+  c.on('close', () => {
+    if (c.replaced) return;
+    $('status').textContent = 'Opponent disconnected.';
+    if (!isHost && !$('game').classList.contains('hidden')) startRetry();
+  });
 }
 
 function host() {
@@ -301,24 +411,26 @@ function host() {
   peer = new Peer(PREFIX + code);
   peer.on('open', () => {
     const url = location.origin + location.pathname + '?join=' + code;
-    lobbyBase = 'Room code: <b>' + code + '</b><br>Send this link to your friend' + (MODES[mode].multi ? 's' : '') + ':<br><span id="link">' + url + '</span>';
+    roomCode = code;
+    lobbyBase = 'Room code: <b>' + code + '</b><br>Send this link to your friend' + (MODES[mode].multi ? 's' : '') + ':<br><span id="link">' + url + '</span>' +
+      '<br>Spectators can watch with: <span>' + location.origin + location.pathname + '?watch=' + code + '</span>';
     $('lobbyMsg').innerHTML = lobbyBase + (MODES[mode].multi ? '' : '<br>Waiting for them to join…');
     if (MODES[mode].multi) { $('lobbyCtl').classList.remove('hidden'); renderRoster(); }
   });
-  peer.on('connection', c => (MODES[mode].multi ? hostMultiConn(c) : setupConn(c)));
+  peer.on('connection', acceptConn);
   peer.on('error', e => $('lobbyMsg').textContent = 'Error: ' + e.type);
 }
 
-function join(code) {
-  isHost = false; myColor = 'b';
+function join(code, asSpec) {
+  isHost = false; myColor = 'b'; roomCode = code.trim().toLowerCase(); spectateMode = !!asSpec; myToken = getToken(roomCode);
   peer = new Peer();
-  peer.on('open', () => setupConn(peer.connect(PREFIX + code.trim().toLowerCase())));
-  peer.on('error', e => $('lobbyMsg').textContent = 'Could not connect: ' + e.type);
+  peer.on('open', () => setupConn(peer.connect(PREFIX + roomCode)));
+  peer.on('error', e => { if (!retryTimer) $('lobbyMsg').textContent = 'Could not connect: ' + e.type; });
   $('lobbyMsg').textContent = 'Connecting…';
 }
 
 /* ============ GAME UI ============ */
-function play(m) { if (game.multi) return playMulti(m); game.move(m); send({ type: 'move', m }); sel = null; announce(); render(); }
+function play(m) { if (replay || spectating) return; if (game.multi) return playMulti(m); game.move(m); send({ type: 'move', m }); sel = null; announce(); render(); }
 
 function showPromo(cands) {
   const p = $('promo'); p.innerHTML = '';
@@ -332,6 +444,7 @@ function showPromo(cands) {
 }
 
 function clickSq(x, y) {
+  if (draft || replay || spectating) return;
   $('promo').classList.add('hidden');
   if (ended() || game.turn !== myColor) return;
   if (sel) {
@@ -416,7 +529,411 @@ function statusText() {
          (MODES[mode].v.movesPerTurn > 1 ? ' — ' + game.left + ' move' + (game.left > 1 ? 's' : '') + ' left' : '');
 }
 
+// ---- zoomable board (used by both Infinite boards) ----
+const view = { k: 1, x: 0, y: 0 };
+let dragMoved = false, focusPx = 400;
+function viewMetrics() { const wr = $('boardWrap'), el = $('board'); return { vw: wr.clientWidth, vh: wr.clientHeight, bw: el.offsetWidth, bh: el.offsetHeight }; }
+function applyView() {
+  const { vw, vh, bw, bh } = viewMetrics(), w = bw * view.k, h = bh * view.k;
+  view.x = Math.min(vw * 0.75, Math.max(vw * 0.25 - w, view.x));
+  view.y = Math.min(vh * 0.75, Math.max(vh * 0.25 - h, view.y));
+  const el = $('board'); el.style.transformOrigin = '0 0'; el.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.k + ')';
+}
+function zoomAt(px, py, factor) {
+  const { vw, vh, bw, bh } = viewMetrics(), minK = Math.min(vw / bw, vh / bh);
+  const nk = Math.max(minK * 0.9, Math.min(3, view.k * factor)), f = nk / view.k;
+  view.x = px - (px - view.x) * f; view.y = py - (py - view.y) * f; view.k = nk; applyView();
+}
+function fitView(px) {
+  const { vw, vh, bw, bh } = viewMetrics();
+  view.k = px ? Math.min(vw, vh) / px : Math.min(vw / bw, vh / bh);
+  view.x = (vw - bw * view.k) / 2; view.y = (vh - bh * view.k) / 2; applyView();
+}
+function setupBigBoard(cellPx, focusCells) {
+  const wr = $('boardWrap');
+  wr.classList.add('zoomable'); $('zoomCtl').classList.remove('hidden');
+  wr.style.height = Math.round(Math.min(innerHeight * 0.68, 620)) + 'px';
+  focusPx = focusCells * cellPx;
+  initZoomEvents();
+  if (!centered) { fitView(focusPx); centered = true; } else applyView();
+}
+function initZoomEvents() {
+  const wr = $('boardWrap');
+  if (wr._zoomReady) return;
+  wr._zoomReady = true;
+  const ptrs = new Map(); let startDist = 1, startK = 1, downX = 0, downY = 0;
+  wr.addEventListener('pointerdown', e => {
+    if (!wr.classList.contains('zoomable') || e.target.closest('#zoomCtl')) return;
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); dragMoved = false; downX = e.clientX; downY = e.clientY;
+    if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; startDist = Math.hypot(a.x - b.x, a.y - b.y) || 1; startK = view.k; }
+  });
+  window.addEventListener('pointermove', e => {
+    const p = ptrs.get(e.pointerId); if (!p) return;
+    if (ptrs.size === 1) {
+      if (Math.abs(e.clientX - downX) + Math.abs(e.clientY - downY) > 8) dragMoved = true;
+      if (dragMoved) { view.x += e.clientX - p.x; view.y += e.clientY - p.y; applyView(); }
+      p.x = e.clientX; p.y = e.clientY;
+    } else if (ptrs.size === 2) {
+      p.x = e.clientX; p.y = e.clientY;
+      const [a, b] = [...ptrs.values()], r = wr.getBoundingClientRect(), d = Math.hypot(a.x - b.x, a.y - b.y);
+      dragMoved = true;
+      zoomAt((a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top, (startK * d / startDist) / view.k);
+    }
+  });
+  const up = e => { ptrs.delete(e.pointerId); if (ptrs.size === 1) { const p = [...ptrs.values()][0]; downX = p.x; downY = p.y; } };
+  window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+  wr.addEventListener('click', e => { if (dragMoved) { e.stopPropagation(); e.preventDefault(); dragMoved = false; } }, true);
+  wr.addEventListener('wheel', e => {
+    if (!wr.classList.contains('zoomable')) return;
+    e.preventDefault(); const r = wr.getBoundingClientRect();
+    zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));
+  }, { passive: false });
+  $('zIn').onclick = () => zoomAt(wr.clientWidth / 2, wr.clientHeight / 2, 1.35);
+  $('zOut').onclick = () => zoomAt(wr.clientWidth / 2, wr.clientHeight / 2, 1 / 1.35);
+  $('zFit').onclick = () => fitView(null);
+  $('zMid').onclick = () => fitView(focusPx);
+}
+
+// ================= game record: reconnect, spectators, replay =================
+const onOpen = (c, fn) => { if (c.open) fn(); else c.on('open', fn); };
+function getToken(code) {
+  try {
+    const k = 'chessTok_' + code; let t = localStorage.getItem(k);
+    if (!t) { t = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem(k, t); }
+    return t;
+  } catch (e) { return Math.random().toString(36).slice(2); }
+}
+const liveGame = () => (replay ? replay.live : game);
+function buildRecord() {
+  const g = liveGame();
+  return { mode, gs: Object.assign({}, gs), seats: g.multi ? g.seats : null, traits: gtraits, moves: g.history(),
+    resigns: resignLog.slice(), over: replay ? replay.saved.over : over, overRes: replay ? replay.saved.overRes : overRes };
+}
+function applyRecord(g, rec, k) {
+  const n = k == null ? rec.moves.length : k; let ri = 0, applied = 0;
+  const doResigns = lim => { while (ri < rec.resigns.length && rec.resigns[ri].at <= lim) { g.resign(rec.resigns[ri].seat); ri++; } };
+  for (const e of rec.moves) {
+    if (applied >= n) break;
+    doResigns(applied);
+    if (e.c === 'n') g.neutralApply(e); else g.move(e);
+    applied++;
+  }
+  if (applied >= rec.moves.length) doResigns(Infinity);
+  return g;
+}
+const buildGameFromRecord = (rec, k) => applyRecord(makeEngine(rec.mode, rec.seats, rec.gs, rec.traits).game, rec, k);
+function loadRecord(rec) {
+  newGame(rec.mode, null, { seats: rec.seats, gs: rec.gs, traits: rec.traits });
+  applyRecord(game, rec);
+  resignLog = (rec.resigns || []).slice(); over = rec.over || null; overRes = rec.overRes || null;
+}
+const logResign = seat => resignLog.push({ seat, at: game.history().length });
+
+// ---- replay ----
+function enterReplay() {
+  if (replay || !game || M || draft) return;
+  if (nBusy || game.neutralPending) { addChat('', 'Wait for the neutral pieces to finish moving, then press Replay again.', true); return; }
+  const rec = buildRecord();
+  replay = { rec, live: game, total: rec.moves.length, ply: rec.moves.length, queue: [], saved: { over, overRes }, timer: null };
+  sel = null; $('promo').classList.add('hidden');
+  setReplayPly(replay.total);
+}
+function setReplayPly(k) {
+  if (!replay) return;
+  replay.ply = Math.max(0, Math.min(replay.total, k));
+  game = buildGameFromRecord(replay.rec, replay.ply); over = null; overRes = null; sel = null;
+  render();
+}
+function exitReplay() {
+  if (!replay) return;
+  clearInterval(replay.timer);
+  const q = replay.queue;
+  game = replay.live; over = replay.saved.over; overRes = replay.saved.overRes; replay = null; sel = null;
+  render();
+  q.forEach(it => (it.host ? hostRecv(it.c, it.msg) : handleMessage(it.msg)));      // moves that arrived while replaying
+}
+$('replayBtn').onclick = enterReplay;
+$('rpExit').onclick = exitReplay;
+$('rpStart').onclick = () => replay && setReplayPly(0);
+$('rpEnd').onclick = () => replay && setReplayPly(replay.total);
+$('rpBack').onclick = () => replay && setReplayPly(replay.ply - 1);
+$('rpFwd').onclick = () => replay && setReplayPly(replay.ply + 1);
+$('rpSlider').oninput = e => replay && setReplayPly(+e.target.value);
+$('rpPlay').onclick = () => {
+  if (!replay) return;
+  if (replay.timer) { clearInterval(replay.timer); replay.timer = null; return; }
+  if (replay.ply >= replay.total) setReplayPly(0);
+  replay.timer = setInterval(() => {
+    if (!replay || replay.ply >= replay.total) { if (replay) { clearInterval(replay.timer); replay.timer = null; } return; }
+    setReplayPly(replay.ply + 1);
+  }, 900);
+};
+
+// ---- reconnecting players, spectators ----
+function acceptConn(c) {
+  let decided = false;
+  const decide = hello => { if (decided) return; decided = true; classify(c, hello || {}); };
+  c.on('data', msg => { if (!decided && msg && msg.type === 'hello') decide(msg); });
+  onOpen(c, () => setTimeout(() => decide({}), 1500));      // pages without hello are treated as new players
+}
+function classify(c, hello) {
+  c.token = hello.token || null;
+  if (hello.spectate) return addSpectator(c);
+  if (c.token) {
+    if (game && game.multi && mstarted) { const old = conns.find(x => x.token === c.token); if (old) return rebindMulti(c, old); }
+    else if (!MODES[mode].multi && everJoined && c.token === peerToken) return rebind2p(c);
+  }
+  if (MODES[mode].multi) { if (mstarted || conns.length >= maxSeats() - 1) return addSpectator(c); return hostMultiConn(c); }
+  if (everJoined || (conn && conn.open)) return addSpectator(c);
+  setupConn(c);
+}
+const draftFor = seat => (draft && draft.offers && draft.offers[seat] ? { offers: draft.offers[seat], picked: draft.picks[seat] || null } : null);
+function rebindMulti(c, old) {
+  c.seat = old.seat; c.team = old.team; c.ready = true; c.token = old.token; old.replaced = true;
+  conns[conns.indexOf(old)] = c;
+  try { if (old.open) old.close(); } catch (e) { /* already closed */ }
+  c.on('data', msg => hostRecv(c, msg));
+  c.on('close', () => { if (!c.replaced) addChat('', CN[c.seat] + ' disconnected — they can rejoin with the same link.', true); });
+  onOpen(c, () => { c.send({ type: 'resume', rec: buildRecord(), seat: c.seat, draft: draftFor(c.seat) }); addChat('', CN[c.seat] + ' reconnected.', true); });
+}
+function rebind2p(c) {
+  const old = conn;
+  if (old && old !== c) { old.replaced = true; try { old.close(); } catch (e) { /* already closed */ } }
+  conn = c;
+  c.on('data', handleMessage);
+  c.on('close', () => { if (!c.replaced) $('status').textContent = 'Opponent disconnected — they can rejoin with the same link.'; });
+  onOpen(c, () => {
+    c.send({ type: 'resume', rec: buildRecord(), color: myColor === 'w' ? 'b' : 'w', draft: draftFor(myColor === 'w' ? 'b' : 'w') });
+    addChat('', 'Opponent reconnected.', true);
+  });
+}
+function addSpectator(c) {
+  const early = (MODES[mode].multi && !mstarted) || (!MODES[mode].multi && !everJoined);
+  if (M || !game || early) {
+    onOpen(c, () => { c.send({ type: 'mwait', text: M ? "Spectating isn't available in Austang." : 'The game has not started yet — try the link again in a moment.' }); setTimeout(() => c.close(), 300); });
+    return;
+  }
+  c.spec = true; specs.push(c);
+  onOpen(c, () => { c.send({ type: 'spec', rec: buildRecord() }); addChat('', 'A spectator joined (' + specs.filter(x => x.open).length + ' watching).', true); });
+  c.on('close', () => { specs = specs.filter(x => x !== c); addChat('', 'A spectator left.', true); });
+}
+function startRetry() {
+  if (retryTimer || isHost || !roomCode) return;
+  retries = 0; $('status').textContent = 'Connection lost — trying to reconnect…';
+  const attempt = () => {
+    if (retries++ > 25) { clearInterval(retryTimer); retryTimer = null; $('status').textContent = 'Could not reconnect. Reload the page or open the link again.'; return; }
+    try { if (peer) peer.destroy(); } catch (e) { /* ignore */ }
+    peer = new Peer();
+    peer.on('open', () => setupConn(peer.connect(PREFIX + roomCode)));
+    peer.on('error', () => { /* keep trying */ });
+  };
+  retryTimer = setInterval(attempt, 4000); attempt();
+}
+const stopRetry = () => { if (retryTimer) { clearInterval(retryTimer); retryTimer = null; } };
+
+// ================= polish: themes, quiet turn notification, clickable move list =================
+(function initPrefs() {
+  let th = 'classic', snd = true;
+  try { th = localStorage.getItem('chessTheme') || 'classic'; snd = localStorage.getItem('chessSound') !== '0'; } catch (e) { /* storage unavailable */ }
+  const applyTheme = t => { if (t === 'classic') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t; };
+  applyTheme(th); $('themeSel').value = th; $('soundChk').checked = snd;
+  $('themeSel').onchange = e => { applyTheme(e.target.value); try { localStorage.setItem('chessTheme', e.target.value); } catch (x) { /* ignore */ } };
+  $('soundChk').onchange = e => { try { localStorage.setItem('chessSound', e.target.checked ? '1' : '0'); } catch (x) { /* ignore */ } };
+})();
+
+let audioCtx = null, lastMyTurn = false, flashTimer = null;
+const baseTitle = document.title;
+document.addEventListener('pointerdown', () => {
+  try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); } catch (e) { /* no audio */ }
+}, { passive: true });
+function softChime() {
+  if (!$('soundChk').checked || !audioCtx) return;
+  try {
+    const t0 = audioCtx.currentTime;
+    [[523.25, 0], [659.25, 0.14]].forEach(([f, d]) => {            // two short, quiet sine notes
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0 + d);
+      g.gain.exponentialRampToValueAtTime(0.035, t0 + d + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.3);
+      o.connect(g); g.connect(audioCtx.destination); o.start(t0 + d); o.stop(t0 + d + 0.32);
+    });
+  } catch (e) { /* ignore */ }
+}
+function stopFlash() { if (flashTimer) { clearInterval(flashTimer); flashTimer = null; } document.title = baseTitle; }
+function startFlash() {
+  if (flashTimer) return;
+  let on = false;
+  flashTimer = setInterval(() => { on = !on; document.title = on ? '🔔 Your turn!' : baseTitle; }, 1000);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) stopFlash(); });
+window.addEventListener('focus', stopFlash);
+function myTurnNow() {
+  if (!game || spectating || replay || draft || M || ended()) return false;
+  if (game.bug) return game.canMove(mySeat);
+  if (game.multi) return game.alive(mySeat) && game.turn === mySeat && !game.neutralPending;
+  return game.turn === myColor;
+}
+function notifyTurn() {
+  const mine = myTurnNow();
+  if (mine && !lastMyTurn && game.history().length > 0) { softChime(); if (document.hidden || !document.hasFocus()) startFlash(); }
+  lastMyTurn = mine;
+}
+
+// ---- move list ----
+let ml = null;      // { src, g, applied, ri, items: [{ text, cls }], drawn }
+const mlLetter = t => ({ k: 'K', q: 'Q', r: 'R', b: 'B', n: 'N', p: '', c: 'C', i: 'I', w: 'W', o: 'O' }[t] || '');
+function mlText(g, e) {
+  const sq = (x, y) => (g.hex ? (x - g.radius) + ',' + (y - g.radius) : sqName(x, y));
+  if (e.drop) return mlLetter(e.drop) + '@' + sq(e.tx, e.ty);
+  const at = (x, y) => (g.bug ? g.at(e.board, x, y) : g.layers ? g.at(x, y, e.fl) : g.at(x, y));
+  const p = at(e.fx, e.fy), t = p ? p.t : '', dest = at(e.tx, e.ty);
+  if (t === 'k' && (e.castle || (e.ty === e.fy && Math.abs(e.tx - e.fx) === 2) || (dest && dest.t === 'r' && dest.c === p.c))) return 'castle';
+  return mlLetter(t) + sq(e.fx, e.fy) + (e.cap ? 'x' : '–') + sq(e.tx, e.ty) + (e.promo ? '=' + mlLetter(e.promo) : '');
+}
+function canReplay() { return !!(game && !M && !draft && game.history().length > 0 && (ended() || !(gs.fog || MODES[mode].v.hidden))); }
+function updateMoveList() {
+  const box = $('moveBox'), live = liveGame();
+  if (!live || M || !(replay || canReplay())) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  const hist = live.history(), list = $('moveList');
+  if (!ml || ml.src !== live || ml.applied > hist.length) {
+    ml = { src: live, g: makeEngine(mode, live.multi ? live.seats : null, gs, gtraits).game, applied: 0, ri: 0, items: [], drawn: 0 };
+    list.innerHTML = '';
+  }
+  while (ml.applied < hist.length) {
+    while (ml.ri < resignLog.length && resignLog[ml.ri].at <= ml.applied) { ml.g.resign(resignLog[ml.ri].seat); ml.ri++; }
+    const e = hist[ml.applied];
+    let text = '?', cls = '';
+    try {
+      text = mlText(ml.g, e);
+      const p = ml.g.bug ? ml.g.at(e.board, e.fx, e.fy) : ml.g.layers ? ml.g.at(e.fx, e.fy, e.fl) : ml.g.at(e.fx, e.fy);
+      cls = ml.g.bug ? 'm-' + e.seat : ml.g.multi ? 'm-' + (e.c || (p && p.c)) : 'p-' + (p ? p.c : 'w');
+      if (e.c === 'n') text = '◆' + text;
+    } catch (x) { /* keep placeholder */ }
+    if (e.c === 'n') ml.g.neutralApply(e); else ml.g.move(e);
+    ml.items.push({ text, cls }); ml.applied++;
+  }
+  for (; ml.drawn < ml.items.length; ml.drawn++) {
+    const i = ml.drawn, it = ml.items[i];
+    if (!live.multi && i % 2 === 0) { const n = document.createElement('span'); n.className = 'mn'; n.textContent = (i / 2 + 1) + '.'; list.appendChild(n); }
+    const c = document.createElement('span'); c.className = 'mv ' + it.cls; c.textContent = it.text; c.dataset.i = i;
+    c.onclick = () => { if (!replay) enterReplay(); if (replay) setReplayPly(i + 1); };
+    list.appendChild(c);
+  }
+  const cur = replay ? replay.ply : -1;
+  list.querySelectorAll('.mv').forEach(c => c.classList.toggle('cur', +c.dataset.i === cur - 1));
+  $('moveCount').textContent = '(' + hist.length + ')';
+  if (!replay && ml.scrolled !== hist.length) { list.scrollTop = list.scrollHeight; ml.scrolled = hist.length; }
+}
+
+// ================= class traits: draft, reveal =================
+const TRAIT = id => Engine.TRAITS[id];
+const meId = () => (game.multi ? mySeat : myColor);
+const partIds = () => (game.multi ? game.seats : ['w', 'b']);
+const whoName = c => (game.multi ? CN[c] : c === 'w' ? 'White' : 'Black');
+const traitLine = (who, id) => who + ' used their trait: ' + TRAIT(id).name + ' — ' + TRAIT(id).desc;
+const bcast = m => (game.multi ? broadcast(m) : send(m));
+
+function rollOffers() {
+  const pool = Object.keys(Engine.TRAITS).filter(id => { const t = TRAIT(id); return !(t.multi && !game.multi) && !(t.fog && !gs.fog); });
+  const out = [], n = Math.min(+gs.offers || 4, pool.length);
+  while (out.length < n) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  return out;
+}
+function beginDraft() {                                   // host only
+  const offers = {};
+  partIds().forEach(p => { offers[p] = rollOffers(); });
+  draft = { offers, picks: {}, mine: offers[meId()], picked: null };
+  if (game.multi) conns.forEach(c => c.send({ type: 'draft', offers: offers[c.seat] }));
+  else send({ type: 'draft', offers: offers[myColor === 'w' ? 'b' : 'w'] });
+  render();
+}
+function choosePick(id) {
+  if (!draft || draft.picked || !draft.mine || !draft.mine.includes(id)) return;
+  draft.picked = id;
+  if (isHost) { draft.picks[meId()] = id; checkDraft(); } else send({ type: 'pick', id });
+  render();
+}
+function recvPick(who, id) {
+  if (!draft || !draft.offers || !draft.offers[who] || !draft.offers[who].includes(id) || draft.picks[who]) return;
+  draft.picks[who] = id; checkDraft();
+}
+function autoPickRest() {
+  if (!draft || !draft.offers) return;
+  partIds().forEach(p => { if (!draft.picks[p]) { const o = draft.offers[p]; draft.picks[p] = o[Math.floor(Math.random() * o.length)]; } });
+  if (draft.offers[meId()] && !draft.picked) draft.picked = draft.picks[meId()];
+  checkDraft();
+}
+function checkDraft() {
+  if (!draft || !draft.offers) return;
+  if (!partIds().every(p => draft.picks[p])) { render(); return; }
+  const map = draft.picks;
+  draft = null;
+  newGame(mode, null, { gs, seats: mseats, traits: map });
+  bcast({ type: 'traits', traits: map, seats: mseats, gs, mode });
+  announceTraitStart(); render();
+}
+function announceTraitStart() {
+  if (!gtraits || !game) return;
+  const mine = gtraits[meId()];
+  if (mine) addChat('', 'Your trait (only you can see this): ' + TRAIT(mine).name + ' — ' + TRAIT(mine).desc, true);
+}
+function renderDraft() {
+  const box = $('draftBox');
+  if (!draft) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden'); box.innerHTML = '';
+  const line = t => { const d = document.createElement('div'); d.textContent = t; box.appendChild(d); };
+  const h = document.createElement('div'); h.innerHTML = '<b>Choose your class trait</b> — it stays secret until it matters.'; box.appendChild(h);
+  if (!draft.mine) { line('Waiting for the host to deal the offers…'); return; }
+  if (draft.picked) {
+    line('You picked ' + TRAIT(draft.picked).name + '. Waiting for the others…' + (isHost && draft.picks ? ' (' + Object.keys(draft.picks).length + '/' + partIds().length + ' chosen)' : ''));
+    if (isHost) { const b = document.createElement('button'); b.textContent = 'Pick randomly for anyone who is still deciding'; b.onclick = autoPickRest; box.appendChild(b); }
+    return;
+  }
+  draft.mine.forEach(id => {
+    const b = document.createElement('button'); b.className = 'trait';
+    b.innerHTML = '<b>' + TRAIT(id).name + '</b><br><span>' + TRAIT(id).desc + '</span>';
+    b.onclick = () => choosePick(id);
+    box.appendChild(b);
+  });
+}
+function specStatus() {
+  if (ended()) return 'Spectating — ' + $('status').textContent.replace(/\s*\(you are [^)]*\)/, '');
+  if (!game) return 'Spectating';
+  if (game.bug) return 'Spectating — both boards are in play';
+  return 'Spectating — ' + (game.multi ? CN[game.turn] : game.turn === 'w' ? 'White' : 'Black') + ' to move';
+}
 function render() {
+  renderCore();
+  renderDraft();
+  notifyTurn();
+  updateMoveList();
+  document.body.classList.toggle('spec', spectating);
+  if (spectating) $('status').textContent = specStatus();
+  if (replay) {
+    $('replayBar').classList.remove('hidden');
+    $('rpSlider').max = replay.total; $('rpSlider').value = replay.ply;
+    $('rpLabel').textContent = 'Move ' + replay.ply + ' / ' + replay.total;
+    $('status').textContent = 'Replay — move ' + replay.ply + ' of ' + replay.total + (replay.queue.length ? ' (new moves are waiting)' : '');
+    $('replayBtn').classList.add('hidden');
+    return;
+  }
+  $('replayBar').classList.add('hidden');
+  $('replayBtn').classList.toggle('hidden', !canReplay());
+  if (game && !game.multi && game.drainEvents) game.drainEvents();      // trait events are not announced
+  if (game && gtraits && !draft && !replay) {
+    const mine = spectating ? null : gtraits[meId()];
+    if (mine && !$('status').textContent.includes('Your trait')) $('status').textContent += ' · Your trait: ' + TRAIT(mine).name;
+    if (ended() && !revealedAll) {
+      revealedAll = true;
+      addChat('', 'Traits this game: ' + partIds().map(p => whoName(p) + ' — ' + TRAIT(gtraits[p]).name).join(', ') + '.', true);
+    }
+  }
+}
+
+function renderCore() {
+  $('boardWrap').classList.remove('zoomable'); $('boardWrap').style.height = ''; $('zoomCtl').classList.add('hidden'); $('board').style.transform = '';
   $('board').classList.remove('hexb'); $('board').style.height = ''; $('board2').style.width = '';
   if (M && M.phase === 'play' && game && ended()) finishRound();
   updateAustUI();
@@ -434,13 +951,13 @@ function render() {
   el.style.fontSize = big ? '24px' : (Math.min(innerWidth - 32, 480) / W * 0.7) + 'px';
   $('board2Wrap').classList.add('hidden'); $('capA').classList.add('hidden');
   const hist = g.history(), last = hist[hist.length - 1];
-  const hid = MODES[mode].v.hidden && !ended();
+  const hid = MODES[mode].v.hidden && !ended() && !replay && !spectating;
   const hints = sel && !hid ? (sel.drop ? g.drops().filter(m => m.drop === sel.drop) : g.moves(sel.x, sel.y)) : [];
   let kingSq = null;
   if (g.inCheck()) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const p = g.at(x, y); if (p && p.t === 'k' && p.c === g.turn) kingSq = x + ',' + y;
   }
-  const seen = gs.fog && !ended() ? g.sees(myColor) : null;
+  const seen = gs.fog && !ended() && !replay && !spectating ? g.sees(myColor) : null;
   for (let i = 0; i < W * H; i++) {
     const r = Math.floor(i / W), c = i % W;
     const x = myColor === 'w' ? c : W - 1 - c, y = myColor === 'w' ? H - 1 - r : r;
@@ -460,17 +977,12 @@ function render() {
     d.onclick = () => clickSq(x, y);
     el.appendChild(d);
   }
-  if (big && !centered) {
-    const wr = $('boardWrap');
-    wr.scrollLeft = (wr.scrollWidth - wr.clientWidth) / 2;
-    wr.scrollTop = (wr.scrollHeight - wr.clientHeight) / 2;
-    centered = true;
-  }
+  if (big) setupBigBoard(34, 12);
   renderHand(myColor === 'w' ? 'b' : 'w', $('handTop'));
   renderHand(myColor, $('handBot'));
   $('status').textContent = statusText();
   if (ended()) $('drawBanner').classList.add('hidden');
-  $('history').textContent = hid ? '' : hist.map(m => m.drop ? GLYPH[m.drop] + '@' + sqName(m.tx, m.ty) : sqName(m.fx, m.fy) + sqName(m.tx, m.ty)).join(' ');
+  $('history').textContent = '';
 }
 
 /* ============ AUSTANG (match layer) ============ */
@@ -480,8 +992,24 @@ function readSettings() {
            cap: Math.max(1, n('sCap', 24)), rounds: Math.max(1, n('sRounds', 5)) };
 }
 
+let gsRoomState = null, roomKind = null;
 function updateAustUI() {
   const room = !$('game').classList.contains('hidden');
+  if (room !== gsRoomState) { gsRoomState = room; $('gsBox').open = !room; $('gsNote').textContent = room ? '(apply from the next game — press New game)' : ''; }
+  // In a room the mode picker only lists modes this room can actually switch to.
+  if (room && isHost && game) {
+    const kind = game.bug ? 'bug' : game.hex ? 'hex' : game.multi ? 'm4' : '2p';
+    if (roomKind !== kind) {
+      roomKind = kind;
+      const sel2 = $('modeSel2'); sel2.innerHTML = '';
+      Object.keys(MODES).forEach(k => {
+        const m = MODES[k], k2 = m.bug ? 'bug' : m.v && m.v.hex ? 'hex' : m.multi ? 'm4' : '2p';
+        if (k2 === kind) sel2.add(new Option(m.name, k));
+      });
+      sel2.value = mode; sel2.classList.toggle('hidden', sel2.options.length < 2);
+    }
+    $('swapLbl').classList.toggle('hidden', !!game.multi);
+  }
   const v = room ? (isHost ? $('modeSel2').value : '') : $('modeSel').value;
   $('austSettings').classList.toggle('hidden', v !== 'austang');
   const op = (MODES[v] && MODES[v].opts) || [];
@@ -490,6 +1018,9 @@ function updateAustUI() {
   $('gsFog').classList.toggle('hidden', !op.includes('fog'));
   $('gsTeams').classList.toggle('hidden', !op.includes('teams'));
   $('gsNeutral').classList.toggle('hidden', !op.includes('neutral'));
+  $('gsTraits').classList.toggle('hidden', !op.includes('traits'));
+  $('gsC960').classList.toggle('hidden', !op.includes('c960'));
+  $('offerWrap').classList.toggle('hidden', !$('traitsChk').checked);
   $('gsBoard').classList.toggle('hidden', !(op.includes('teams') && $('teamsChk').checked && !op.includes('neutral') && !(MODES[v].v.alice || MODES[v].v.board)));
   $('drawBtn').classList.toggle('hidden', !!(game && game.multi));
   const hostMulti = !!(game && game.multi && isHost);
@@ -608,6 +1139,7 @@ $('nextBtn').onclick = () => {
   render();
 };
 $('modeSel').onchange = updateAustUI;
+$('traitsChk').onchange = updateAustUI;
 $('teamsChk').onchange = () => { updateAustUI(); if (isHost && !mstarted) renderRoster(); };
 $('modeSel2').onchange = updateAustUI;
 
@@ -708,16 +1240,16 @@ function kickConn(c) {
   conns = conns.filter(x => x !== c); renderRoster();
 }
 function hostMultiConn(c) {
-  if (mstarted || conns.length >= maxSeats() - 1) { c.on('open', () => { c.send({ type: 'mwait', text: 'Room is full or already started.' }); setTimeout(() => c.close(), 150); }); return; }
   conns.push(c); c.team = conns.length % 2;
-  c.on('open', () => {
+  onOpen(c, () => {
     c.ready = true; renderRoster();
     if ($('autoChk').checked && conns.filter(x => x.ready).length === maxSeats() - 1) startMulti();
   });
   c.on('data', msg => hostRecv(c, msg));
   c.on('close', () => {
+    if (c.replaced) return;
     if (!mstarted) { conns = conns.filter(x => x !== c); renderRoster(); }
-    else addChat('', CN[c.seat] + ' disconnected.', true);
+    else addChat('', CN[c.seat] + ' disconnected — they can rejoin with the same link.', true);
   });
 }
 
@@ -731,6 +1263,7 @@ function startMulti() {
   conns.forEach((c, i) => { c.seat = by[i + 1]; });
   newGame(mode, null, { seats, gs: readGS() });
   conns.forEach(c => c.send({ type: 'minit', mode, seat: c.seat, seats, gs }));
+  if (gs.traits) beginDraft();
   $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
   $('hostCtl').classList.remove('hidden'); $('modeSel2').value = mode;
   addChat('', 'You are ' + CN[mySeat] + '. Turn order: ' + game.seats.map(c => CN[c]).join(' → ') + '.', true);
@@ -742,11 +1275,14 @@ const sameSide = (a, b) => a === b || !!(game && game.teams && game.teams[a] ===
 
 function hostRecv(c, msg) {
   if (!game || !game.multi) return;
+  if (replay && msg.type !== 'chat') { replay.queue.push({ host: true, c, msg }); return; }
   if (msg.type === 'tryMove') {
     if (game.bug && msg.m) msg.m.seat = c.seat;
-    if (!ended() && (game.bug ? game.canMove(c.seat) : game.turn === c.seat) && game.move(msg.m)) { broadcast({ type: 'mmove', m: msg.m }); announceMulti(); render(); }
+    if (!draft && !ended() && (game.bug ? game.canMove(c.seat) : game.turn === c.seat) && game.move(msg.m)) { broadcast({ type: 'mmove', m: msg.m }); announceMulti(); render(); }
+  } else if (msg.type === 'pick') {
+    recvPick(c.seat, msg.id);
   } else if (msg.type === 'tryResign') {
-    if (!ended() && game.alive(c.seat)) { game.resign(c.seat); broadcast({ type: 'mresign', seat: c.seat }); announceMulti(); render(); }
+    if (!ended() && game.alive(c.seat)) { logResign(c.seat); game.resign(c.seat); broadcast({ type: 'mresign', seat: c.seat }); announceMulti(); render(); }
   } else if (msg.type === 'chat') {
     const t = String(msg.text).slice(0, 300);
     addChat(CN[c.seat], t); broadcast({ type: 'mchat', from: c.seat, text: t });
@@ -764,9 +1300,10 @@ function announceMulti() {
     }
   }
   game.drainEvents().forEach(e => {
+    if (e.e === 'trait') return;      // traits stay hidden until the end of the game
     if (e.e === 'skip') { addChat('', CN[e.c] + ' has no legal move (stalemate) and is skipped.', true); return; }
     const why = e.reason === 'checkmate' ? 'was checkmated' : e.reason === 'stalemate' ? 'was stalemated' : 'resigned';
-    addChat('', CN[e.c] + ' ' + why + ' and is out. ' + (e.fallen ? 'Their pieces are now neutral!' : 'Their pieces turn gray.'), true);
+    addChat('', CN[e.c] + ' ' + why + ' and is out. ' + (e.taken ? 'Their pieces now belong to ' + CN[e.taken] + '!' : e.fallen ? 'Their pieces are now neutral!' : 'Their pieces turn gray.'), true);
   });
   if (game.drawn) addChat('', 'Nobody left can move — the game is a draw.', true);
   const w = game.winner();
@@ -785,7 +1322,9 @@ function pickNeutral(nx) {
 function noteNeutral(m) {
   const h = game.history(), last = h[h.length - 1];
   if (last && last.c === 'n' && last.cap) addChat('', 'A neutral piece captured a ' + (CN[last.capc] || 'piece') + ' ' + ({ p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', c: 'commoner', i: 'imp', w: 'wraith', o: 'ox', k: 'king' }[last.cap] || 'piece') + ' on ' + sqName(last.tx, last.ty) + '!', true);
-  game.drainEvents().forEach(e => { if (e.e === 'elim') addChat('', CN[e.c] + ' was ' + (e.reason === 'checkmate' ? 'checkmated' : 'knocked out') + '.', true); });
+  game.drainEvents().forEach(e => {
+    if (e.e === 'elim') addChat('', CN[e.c] + ' was ' + (e.reason === 'checkmate' ? 'checkmated' : 'knocked out') + '.' + (e.fallen ? ' Their pieces are now neutral!' : ''), true);
+  });
 }
 function maybeRunNeutral() {
   if (!isHost || nBusy || !game || !game.neutral || !game.neutralPending) return;
@@ -807,12 +1346,13 @@ function stepNeutral(g) {
 $('removeBtn').onclick = () => {
   const c = $('removeSel').value;
   if (!isHost || !game || !game.multi || ended() || !c || !game.alive(c)) return;
-  game.resign(c); broadcast({ type: 'mresign', seat: c });
+  logResign(c); game.resign(c); broadcast({ type: 'mresign', seat: c });
   addChat('', 'Host removed ' + CN[c] + '.', true);
   announceMulti(); render();
 };
 
 function playMulti(m) {
+  if (replay || spectating) return;
   sel = null;
   if (game.bug) m = Object.assign({}, m, { seat: mySeat });
   if (isHost) {
@@ -829,6 +1369,7 @@ function fromView(c, X, Y, N = 14) {
 
 function clickMulti(x, y) {
   $('promo').classList.add('hidden');
+  if (draft || replay || spectating) return;
   if (ended() || game.neutralPending || game.turn !== mySeat || !game.alive(mySeat)) return;
   const hid = MODES[mode].v.hidden;
   if (sel) {
@@ -855,7 +1396,7 @@ function renderMultiHands() {
   'qrbnp'.split('').forEach(t => {
     if (!(hand[t] > 0)) return;
     const b = document.createElement('button');
-    b.textContent = GLYPH[t] + '×' + hand[t];
+    b.innerHTML = glyphHTML(t) + '×' + hand[t];
     if (sel && sel.drop === t) b.className = 'on';
     b.onclick = () => {
       if (ended() || game.turn !== mySeat || !game.alive(mySeat)) return;
@@ -867,6 +1408,7 @@ function renderMultiHands() {
 
 function clickAlice4(x, y, l) {
   $('promo').classList.add('hidden');
+  if (draft || replay || spectating) return;
   if (ended() || game.turn !== mySeat || !game.alive(mySeat)) return;
   if (sel && sel.l === l) {
     const cand = game.moves(sel.x, sel.y, sel.l).filter(m => m.tx === x && m.ty === y);
@@ -918,6 +1460,7 @@ function renderAlice4() {
 
 function clickBug(x, y) {
   $('promo').classList.add('hidden');
+  if (draft || replay || spectating) return;
   if (ended() || !game.canMove(mySeat)) return;
   const [bd, col] = game.info[mySeat];
   if (sel) {
@@ -997,8 +1540,8 @@ function viewRot(seat, q, r) {
 
 function renderMulti() {
   const g = game, el = $('board'), V = MODES[mode].v, hex = !!g.hex;
-  const hid = !!V.hidden && !ended() && g.alive(mySeat);
-  const seen = gs.fog && !ended() && g.alive(mySeat) ? g.sees(mySeat) : null;
+  const hid = !!V.hidden && !ended() && !replay && !spectating && g.alive(mySeat);
+  const seen = gs.fog && !ended() && !replay && !spectating && g.alive(mySeat) ? g.sees(mySeat) : null;
   el.innerHTML = '';
   $('board2Wrap').classList.add('hidden'); $('capA').classList.add('hidden');
   const hist = g.history(), last = hist[hist.length - 1];
@@ -1016,7 +1559,7 @@ function renderMulti() {
     if (hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (shown) d.classList.add('cap'); }
     if (shown) {
       const sp = document.createElement('span');
-      sp.textContent = GLYPH[p.t]; sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (FAIRY.includes(p.t) ? ' fairy' : '');
+      setGlyph(sp, p.t); sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (FAIRY.includes(p.t) ? ' fairy' : '');
       if (p.c === 'n') d.classList.add('neu');
       d.appendChild(sp);
     }
@@ -1048,12 +1591,7 @@ function renderMulti() {
       d.className = 'sq ' + ((x + y) % 2 === 1 ? 'l' : 'd');
       decorate(d, x, y); el.appendChild(d);
     }
-    if (inf && !centered) {
-      const wr = $('boardWrap');
-      wr.scrollLeft = (wr.scrollWidth - wr.clientWidth) / 2;
-      wr.scrollTop = (wr.scrollHeight - wr.clientHeight) / 2;
-      centered = true;
-    }
+    if (inf) setupBigBoard(34, 18);
   }
   renderMultiHands();
   $('status').textContent = statusText();
@@ -1065,7 +1603,7 @@ function renderMulti() {
     if (prev) rs.value = prev;
   }
   $('history').textContent = 'Order: ' + g.seats.map(c => CN[c] + (g.alive(c) ? '' : ' ✖')).join(' → ') +
-    (g.neutral ? '   |   Neutral (purple, dashed ring): ♔ commoner = 1 step any way, ♘ imp = knight jump, ♗ wraith = up to 2 diagonally, ♖ ox = up to 2 straight. They always capture when they can. Capture one to tame it — drop it on your own arm.' : '');
+    (g.neutral ? '   |   Neutral (purple, dashed ring): shield = commoner (1 step any way), horned face = imp (knight jump), ghost = wraith (up to 2 diagonally), bull = ox (up to 2 straight). They always capture when they can. Capture one to tame it — drop it on your own arm.' : '');
 }
 
 /* ============ CHAT ============ */
@@ -1078,7 +1616,7 @@ function addChat(who, text, system) {
 }
 function sendChat() {
   const t = $('chatIn').value.trim();
-  if (!t) return;
+  if (!t || spectating) return;
   if (game && game.multi) {
     if (isHost) { addChat(CN[mySeat], t); broadcast({ type: 'mchat', from: mySeat, text: t }); }
     else send({ type: 'chat', text: t });
@@ -1095,7 +1633,7 @@ $('chatIn').onkeydown = e => { if (e.key === 'Enter') sendChat(); };
 $('resignBtn').onclick = () => {
   if (game && game.multi) {
     if (ended() || !game.alive(mySeat)) return;
-    if (isHost) { game.resign(mySeat); broadcast({ type: 'mresign', seat: mySeat }); announceMulti(); render(); }
+    if (isHost) { logResign(mySeat); game.resign(mySeat); broadcast({ type: 'mresign', seat: mySeat }); announceMulti(); render(); }
     else send({ type: 'tryResign' });
     return;
   }
@@ -1111,12 +1649,14 @@ $('drawBtn').onclick = () => {
 $('acceptDraw').onclick = () => { over = 'Draw by agreement.'; overRes = 'd'; send({ type: 'drawAccept' }); render(); };
 $('declineDraw').onclick = () => { $('drawBanner').classList.add('hidden'); send({ type: 'drawDecline' }); };
 $('newBtn').onclick = () => {
+  if (replay) exitReplay();
   const m = $('modeSel2').value, swap = $('swapChk').checked;
   if (MODES[mode].multi || MODES[m].multi) {
     if (m !== mode) { addChat('', "Can't switch between 2-player and multiplayer modes in one room — create a new room.", true); $('modeSel2').value = mode; return; }
     newGame(mode, null, { gs: readGS(), seats: mseats }); sel = null;
     broadcast({ type: 'newgame', mode, seats: mseats, gs });
     addChat('', 'New game: ' + MODES[mode].name + '.', true);
+    if (gs.traits) beginDraft();
     render(); return;
   }
   newGame(m, m === 'austang' ? readSettings() : null, { gs: readGS() });
@@ -1124,14 +1664,20 @@ $('newBtn').onclick = () => {
   send({ type: 'newgame', mode: m, swap, settings: M && M.s, gs });
   $('promo').classList.add('hidden'); $('drawBanner').classList.add('hidden');
   addChat('', 'New game: ' + MODES[m].name + '. You are ' + (myColor === 'w' ? 'White' : 'Black') + '.', true);
+  if (gs.traits) beginDraft();
   render();
+};
+$('specLinkBtn').onclick = () => {
+  const url = location.origin + location.pathname + '?watch=' + roomCode;
+  try { navigator.clipboard.writeText(url); } catch (e) { /* ignore */ }
+  addChat('', 'Spectator link (copied if your browser allows): ' + url, true);
 };
 $('rematchBtn').onclick = () => { send({ type: 'rematchReq' }); addChat('', 'You asked for a rematch.', true); };
 window.onresize = () => game && render();
 
 // Auto-join from a shared link like ?join=abc12
-const code = new URLSearchParams(location.search).get('join');
-if (code) join(code);
+const code = new URLSearchParams(location.search).get('join'), watchCode = new URLSearchParams(location.search).get('watch');
+if (code) join(code); else if (watchCode) join(watchCode, true);
 </script>
 </body>
 </html>
