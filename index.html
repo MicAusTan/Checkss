@@ -52,6 +52,7 @@
   .pc-n { color:#c79bff; text-shadow:0 0 3px #000,0 0 8px #a45cff,0 0 2px #000; }
   .sq.neu::before { content:''; position:absolute; inset:7%; border:2px dashed #b57bff; border-radius:50%; pointer-events:none; }
   .fairy { font-weight:bold; }
+  .champ { text-shadow:0 0 5px #ffd54a,0 0 2px #000 !important; }
   .w-piece { color:#fff; text-shadow:0 0 2px #000,0 0 2px #000,0 0 2px #000; }
   #status { margin:10px 0; font-weight:600; min-height:1.4em; }
   #link { word-break:break-all; font-size:.85rem; opacity:.8; }
@@ -76,9 +77,30 @@
   #draftBox { border:1px solid #8a8a8a; border-radius:8px; padding:8px 10px; margin:8px 0; }
   #draftBox button.trait { display:block; width:100%; text-align:left; margin:6px 0; }
   #draftBox button.trait span { font-weight:normal; opacity:.85; font-size:.85rem; }
+  #classBar { border:1px solid #8a8a8a; border-radius:8px; padding:6px 10px; margin:6px 0; }
+  #classBar .dim { opacity:.75; font-size:.85rem; }
+  #classBar button { margin:3px 4px 3px 0; }
+  #classBar button.on { outline:2px solid #e0a800; }
+  .fx-frz { filter:drop-shadow(0 0 3px #1e90ff) drop-shadow(0 0 6px #7fc4ff); }
+  .fx-dis { opacity:.5; filter:grayscale(1) drop-shadow(0 0 2px #c33); }
+  .fx-jmp { filter:drop-shadow(0 0 3px #f5b800) drop-shadow(0 0 6px #ffd84d); }
+  .fx-shd { filter:drop-shadow(0 0 3px #1fa84f) drop-shadow(0 0 6px #6fe39a); }
+  .fx-sct { filter:drop-shadow(0 0 3px #a14fd6) drop-shadow(0 0 6px #d9a8f5); }
+  .fx-wall { color:#8b5a2b !important; text-shadow:none !important; }
+  .fx-phn { opacity:.55; filter:drop-shadow(0 0 4px #29b6c9) drop-shadow(0 0 8px #8fe3ee); }
+  .fx-dcy { opacity:.6; filter:drop-shadow(0 0 3px #b07be0) drop-shadow(0 0 7px #dcc2f5); }
+  .sq.mine { box-shadow:inset 0 0 0 3px rgba(192,57,43,.8); }
   body.spec #hostCtl, body.spec #resignBtn, body.spec #drawBtn, body.spec #rematchBtn, body.spec #readyBtn, body.spec #nextBtn, body.spec #drawBanner { display:none !important; }
   #replayBar { border:1px solid #888; border-radius:8px; padding:6px 8px; margin:8px 0; }
   #replayBar button { margin:0 2px; padding:2px 10px; }
+  #boardWrap.cylv { perspective:1100px; perspective-origin:50% 30%; position:relative; padding:8px 0 16px; overflow:visible; max-height:none; }
+  #board.cylb { position:relative; transform-origin:50% 92%; border-radius:46px / 16px; overflow:hidden; box-shadow:0 24px 26px -14px rgba(0,0,0,.7), inset 0 0 0 2px rgba(0,0,0,.45); }
+  #board.cylb::after { content:''; position:absolute; inset:0; pointer-events:none; z-index:6;
+    background:linear-gradient(90deg,rgba(0,0,0,.8) 0%,rgba(0,0,0,.25) 11%,rgba(255,255,255,.07) 30%,rgba(255,255,255,0) 48%,rgba(255,255,255,.07) 70%,rgba(0,0,0,.25) 89%,rgba(0,0,0,.8) 100%); }
+  .sq.ghost { opacity:.42; pointer-events:none; filter:saturate(.55) brightness(.85); }
+  #cylCtl { position:absolute; top:10px; left:50%; transform:translateX(-50%); z-index:8; display:flex; gap:6px; }
+  #cylCtl button { margin:0; padding:2px 10px; font-size:.85rem; }
+  #cylNote { font-size:.8rem; opacity:.75; margin:2px 0 8px; }
   #roster { margin:8px 0; } #roster div { margin:4px 0; }
   #roster button { padding:2px 10px; font-size:.85rem; background:#8b3a3a; }
   #gsBox { max-width:480px; margin-top:12px; font-size:.9rem; }
@@ -101,8 +123,10 @@
     <button id="joinBtn">Join game</button>
   </div>
   <p id="lobbyMsg"></p>
+  <div id="botLobby" class="hidden">Or play on your own: <button id="botEasy">Play a bot (Easy)</button> <button id="botNormal">Play a bot (Normal)</button></div>
   <div id="lobbyCtl" class="hidden">
     <div id="roster"></div>
+    <div id="botAdd">Fill empty seats with bots: <button id="addBotEasy">+ Bot (Easy)</button> <button id="addBotNormal">+ Bot (Normal)</button></div>
     <label><input type="checkbox" id="autoChk"> Start automatically when the room is full</label><br>
     <button id="startBtn">Start game</button>
   </div>
@@ -119,7 +143,21 @@
   <div id="gsTraits"><label><input type="checkbox" id="traitsChk"> Class traits: each player secretly picks 1 of a few random traits</label>
     <span id="offerWrap">Offers per player: <select id="offerSel"><option>3</option><option selected>4</option></select></span>
   </div>
+  <div id="gsClasses"><label><input type="checkbox" id="classesChk"> Classes (spell-chess style): earn points each turn and spend them on class abilities</label>
+    <div id="classWrap">
+      Start points <input type="number" id="clStart" min="0" max="30" value="2" style="width:3.4em">
+      + per turn <input type="number" id="clGain" min="0" max="10" value="1" style="width:3.4em">
+      cap <input type="number" id="clCap" min="1" max="30" value="8" style="width:3.4em">
+      · abilities per turn <select id="clPer"><option value="0" selected>unlimited</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
+      · summons per game <input type="number" id="clSum" min="1" max="20" value="4" style="width:3.4em"><br>
+      <label><input type="checkbox" id="clUlt"> Ultimates can be used more than once</label><br>
+      <label><input type="checkbox" id="clHide"> Hide classes from opponents (teammates always see yours)</label><br>
+      <label><input type="checkbox" id="clFree"> Free pick: everyone chooses any class (instead of 3 random offers)</label><br>
+      <label><input type="checkbox" id="clHideFx"> Hide Shield / Sanctuary glows from opponents (they can't see which pieces are protected)</label>
+    </div>
+  </div>
   <label id="gsC960"><input type="checkbox" id="c960Chk"> Chess960: shuffled back rank, the same random layout for everyone (castle by moving your king onto your own rook)</label>
+  <label id="gsCyl"><input type="checkbox" id="cylChk"> Cylinder: the left and right edges connect (pieces wrap around the sides)</label>
   <label id="gsFog"><input type="checkbox" id="fogChk"> Fog of war (you only see squares your pieces can move to or attack)</label>
   <label id="gsTeams"><input type="checkbox" id="teamsChk"> 2v2 teams (partners can't capture or check each other; a team wins when both opponents are out)</label>
   <div id="gsBoard">Team board:
@@ -130,6 +168,7 @@
 
 <div id="game" class="hidden">
   <div id="draftBox" class="hidden"></div>
+  <div id="classBar" class="hidden"></div>
   <div id="replayBar" class="hidden"><b>Replay</b> <button id="rpStart" title="Start">⏮</button><button id="rpBack" title="Back one move">◀</button><button id="rpPlay" title="Play / pause">▶▶</button><button id="rpFwd" title="Forward one move">▶</button><button id="rpEnd" title="Latest">⏭</button> <input type="range" id="rpSlider" min="0" max="0" value="0" style="width:38%;vertical-align:middle"> <span id="rpLabel"></span> <button id="rpExit">Back to game</button></div>
   <div id="status"></div>
   <details id="moveBox" class="hidden" open><summary>Moves <span id="moveCount"></span></summary><div id="moveList"></div></details>
@@ -140,7 +179,8 @@
   <div id="promo" class="hidden"></div>
   <div id="handTop" class="hand"></div>
   <div id="capA" class="lbl hidden">Board A</div>
-  <div id="boardWrap"><div id="zoomCtl" class="hidden"><button id="zIn" title="Zoom in">+</button><button id="zOut" title="Zoom out">−</button><button id="zFit" title="Show the whole board">Fit all</button><button id="zMid" title="Back to the starting area">Centre</button></div><div id="board"></div></div>
+  <div id="boardWrap"><div id="zoomCtl" class="hidden"><button id="zIn" title="Zoom in">+</button><button id="zOut" title="Zoom out">−</button><button id="zFit" title="Show the whole board">Fit all</button><button id="zMid" title="Back to the starting area">Centre</button></div><div id="cylCtl" class="hidden"><button id="cylL" title="Spin the cylinder left">◀ Spin</button><button id="cylR" title="Spin the cylinder right">Spin ▶</button><button id="cylReset" title="Back to the normal view">Reset</button></div><div id="board"></div></div>
+  <div id="cylNote" class="hidden">Cylinder chess: the a-file and the last file touch, so rooks, bishops, knights, kings and pawns can all wrap around the sides. The faded strips show the files just beyond each edge. Drag the board, or use Spin, to turn the cylinder.</div>
   <div id="board2Wrap" class="hidden"><div class="lbl">Board B</div><div id="board2"></div></div>
   <div id="handBot" class="hand"></div>
   <div id="history"></div>
@@ -150,8 +190,12 @@
       <label id="swapLbl"><input type="checkbox" id="swapChk" checked> swap colors</label>
       <button id="newBtn">New game</button>
       <button id="specLinkBtn">Copy spectator link</button>
+      <button id="endRoundBtn" class="hidden">End round (draw)</button>
+      <button id="botTakeBtn" class="hidden">Bot takes over the selected seat</button>
+      <label id="specChatLbl"><input type="checkbox" id="specChatChk"> Let spectators chat</label>
       <select id="removeSel" class="hidden"></select><button id="removeBtn" class="hidden">Remove player</button>
     </span>
+    <button id="swapBtn" class="hidden">Swap two pieces</button>
     <button id="replayBtn" class="hidden">Replay</button>
     <button id="rematchBtn" class="hidden">Ask for rematch</button>
     <button id="readyBtn" class="hidden">Ready</button>
@@ -182,20 +226,20 @@
 /* ============ MODES ============ */
 // Add a mode = add a variant object here (see engine.js for the format).
 const MODES = {
-  standard:   { name: 'Standard Chess', opts: ['fog', 'traits', 'c960'], v: Engine.STANDARD },
-  crazyhouse: { name: 'Crazyhouse',     opts: ['drop', 'fog', 'traits', 'c960'], v: Engine.CRAZYHOUSE },
-  marseillais: { name: 'Marseillais (2 moves per turn)', opts: ['fog', 'traits', 'c960'], v: Engine.MARSEILLAIS },
+  standard:   { name: 'Standard Chess', opts: ['fog', 'traits', 'classes', 'c960', 'cyl'], v: Engine.STANDARD },
+  crazyhouse: { name: 'Crazyhouse',     opts: ['drop', 'fog', 'traits', 'classes', 'c960', 'cyl'], v: Engine.CRAZYHOUSE },
+  marseillais: { name: 'Marseillais (2 moves per turn)', opts: ['fog', 'traits', 'classes', 'c960', 'cyl'], v: Engine.MARSEILLAIS },
   // hidden:true is read by the UI only: you see just your own pieces, the referee announces things
-  kriegspiel: { opts: ['traits', 'c960'], name: 'Kriegspiel (hidden pieces)', v: Object.assign({}, Engine.STANDARD, { hidden: true }) },
+  kriegspiel: { opts: ['traits', 'c960', 'cyl'], name: 'Kriegspiel (hidden pieces)', v: Object.assign({}, Engine.STANDARD, { hidden: true }) },
   // The real game is built each round from both players' setups; v here only supplies flags.
   austang: { name: 'Austang (build your army)', match: true, opts: ['fog'], v: Object.assign({}, Engine.STANDARD, { castling: true }) },
   alice:    { name: 'Alice Chess (two boards)', v: Engine.ALICE },
   infinite: { name: 'Infinite Chess (32×32 board)', opts: ['fog'], v: Engine.INFINITE },
   // multi:true modes are hosted as a hub; `all` = every seat on that board, 2..n players may start.
-  fourplayer:  { name: '4-Player Chess (cross board)', multi: true, opts: ['fog', 'teams', 'traits', 'c960'], all: ['r', 'b', 'y', 'g'], v: Engine.FOUR },
-  fourmars:    { name: '4-Player Marseillais (2 moves per turn)', multi: true, opts: ['fog', 'teams', 'traits', 'c960'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { movesPerTurn: 2, firstSingle: true }) },
-  fourcrazy:   { name: '4-Player Crazyhouse', multi: true, opts: ['drop', 'fog', 'teams', 'traits', 'c960'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { drops: true }) },
-  fourkrieg:   { name: '4-Player Kriegspiel (hidden pieces)', multi: true, opts: ['teams', 'traits', 'c960'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { hidden: true }) },
+  fourplayer:  { name: '4-Player Chess (cross board)', multi: true, opts: ['fog', 'teams', 'traits', 'classes', 'c960', 'cyl'], all: ['r', 'b', 'y', 'g'], v: Engine.FOUR },
+  fourmars:    { name: '4-Player Marseillais (2 moves per turn)', multi: true, opts: ['fog', 'teams', 'traits', 'classes', 'c960', 'cyl'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { movesPerTurn: 2, firstSingle: true }) },
+  fourcrazy:   { name: '4-Player Crazyhouse', multi: true, opts: ['drop', 'fog', 'teams', 'traits', 'classes', 'c960', 'cyl'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { drops: true }) },
+  fourkrieg:   { name: '4-Player Kriegspiel (hidden pieces)', multi: true, opts: ['teams', 'traits', 'c960', 'cyl'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { hidden: true }) },
   fourneutral: { name: '4-Player Neutral Pieces (centre monsters)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['fog', 'teams', 'neutral', 'traits', 'c960'], v: Object.assign({}, Engine.FOUR, { neutral: true, drops: true }) },
   bughouse:    { name: 'Bughouse (2v2, two boards, partner passes pieces)', multi: true, bug: true, all: ['r', 'b', 'y', 'g'], opts: [], v: Engine.BUGHOUSE },
   fouralice:   { name: '4-Player Alice Chess (two cross boards)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['teams'], v: Object.assign({}, Engine.FOUR, { alice: true, castling: false }) },
@@ -207,16 +251,19 @@ const CN = { r: 'Red', b: 'Blue', y: 'Yellow', g: 'Green' };
 /* ============ STATE ============ */
 const PREFIX = 'chessfriends-';
 // c/i/w/o are the neutral-mode fairy pieces; they use the hollow glyphs so they never look like real pieces.
-const GLYPH = { p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', c:'♔', i:'♘', w:'♗', o:'♖' };
-const FAIRY = 'ciwo';
+const GLYPH = { p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', c:'♔', i:'♘', w:'♗', o:'♖', a:'A', l:'L' };
+const FAIRY = 'ciwoal';
 const SVG = inner => '<svg viewBox="0 0 24 24" aria-hidden="true">' + inner + '</svg>';
 const FAIRY_SVG = {   // custom icons for the neutral / fairy pieces (they take the owner's colour)
   c: SVG('<path d="M12 2.5l8 3v6c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10v-6z" fill="currentColor"/><path d="M12 7v9M8 11h8" stroke="#000a" stroke-width="1.6" fill="none"/>'),
   i: SVG('<path d="M4 3l4.5 4.5h7L20 3l-1 8a7.5 7.5 0 1 1-14 0z" fill="currentColor"/><circle cx="9" cy="13" r="1.4" fill="#000a"/><circle cx="15" cy="13" r="1.4" fill="#000a"/><path d="M9 17q3 2 6 0" stroke="#000a" stroke-width="1.3" fill="none"/>'),
   w: SVG('<path d="M12 2a7.5 7.5 0 0 0-7.5 7.5V22l3.2-2.4L12 22l4.3-2.4 3.2 2.4V9.5A7.5 7.5 0 0 0 12 2z" fill="currentColor"/><circle cx="9.3" cy="10" r="1.5" fill="#000a"/><circle cx="14.7" cy="10" r="1.5" fill="#000a"/>'),
+  a: SVG('<path d="M12 2c3.5 3 6 6.5 6 10 0 2.5-1.7 4.3-3 5H9c-1.3-.7-3-2.5-3-5 0-3.5 2.5-7 6-10z" fill="currentColor"/><rect x="6.5" y="18" width="11" height="3.5" rx="1.2" fill="currentColor"/><path d="M12 6v7M8.8 9.5h6.4" stroke="#000a" stroke-width="1.6" fill="none"/>'),
+  l: SVG('<path d="M12 2.5c4.5 0 8 3.2 8 7.8V15h-3v5H7v-5H4v-4.7C4 5.7 7.5 2.5 12 2.5z" fill="currentColor"/><path d="M7.5 10h9v2h-9z" fill="#000a"/><path d="M12 3.5v4" stroke="#000a" stroke-width="1.4"/>'),
   o: SVG('<path d="M2 4c0 5.5 3.2 8 5.5 8h9c2.3 0 5.5-2.5 5.5-8-2.2 2.2-4.2 2.4-5.3 1H7.3C6.2 6.4 4.2 6.2 2 4z" fill="currentColor"/><rect x="7" y="11" width="10" height="10" rx="4" fill="currentColor"/><circle cx="10.2" cy="17" r="1" fill="#000a"/><circle cx="13.8" cy="17" r="1" fill="#000a"/>')
 };
 const glyphHTML = t => FAIRY_SVG[t] || GLYPH[t];
+GLYPH['#'] = '▒';
 const setGlyph = (el, t) => { if (FAIRY_SVG[t]) el.innerHTML = FAIRY_SVG[t]; else el.textContent = GLYPH[t]; };
 const $ = id => document.getElementById(id);
 let mode = 'standard', game = null, peer, conn, myColor = 'w', isHost = false, sel = null, over = null;
@@ -226,10 +273,13 @@ const LET = 'abcdefghijklmnopqrstuvwxyz';
 const sqName = (x, y) => (x < 26 ? LET[x] : LET[Math.floor(x / 26) - 1] + LET[x % 26]) + (y + 1);
 let mySeat = 'r', conns = [], mstarted = false, lobbyBase = '', mseats = null, gs = { dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false };
 let nBusy = false, gtraits = null, draft = null, revealedAll = false;
+let mirageSeen = 0, mineSet = null, gclasses = null, abFrom = null, chargeSq = null, abMode = null, abSet = null, revealedCl = false, pendTraits = null, abSeenG = null, abSeen = 0;
 let myToken = null, roomCode = null, spectateMode = false, spectating = false, specs = [], everJoined = false, peerToken = null;
-let resignLog = [], replay = null, retryTimer = null, retries = 0;   // multiplayer (3/4 players): host is the hub
+let resignLog = [], replay = null, retryTimer = null, retries = 0;
+let bots = {}, bots2p = null, lobbyBots = [], botTimer = null;
+let specChatOn = false, specChatAllowed = false;            // spectators may chat only if the host switches it on      // optional bot players (host only)   // multiplayer (3/4 players): host is the hub
 const ended = () => over || (game && (game.multi ? (!!game.winner() || game.drawn) : ['checkmate', 'stalemate', 'draw'].includes(game.status())));
-const SPEC_OK = new Set(['move', 'resign', 'drawAccept', 'newgame', 'traits', 'mmove', 'nmove', 'mresign', 'mchat', 'schat']);
+const SPEC_OK = new Set(['move', 'resign', 'drawAccept', 'newgame', 'traits', 'mmove', 'nmove', 'mresign', 'mchat', 'schat', 'specChatSetting']);
 function sendSpecs(msg) {
   if (!isHost || !specs.length || !SPEC_OK.has(msg.type)) return;
   specs.forEach(c => c.open && c.send(msg));
@@ -267,17 +317,25 @@ function send(msg) {
 function readGS() {
   return { dropZone: $('dropSel').value, fog: $('fogChk').checked, teams: $('teamsChk').checked, board: $('boardSel').value, height: +$('heightSel').value,
     neutralSet: $('nsetSel').value, fallen: $('fallenChk').checked, traits: $('traitsChk').checked, offers: +$('offerSel').value,
-    c960: $('c960Chk').checked, back960: $('c960Chk').checked ? Engine.randomBack960() : null };
+    c960: $('c960Chk').checked, back960: $('c960Chk').checked ? Engine.randomBack960() : null, cyl: $('cylChk').checked,
+    classes: $('classesChk').checked, clStart: +$('clStart').value || 0, clGain: +$('clGain').value || 0, clCap: +$('clCap').value || 8, clPer: +$('clPer').value || 0,
+    clSum: +$('clSum').value || 4, clUlt: $('clUlt').checked, clHide: $('clHide').checked, clFree: $('clFree').checked, clHideFx: $('clHideFx').checked };
 }
 const seatsFor = (m, n) => { const all = MODES[m].all; return n >= all.length ? all.slice() : n === 2 ? (all.length === 4 ? ['r', 'y'] : ['r', 'b']) : all.slice(0, n); };
 
-const GS_DEFAULTS = { dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false, traits: false, offers: 4, c960: false, back960: null };
+const GS_DEFAULTS = { dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false, traits: false, offers: 4, c960: false, back960: null, cyl: false,
+  classes: false, clStart: 2, clGain: 1, clCap: 8, clPer: 0, clSum: 4, clUlt: false, clHide: false, clFree: false, clHideFx: false };
 // Builds an engine for a mode from plain settings, without touching any globals (also used to rebuild games for replay).
-function makeEngine(m, seatsIn, gsIn, traits) {
+function makeEngine(m, seatsIn, gsIn, traits, classes) {
   const g2 = Object.assign({}, GS_DEFAULTS, gsIn || {}), op = MODES[m].opts || [];
   g2.traits = !!g2.traits && op.includes('traits');
   g2.fog = !!g2.fog && op.includes('fog');
   g2.c960 = !!g2.c960 && op.includes('c960');
+  g2.cyl = !!g2.cyl && op.includes('cyl');
+  g2.classes = !!g2.classes && op.includes('classes');
+  const cl = g2.classes && classes ? classes : null, cpass = cl ? Engine.classPass(cl) : undefined;
+  const ccfg = { start: +g2.clStart, gain: +g2.clGain, cap: +g2.clCap, perTurn: +g2.clPer, ultRepeat: !!g2.clUlt, summonCap: +g2.clSum };
+  const wrap = gm => (cl ? Engine.withClasses(gm, { classes: cl, cfg: ccfg }) : gm);
   if (g2.c960 && !g2.back960) g2.back960 = Engine.randomBack960();
   if (!g2.c960) g2.back960 = null;
   if (MODES[m].multi) {
@@ -290,25 +348,27 @@ function makeEngine(m, seatsIn, gsIn, traits) {
     const dead = all.filter(c => !seats.includes(c)), neu = !!MODES[m].v.neutral;
     const game = Engine.create(Object.assign({}, MODES[m].v, { seats, dead, dropZone: neu ? 'arm' : g2.dropZone, teams,
       board: MODES[m].v.board || (teams && g2.board === 'wide' && !neu && !MODES[m].v.alice ? 'wide' : undefined), height: +g2.height || 10,
-      neutralSet: g2.neutralSet, fallen: !!g2.fallen, traits, back960: g2.back960 || undefined }));
-    return { game, gs: g2, seats };
+      neutralSet: g2.neutralSet, fallen: !!g2.fallen, traits, back960: g2.back960 || undefined, cylinder: g2.cyl, cpass }));
+    return { game: wrap(game), gs: g2, seats };
   }
-  return { game: Engine.create(Object.assign({}, MODES[m].v, { dropZone: g2.dropZone, traits, back960: g2.back960 || undefined })), gs: g2, seats: null };
+  return { game: wrap(Engine.create(Object.assign({}, MODES[m].v, { dropZone: g2.dropZone, traits, back960: g2.back960 || undefined, cyl: g2.cyl, cpass }))), gs: g2, seats: null };
 }
 
 function newGame(m, s, o) {
   o = o || {};
-  mode = m; sel = null; over = null; overRes = null; setupMsg = ''; pal = 'p'; centered = false;
+  mode = m; sel = null; over = null; overRes = null; setupMsg = ''; pal = 'p'; centered = false; cylShift = 0;
   gs = Object.assign({}, GS_DEFAULTS, o.gs || gs);
   gtraits = o.traits || null; draft = null; revealedAll = false; resignLog = [];
+  gclasses = o.classes || null; abMode = null; abFrom = null; mirageSeen = 0; abSet = null; revealedCl = false; pendTraits = null;
   gs.traits = !!gs.traits && ((MODES[m].opts || []).includes('traits'));
+  gs.classes = !!gs.classes && ((MODES[m].opts || []).includes('classes'));
   if (MODES[m].match) {
     s = s || { start: 20, base: 8, step: 2, catchup: 3, cap: 24, rounds: 5 };
     M = { s, round: 1, scores: { w: 0, b: 0 }, pool: { w: s.start, b: s.start },
           setups: { w: { '4,0': 'k' }, b: { '4,7': 'k' } }, phase: 'setup', sentRound: 0, opp: null };
     game = null;
   } else {
-    const r = makeEngine(m, o.seats || mseats, gs, gtraits);
+    const r = makeEngine(m, o.seats || mseats, gs, gtraits, gclasses);
     M = null; nBusy = false; game = r.game; gs = r.gs;
     if (MODES[m].multi) mseats = r.seats;
     if (gs.c960 && gs.back960) addChat('', 'Chess960 layout: ' + gs.back960.toUpperCase().split('').join(' ') + ' — castle by moving your king onto your own rook.', true);
@@ -323,19 +383,20 @@ function handleMessage(msg) {
       stopRetry(); loadRecord(msg.rec);
       if (msg.seat) mySeat = msg.seat;
       if (msg.color) myColor = msg.color;
-      draft = msg.draft && msg.draft.offers ? { mine: msg.draft.offers, picked: msg.draft.picked } : null;
+      draft = msg.draft && msg.draft.offers ? { kind: msg.draft.kind || 'trait', mine: msg.draft.offers, picked: msg.draft.picked } : null;
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       if (game && game.multi) $('rematchBtn').classList.add('hidden'); else $('rematchBtn').classList.remove('hidden');
       addChat('', 'Reconnected — you are back in the game.', true); render(); break;
     case 'spec':
-      stopRetry(); spectating = true; loadRecord(msg.rec);
+      stopRetry(); spectating = true; specChatAllowed = !!msg.chat; loadRecord(msg.rec);
       myColor = 'w'; if (game && game.multi) mySeat = game.seats[0];
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       addChat('', 'You are watching this game as a spectator.', true); render(); break;
     case 'schat': addChat(String(msg.who), String(msg.text).slice(0, 300)); break;
+    case 'specChatSetting': specChatAllowed = !!msg.on; addChat('', specChatAllowed ? 'The host has switched spectator chat on.' : 'The host has switched spectator chat off.', true); break;
     case 'init':
       newGame(msg.mode, msg.settings, { gs: msg.gs }); if (game) msg.moves.forEach(m => game.move(m));
-      if (gs.traits) draft = { mine: null, picked: null };
+      if (gs.traits || gs.classes) draft = { kind: gs.traits ? 'trait' : 'class', mine: null, picked: null };
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       $('rematchBtn').classList.remove('hidden'); render(); break;
     case 'move': if (game.move(msg.m)) { sel = null; announce(); render(); } break;
@@ -345,22 +406,23 @@ function handleMessage(msg) {
     case 'newgame':
       newGame(msg.mode || mode, msg.settings, { gs: msg.gs, seats: msg.seats });
       if (msg.swap && !spectating) myColor = myColor === 'w' ? 'b' : 'w';
-      if (gs.traits && !spectating) draft = { mine: null, picked: null };
+      if ((gs.traits || gs.classes) && !spectating) draft = { kind: gs.traits ? 'trait' : 'class', mine: null, picked: null };
       $('modeSel2').value = mode; $('promo').classList.add('hidden'); $('drawBanner').classList.add('hidden');
       addChat('', 'New game: ' + MODES[mode].name + (MODES[mode].multi ? '.' : '. You are ' + (myColor === 'w' ? 'White' : 'Black') + '.'), true);
       render(); break;
     case 'minit':
       newGame(msg.mode, null, { seats: msg.seats, gs: msg.gs }); mySeat = msg.seat;
-      if (gs.traits) draft = { mine: null, picked: null };
+      if (gs.traits || gs.classes) draft = { kind: gs.traits ? 'trait' : 'class', mine: null, picked: null };
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       if (game.teams) addChat('', 'Teams: ' + teamNames('r') + ' vs ' + teamNames('b') + '.', true);
+  Object.keys(bots).forEach(sd => addChat('', CN[sd] + ' is a bot (' + bots[sd] + ').', true));
   addChat('', game.bug ? 'You are ' + CN[mySeat] + ' (Board ' + game.info[mySeat][0] + ', ' + (game.info[mySeat][1] === 'w' ? 'White' : 'Black') + '). Your partner is ' + CN[game.partner[mySeat]] + '. Both boards play at the same time.' : 'You are ' + CN[mySeat] + '. Turn order: ' + game.seats.map(c => CN[c]).join(' → ') + '.', true);
       render(); break;
     case 'nmove': if (game && game.neutralApply && game.neutralApply(msg.m)) { noteNeutral(msg.m); render(); if (!game.neutralPending) announceMulti(); } break;
-    case 'draft': draft = { mine: msg.offers, picked: null }; render(); break;
+    case 'draft': draft = { kind: msg.kind || 'trait', mine: msg.offers, picked: null }; render(); break;
     case 'pick': if (isHost && !game.multi) recvPick(myColor === 'w' ? 'b' : 'w', msg.id); break;
     case 'traits':
-      newGame(msg.mode || mode, null, { seats: msg.seats, gs: msg.gs, traits: msg.traits }); draft = null;
+      newGame(msg.mode || mode, null, { seats: msg.seats, gs: msg.gs, traits: msg.traits, classes: msg.classes }); draft = null;
       announceTraitStart(); render(); break;
     case 'mwait': $('lobbyMsg').textContent = msg.text; break;
     case 'kicked': $('lobbyMsg').textContent = 'The host removed you from the room.'; $('lobby').classList.remove('hidden'); $('game').classList.add('hidden'); break;
@@ -372,6 +434,7 @@ function handleMessage(msg) {
       if (inPlay() && !ended()) $('drawBanner').classList.remove('hidden');
       addChat('', 'Opponent offered a draw.', true); break;
     case 'drawAccept': over = 'Draw by agreement.'; overRes = 'd'; render(); break;
+    case 'endRound': over = 'Round ended by the host.'; overRes = 'd'; render(); break;
     case 'ready':
       if (M) { M.opp = { round: msg.round, setup: msg.setup }; addChat('', 'Opponent is ready.', true); tryStart(); render(); }
       break;
@@ -391,7 +454,7 @@ function setupConn(c) {
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       $('hostCtl').classList.remove('hidden'); $('modeSel2').value = mode;
       send({ type: 'init', mode, moves: game ? game.history() : [], settings: M && M.s, gs });
-      if (gs.traits && !gtraits) beginDraft();
+      if (needDraft()) beginDraft();
       render();
     } else {
       c.send({ type: 'hello', token: myToken, spectate: spectateMode });
@@ -406,7 +469,7 @@ function setupConn(c) {
 }
 
 function host() {
-  isHost = true; myColor = 'w'; mseats = null; newGame($('modeSel').value, readSettings(), { gs: readGS() });
+  isHost = true; myColor = 'w'; mseats = null; bots = {}; bots2p = null; lobbyBots = []; specChatOn = false; $('specChatChk').checked = false; newGame($('modeSel').value, readSettings(), { gs: readGS() });
   const code = Math.random().toString(36).slice(2, 7);
   peer = new Peer(PREFIX + code);
   peer.on('open', () => {
@@ -415,7 +478,8 @@ function host() {
     lobbyBase = 'Room code: <b>' + code + '</b><br>Send this link to your friend' + (MODES[mode].multi ? 's' : '') + ':<br><span id="link">' + url + '</span>' +
       '<br>Spectators can watch with: <span>' + location.origin + location.pathname + '?watch=' + code + '</span>';
     $('lobbyMsg').innerHTML = lobbyBase + (MODES[mode].multi ? '' : '<br>Waiting for them to join…');
-    if (MODES[mode].multi) { $('lobbyCtl').classList.remove('hidden'); renderRoster(); }
+    $('botLobby').classList.toggle('hidden', !!(MODES[mode].multi || MODES[mode].match));
+    if (MODES[mode].multi) { $('lobbyCtl').classList.remove('hidden'); $('botAdd').classList.toggle('hidden', !!MODES[mode].bug); renderRoster(); }
   });
   peer.on('connection', acceptConn);
   peer.on('error', e => $('lobbyMsg').textContent = 'Error: ' + e.type);
@@ -430,7 +494,7 @@ function join(code, asSpec) {
 }
 
 /* ============ GAME UI ============ */
-function play(m) { if (replay || spectating) return; if (game.multi) return playMulti(m); game.move(m); send({ type: 'move', m }); sel = null; announce(); render(); }
+function play(m) { if (replay || spectating) return; if (game.multi) return playMulti(m); if (!game.move(m)) { sel = null; render(); return; } send({ type: 'move', m }); sel = null; announce(); render(); }
 
 function showPromo(cands) {
   const p = $('promo'); p.innerHTML = '';
@@ -445,12 +509,15 @@ function showPromo(cands) {
 
 function clickSq(x, y) {
   if (draft || replay || spectating) return;
+  if (swapMode) return swapClick(x, y);
+  if (abMode) return abClick(x, y);
   $('promo').classList.add('hidden');
   if (ended() || game.turn !== myColor) return;
   if (sel) {
     const cand = sel.drop
       ? game.drops().filter(m => m.drop === sel.drop && m.tx === x && m.ty === y)
       : game.moves(sel.x, sel.y).filter(m => m.tx === x && m.ty === y);
+    if (friendlyPending(x, y, cand)) return;
     if (cand.length) { cand[0].promo ? showPromo(cand) : play(cand[0]); return; }
     const own = game.at(x, y) && game.at(x, y).c === myColor;
     if (MODES[mode].v.hidden && !sel.drop && !own && !(x === sel.x && y === sel.y)) {
@@ -466,10 +533,10 @@ function renderHand(c, el) {
   el.innerHTML = '';
   if (!MODES[mode].v.drops) return;
   const hand = game.hand(c);
-  'qrbnpciwo'.split('').forEach(t => {
+  'qrbnpciwoal'.split('').forEach(t => {
     if (!(hand[t] > 0)) return;
     const b = document.createElement('button');
-    b.textContent = GLYPH[t] + '×' + hand[t];
+    b.innerHTML = glyphHTML(t) + '×' + hand[t];
     if (sel && sel.drop === t && c === myColor) b.className = 'on';
     b.onclick = () => {
       if (c !== myColor || ended() || game.turn !== myColor) return;
@@ -527,6 +594,40 @@ function statusText() {
   return (M ? 'Round ' + M.round + '/' + M.s.rounds + ' · ' : '') + (game.turn === myColor ? 'Your turn' : "Opponent's turn") + ' (you are ' + (myColor === 'w' ? 'White' : 'Black') +
          ', ' + MODES[mode].name + ')' + (s === 'check' ? ' — check!' : '') +
          (MODES[mode].v.movesPerTurn > 1 ? ' — ' + game.left + ' move' + (game.left > 1 ? 's' : '') + ' left' : '');
+}
+
+// ---- cylinder chess view: a tilted, shaded barrel with faded 'beyond the edge' files that you can spin ----
+let cylShift = 0, cylBusy = false;
+const cylMod = (n, m) => ((n % m) + m) % m;
+function cylSetup(on) {
+  const wr = $('boardWrap'), el = $('board');
+  wr.classList.toggle('cylv', on); el.classList.toggle('cylb', on);
+  $('cylCtl').classList.toggle('hidden', !on); $('cylNote').classList.toggle('hidden', !on);
+  if (on) { el.style.transform = 'rotateX(14deg)'; initCylEvents(); }
+}
+function spinCyl(dir) {
+  if (cylBusy || !game || !game.cyl) return;
+  cylBusy = true;
+  const el = $('board'), cellW = el.clientWidth / (game.w + 0.7) || 40;
+  el.style.transition = 'transform .22s ease'; el.style.transform = 'rotateX(14deg) translateX(' + (-dir * cellW) + 'px)';
+  setTimeout(() => { el.style.transition = 'none'; cylShift = cylMod(cylShift + dir, game.w); cylBusy = false; render(); }, 230);
+}
+function initCylEvents() {
+  const wr = $('boardWrap');
+  if (wr._cylReady) return;
+  wr._cylReady = true; initZoomEvents();            // also installs the 'ignore the click after a drag' guard
+  let down = null;
+  wr.addEventListener('pointerdown', e => { if (!wr.classList.contains('cylv') || e.target.closest('#cylCtl')) return; down = { x: e.clientX }; dragMoved = false; });
+  window.addEventListener('pointermove', e => {
+    if (!down || !game || !game.cyl) return;
+    const dx = e.clientX - down.x, cellW = $('board').clientWidth / (game.w + 0.7);
+    if (Math.abs(dx) > 8) dragMoved = true;
+    if (Math.abs(dx) >= cellW) { down.x = e.clientX; spinCyl(dx < 0 ? 1 : -1); }
+  });
+  const up = () => { down = null; };
+  window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+  $('cylL').onclick = () => spinCyl(-1); $('cylR').onclick = () => spinCyl(1);
+  $('cylReset').onclick = () => { cylShift = 0; render(); };
 }
 
 // ---- zoomable board (used by both Infinite boards) ----
@@ -606,24 +707,26 @@ function getToken(code) {
 const liveGame = () => (replay ? replay.live : game);
 function buildRecord() {
   const g = liveGame();
-  return { mode, gs: Object.assign({}, gs), seats: g.multi ? g.seats : null, traits: gtraits, moves: g.history(),
+  return { mode, gs: Object.assign({}, gs), seats: g.multi ? g.seats : null, traits: gtraits, classes: gclasses, abils: g.abLog ? g.abLog() : [], moves: g.history(),
     resigns: resignLog.slice(), over: replay ? replay.saved.over : over, overRes: replay ? replay.saved.overRes : overRes };
 }
 function applyRecord(g, rec, k) {
-  const n = k == null ? rec.moves.length : k; let ri = 0, applied = 0;
+  const n = k == null ? rec.moves.length : k; let ri = 0, applied = 0, ai = 0;
+  const abs = rec.abils || [];
+  const doAbs = lim => { while (ai < abs.length && abs[ai].at <= lim) { g.move(abs[ai]); ai++; } };
   const doResigns = lim => { while (ri < rec.resigns.length && rec.resigns[ri].at <= lim) { g.resign(rec.resigns[ri].seat); ri++; } };
   for (const e of rec.moves) {
     if (applied >= n) break;
-    doResigns(applied);
+    doAbs(applied); doResigns(applied);
     if (e.c === 'n') g.neutralApply(e); else g.move(e);
     applied++;
   }
-  if (applied >= rec.moves.length) doResigns(Infinity);
+  if (applied >= rec.moves.length) { doAbs(Infinity); doResigns(Infinity); }
   return g;
 }
-const buildGameFromRecord = (rec, k) => applyRecord(makeEngine(rec.mode, rec.seats, rec.gs, rec.traits).game, rec, k);
+const buildGameFromRecord = (rec, k) => applyRecord(makeEngine(rec.mode, rec.seats, rec.gs, rec.traits, rec.classes).game, rec, k);
 function loadRecord(rec) {
-  newGame(rec.mode, null, { seats: rec.seats, gs: rec.gs, traits: rec.traits });
+  newGame(rec.mode, null, { seats: rec.seats, gs: rec.gs, traits: rec.traits, classes: rec.classes });
   applyRecord(game, rec);
   resignLog = (rec.resigns || []).slice(); over = rec.over || null; overRes = rec.overRes || null;
 }
@@ -683,11 +786,11 @@ function classify(c, hello) {
     if (game && game.multi && mstarted) { const old = conns.find(x => x.token === c.token); if (old) return rebindMulti(c, old); }
     else if (!MODES[mode].multi && everJoined && c.token === peerToken) return rebind2p(c);
   }
-  if (MODES[mode].multi) { if (mstarted || conns.length >= maxSeats() - 1) return addSpectator(c); return hostMultiConn(c); }
-  if (everJoined || (conn && conn.open)) return addSpectator(c);
+  if (MODES[mode].multi) { if (mstarted || conns.length + lobbyBots.length >= maxSeats() - 1) return addSpectator(c); return hostMultiConn(c); }
+  if (everJoined || bots2p || (conn && conn.open)) return addSpectator(c);
   setupConn(c);
 }
-const draftFor = seat => (draft && draft.offers && draft.offers[seat] ? { offers: draft.offers[seat], picked: draft.picks[seat] || null } : null);
+const draftFor = seat => (draft && draft.offers && draft.offers[seat] ? { kind: draft.kind, offers: draft.offers[seat], picked: draft.picks[seat] || null } : null);
 function rebindMulti(c, old) {
   c.seat = old.seat; c.team = old.team; c.ready = true; c.token = old.token; old.replaced = true;
   conns[conns.indexOf(old)] = c;
@@ -708,13 +811,20 @@ function rebind2p(c) {
   });
 }
 function addSpectator(c) {
-  const early = (MODES[mode].multi && !mstarted) || (!MODES[mode].multi && !everJoined);
+  const early = (MODES[mode].multi && !mstarted) || (!MODES[mode].multi && !everJoined && !bots2p);
   if (M || !game || early) {
     onOpen(c, () => { c.send({ type: 'mwait', text: M ? "Spectating isn't available in Austang." : 'The game has not started yet — try the link again in a moment.' }); setTimeout(() => c.close(), 300); });
     return;
   }
   c.spec = true; specs.push(c);
-  onOpen(c, () => { c.send({ type: 'spec', rec: buildRecord() }); addChat('', 'A spectator joined (' + specs.filter(x => x.open).length + ' watching).', true); });
+  c.on('data', msg => {                                   // spectators can only send chat, and only if the host allows it
+    if (!msg || msg.type !== 'specChat' || !specChatOn || typeof msg.text !== 'string') return;
+    const t = msg.text.trim().slice(0, 300), who = 'Spectator ' + (specs.indexOf(c) + 1);
+    if (!t) return;
+    addChat(who, t);
+    if (game && game.multi) broadcast({ type: 'schat', who, text: t }); else send({ type: 'schat', who, text: t });
+  });
+  onOpen(c, () => { c.send({ type: 'spec', rec: buildRecord(), chat: specChatOn }); addChat('', 'A spectator joined (' + specs.filter(x => x.open).length + ' watching).', true); });
   c.on('close', () => { specs = specs.filter(x => x !== c); addChat('', 'A spectator left.', true); });
 }
 function startRetry() {
@@ -780,11 +890,39 @@ function notifyTurn() {
   lastMyTurn = mine;
 }
 
+// ---- Swap trait: pick two of your pieces ----
+let swapMode = false, swapFirst = null, pendingFriendly = null;
+function friendlyPending(x, y, cand) {            // returns true while waiting for the confirming second click
+  const tg = game.at(x, y);
+  if (!sel || !cand.length || !tg || tg.c !== meId() || cand[0].castle) return false;
+  const from = sel.x + ',' + sel.y;
+  if (pendingFriendly && pendingFriendly.x === x && pendingFriendly.y === y && pendingFriendly.from === from) { pendingFriendly = null; return false; }
+  pendingFriendly = { x, y, from }; render(); return true;
+}
+function swapEligible() {
+  return !!(game && gtraits && !spectating && !replay && !draft && !M && !ended() && myTurnNow() && gtraits[meId()] === 'swap' && game.canSwap && game.canSwap(meId()));
+}
+function swapClick(x, y) {
+  const p = game.at(x, y);
+  if (!p || p.c !== meId() || p.dead || p.t === 'k' || p.t === 'p') return;
+  if (!swapFirst) { swapFirst = { x, y }; render(); return; }
+  if (swapFirst.x === x && swapFirst.y === y) { swapFirst = null; render(); return; }
+  const m = { swap: true, fx: swapFirst.x, fy: swapFirst.y, tx: x, ty: y };
+  swapMode = false; swapFirst = null; sel = null;
+  play(m);
+}
+$('swapBtn').onclick = () => { swapMode = !swapMode; swapFirst = null; sel = null; render(); };
+$('endRoundBtn').onclick = () => {                 // Austang: the host can call a round a draw if something goes wrong
+  if (!isHost || !M || M.phase !== 'play' || ended()) return;
+  over = 'Round ended by the host.'; overRes = 'd'; send({ type: 'endRound' }); render();
+};
+
 // ---- move list ----
 let ml = null;      // { src, g, applied, ri, items: [{ text, cls }], drawn }
-const mlLetter = t => ({ k: 'K', q: 'Q', r: 'R', b: 'B', n: 'N', p: '', c: 'C', i: 'I', w: 'W', o: 'O' }[t] || '');
+const mlLetter = t => ({ k: 'K', q: 'Q', r: 'R', b: 'B', n: 'N', p: '', c: 'C', i: 'I', w: 'W', o: 'O', a: 'A', l: 'L' }[t] || '');
 function mlText(g, e) {
   const sq = (x, y) => (g.hex ? (x - g.radius) + ',' + (y - g.radius) : sqName(x, y));
+  if (e.swap) return 'swap ' + sq(e.fx, e.fy) + '⇄' + sq(e.tx, e.ty);
   if (e.drop) return mlLetter(e.drop) + '@' + sq(e.tx, e.ty);
   const at = (x, y) => (g.bug ? g.at(e.board, x, y) : g.layers ? g.at(x, y, e.fl) : g.at(x, y));
   const p = at(e.fx, e.fy), t = p ? p.t : '', dest = at(e.tx, e.ty);
@@ -798,12 +936,14 @@ function updateMoveList() {
   box.classList.remove('hidden');
   const hist = live.history(), list = $('moveList');
   if (!ml || ml.src !== live || ml.applied > hist.length) {
-    ml = { src: live, g: makeEngine(mode, live.multi ? live.seats : null, gs, gtraits).game, applied: 0, ri: 0, items: [], drawn: 0 };
+    ml = { src: live, g: makeEngine(mode, live.multi ? live.seats : null, gs, gtraits, gclasses).game, applied: 0, ri: 0, ai: 0, items: [], drawn: 0 };
     list.innerHTML = '';
   }
   while (ml.applied < hist.length) {
     while (ml.ri < resignLog.length && resignLog[ml.ri].at <= ml.applied) { ml.g.resign(resignLog[ml.ri].seat); ml.ri++; }
-    const e = hist[ml.applied];
+    const abs = live.abLog ? live.abLog() : [];
+    while (ml.ai < abs.length && abs[ml.ai].at <= ml.applied) { ml.g.move(abs[ml.ai]); ml.ai++; }
+    const e = hist[ml.applied], who = ml.g.multi || ml.g.bug ? null : ml.g.turn;
     let text = '?', cls = '';
     try {
       text = mlText(ml.g, e);
@@ -812,11 +952,13 @@ function updateMoveList() {
       if (e.c === 'n') text = '◆' + text;
     } catch (x) { /* keep placeholder */ }
     if (e.c === 'n') ml.g.neutralApply(e); else ml.g.move(e);
-    ml.items.push({ text, cls }); ml.applied++;
+    ml.items.push({ text, cls, who }); ml.applied++;
   }
   for (; ml.drawn < ml.items.length; ml.drawn++) {
     const i = ml.drawn, it = ml.items[i];
-    if (!live.multi && i % 2 === 0) { const n = document.createElement('span'); n.className = 'mn'; n.textContent = (i / 2 + 1) + '.'; list.appendChild(n); }
+    let num = null;
+    if (!live.multi) { if (it.who == null) { if (i % 2 === 0) num = i / 2 + 1; } else if (it.who === 'w' && (i === 0 || ml.items[i - 1].who !== 'w')) num = ml.mn = (ml.mn || 0) + 1; }
+    if (num) { const n = document.createElement('span'); n.className = 'mn'; n.textContent = num + '.'; list.appendChild(n); }
     const c = document.createElement('span'); c.className = 'mv ' + it.cls; c.textContent = it.text; c.dataset.i = i;
     c.onclick = () => { if (!replay) enterReplay(); if (replay) setReplayPly(i + 1); };
     list.appendChild(c);
@@ -827,6 +969,50 @@ function updateMoveList() {
   if (!replay && ml.scrolled !== hist.length) { list.scrollTop = list.scrollHeight; ml.scrolled = hist.length; }
 }
 
+// ================= bots (host only) =================
+const isBotId = pid => (game.multi ? !!bots[pid] : !!(bots2p && pid !== myColor));
+function botSeatToMove() {
+  if (!isHost || !game || spectating || replay || draft || M || game.bug || ended()) return null;
+  if (game.multi) { if (game.neutralPending) return null; const sd = game.turn; return bots[sd] && game.alive(sd) ? sd : null; }
+  return bots2p && game.turn !== myColor ? game.turn : null;
+}
+function scheduleBot() {
+  if (botTimer || !botSeatToMove()) return;
+  botTimer = setTimeout(() => { botTimer = null; botStep(); }, 700 + Math.random() * 500);      // a short pause so you can follow
+}
+function botStep() {
+  const sd = botSeatToMove();
+  if (!sd) return;
+  let m = null;
+  try { m = Engine.botChoose(game, sd, game.multi ? bots[sd] : bots2p); } catch (e) { m = null; }
+  if (!m) return;
+  if (game.multi) { if (game.move(m)) { broadcast({ type: 'mmove', m }); announceMulti(); render(); } }
+  else if (game.move(m)) { send({ type: 'move', m }); announce(); render(); }
+}
+function startVsBot(level) {
+  if (!isHost || !game || MODES[mode].multi || M) return;
+  bots2p = level;
+  $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
+  $('hostCtl').classList.remove('hidden'); $('modeSel2').value = mode;
+  addChat('', 'You are playing against a bot (' + level + ').', true);
+  if (needDraft()) beginDraft();
+  render();
+}
+$('botEasy').onclick = () => startVsBot('easy');
+$('botNormal').onclick = () => startVsBot('normal');
+const addLobbyBot = level => {
+  if (!isHost || mstarted || !MODES[mode].multi || MODES[mode].bug) return;
+  if (1 + conns.length + lobbyBots.length >= maxSeats()) return;
+  lobbyBots.push({ level, team: (conns.length + lobbyBots.length + 1) % 2 }); renderRoster();
+};
+$('addBotEasy').onclick = () => addLobbyBot('easy');
+$('addBotNormal').onclick = () => addLobbyBot('normal');
+$('botTakeBtn').onclick = () => {
+  const sd = $('removeSel').value;
+  if (!isHost || !game || !game.multi || game.bug || !sd || !game.alive(sd) || sd === mySeat) return;
+  bots[sd] = 'normal'; addChat('', CN[sd] + ' is now played by a bot (Normal).', true); render();
+};
+
 // ================= class traits: draft, reveal =================
 const TRAIT = id => Engine.TRAITS[id];
 const meId = () => (game.multi ? mySeat : myColor);
@@ -835,22 +1021,30 @@ const whoName = c => (game.multi ? CN[c] : c === 'w' ? 'White' : 'Black');
 const traitLine = (who, id) => who + ' used their trait: ' + TRAIT(id).name + ' — ' + TRAIT(id).desc;
 const bcast = m => (game.multi ? broadcast(m) : send(m));
 
-function rollOffers() {
-  const pool = Object.keys(Engine.TRAITS).filter(id => { const t = TRAIT(id); return !(t.multi && !game.multi) && !(t.fog && !gs.fog); });
-  const out = [], n = Math.min(+gs.offers || 4, pool.length);
+const CLS = id => Engine.CLASSES[id];
+const DINFO = (kind, id) => (kind === 'class' ? CLS(id) : TRAIT(id));
+const eligibleTraits = () => Object.keys(Engine.TRAITS).filter(id => { const t = TRAIT(id); return !(t.multi && !game.multi) && !(t.fog && !gs.fog); });
+const eligibleFor = kind => (kind === 'class' ? Object.keys(Engine.CLASSES) : eligibleTraits());
+const needDraft = () => !!((gs.traits && !gtraits) || (gs.classes && !gclasses));
+function rollOffers(kind) {
+  const pool = eligibleFor(kind);
+  if (kind === 'class' && gs.clFree) return pool;
+  const out = [], n = Math.min(kind === 'class' ? 3 : (+gs.offers || 4), pool.length);
   while (out.length < n) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
   return out;
 }
-function beginDraft() {                                   // host only
+function beginDraft(kind) {                                   // host only; traits first (if on), then classes (if on)
+  kind = kind || ((gs.traits && !gtraits) ? 'trait' : 'class');
   const offers = {};
-  partIds().forEach(p => { offers[p] = rollOffers(); });
-  draft = { offers, picks: {}, mine: offers[meId()], picked: null };
-  if (game.multi) conns.forEach(c => c.send({ type: 'draft', offers: offers[c.seat] }));
-  else send({ type: 'draft', offers: offers[myColor === 'w' ? 'b' : 'w'] });
+  partIds().forEach(p => { offers[p] = rollOffers(kind); });
+  draft = { kind, offers, picks: {}, mine: offers[meId()], picked: null };
+  partIds().forEach(pid => { if (isBotId(pid)) draft.picks[pid] = offers[pid][Math.floor(Math.random() * offers[pid].length)]; });
+  if (game.multi) conns.forEach(c => { if (!bots[c.seat]) c.send({ type: 'draft', kind, offers: offers[c.seat] }); });
+  else if (!bots2p) send({ type: 'draft', kind, offers: offers[myColor === 'w' ? 'b' : 'w'] });
   render();
 }
 function choosePick(id) {
-  if (!draft || draft.picked || !draft.mine || !draft.mine.includes(id)) return;
+  if (!draft || draft.picked || !draft.mine || !(draft.mine.includes(id) || (isHost && draft.cheat))) return;
   draft.picked = id;
   if (isHost) { draft.picks[meId()] = id; checkDraft(); } else send({ type: 'pick', id });
   render();
@@ -868,35 +1062,137 @@ function autoPickRest() {
 function checkDraft() {
   if (!draft || !draft.offers) return;
   if (!partIds().every(p => draft.picks[p])) { render(); return; }
-  const map = draft.picks;
+  const map = draft.picks, kind = draft.kind || 'trait';
   draft = null;
-  newGame(mode, null, { gs, seats: mseats, traits: map });
-  bcast({ type: 'traits', traits: map, seats: mseats, gs, mode });
+  if (kind === 'trait') { pendTraits = map; if (gs.classes) { beginDraft('class'); return; } }
+  const traits = kind === 'trait' ? map : (pendTraits || null), classes = kind === 'class' ? map : null;
+  pendTraits = null;
+  newGame(mode, null, { gs, seats: mseats, traits, classes });
+  bcast({ type: 'traits', traits, classes, seats: mseats, gs, mode });
   announceTraitStart(); render();
 }
+const isMate = pid => !!(game.teams && game.teams[pid] === game.teams[meId()]);
+function announceClassStart() {
+  const me = meId();
+  const mine = spectating ? null : gclasses[me];
+  if (mine) addChat('', 'Your class: ' + CLS(mine).name + ' — ' + CLS(mine).desc + ' Passive: ' + CLS(mine).passive.desc, true);
+  partIds().forEach(pid => {
+    if (pid === me && !spectating) return;
+    if (gclasses[pid] && (spectating || !gs.clHide || isMate(pid))) addChat('', whoName(pid) + ' is a ' + CLS(gclasses[pid]).name + '.', true);
+  });
+}
 function announceTraitStart() {
+  if (game && gclasses) announceClassStart();
   if (!gtraits || !game) return;
   const mine = gtraits[meId()];
   if (mine) addChat('', 'Your trait (only you can see this): ' + TRAIT(mine).name + ' — ' + TRAIT(mine).desc, true);
+  if (game.teams && mine) partIds().forEach(pid => { if (pid !== meId() && game.teams[pid] === game.teams[meId()] && gtraits[pid]) addChat('', "Your teammate " + whoName(pid) + "'s trait: " + TRAIT(gtraits[pid]).name + ' — ' + TRAIT(gtraits[pid]).desc, true); });
 }
 function renderDraft() {
   const box = $('draftBox');
   if (!draft) { box.classList.add('hidden'); return; }
   box.classList.remove('hidden'); box.innerHTML = '';
+  const kind = draft.kind || 'trait';
   const line = t => { const d = document.createElement('div'); d.textContent = t; box.appendChild(d); };
-  const h = document.createElement('div'); h.innerHTML = '<b>Choose your class trait</b> — it stays secret until it matters.'; box.appendChild(h);
+  const btnHTML = id => { const d = DINFO(kind, id); return '<b>' + d.name + '</b><br><span>' + d.desc + '</span>' + (kind === 'class' ? '<br><span>Abilities: ' + d.abilities.map(a => a.name + ' (' + a.cost + ')').join(', ') + '</span>' : ''); };
+  const h = document.createElement('div');
+  h.innerHTML = kind === 'class' ? '<b>Choose your class</b> — a passive power plus abilities you pay for with points.' : '<b>Choose your class trait</b> — it stays secret until it matters.';
+  box.appendChild(h);
+  // Host-only hidden extra: click this heading 5 times quickly to unlock the full list for your own pick.
+  h.onclick = () => {
+    if (!isHost || !draft || draft.picked || !draft.mine) return;
+    const now = Date.now();
+    draft.taps = (draft.taps || []).filter(t => now - t < 3000).concat(now);
+    if (draft.taps.length >= 5) { draft.cheat = true; draft.taps = []; render(); }
+  };
   if (!draft.mine) { line('Waiting for the host to deal the offers…'); return; }
   if (draft.picked) {
-    line('You picked ' + TRAIT(draft.picked).name + '. Waiting for the others…' + (isHost && draft.picks ? ' (' + Object.keys(draft.picks).length + '/' + partIds().length + ' chosen)' : ''));
+    line('You picked ' + DINFO(kind, draft.picked).name + '. Waiting for the others…' + (isHost && draft.picks ? ' (' + Object.keys(draft.picks).length + '/' + partIds().length + ' chosen)' : ''));
     if (isHost) { const b = document.createElement('button'); b.textContent = 'Pick randomly for anyone who is still deciding'; b.onclick = autoPickRest; box.appendChild(b); }
     return;
   }
+  if (isHost && draft.cheat) {
+    const all = document.createElement('div');
+    all.style.cssText = 'max-height:240px;overflow:auto;border-top:1px dashed #777;margin-top:6px;padding-top:4px';
+    eligibleFor(kind).forEach(id => {
+      const b = document.createElement('button'); b.className = 'trait';
+      b.innerHTML = btnHTML(id); b.onclick = () => choosePick(id);
+      all.appendChild(b);
+    });
+    box.appendChild(all);
+  }
   draft.mine.forEach(id => {
     const b = document.createElement('button'); b.className = 'trait';
-    b.innerHTML = '<b>' + TRAIT(id).name + '</b><br><span>' + TRAIT(id).desc + '</span>';
-    b.onclick = () => choosePick(id);
+    b.innerHTML = btnHTML(id); b.onclick = () => choosePick(id);
     box.appendChild(b);
   });
+}
+
+// ---- class abilities: points bar, targeting, announcements ----
+const fxSeen = by => !gs.clHideFx || spectating || replay || ended() || by === meId() || isMate(by);      // protection glows can be hidden from opponents (host option)
+const fxClass = p => (p.wall ? ' fx-wall' : '') + (p.fx ? (p.fx.frz ? ' fx-frz' : '') + (p.fx.dis ? ' fx-dis' : '') + (p.fx.jmp ? ' fx-jmp' : '') + (p.fx.shd && fxSeen(p.fx.shd) ? ' fx-shd' : '') + (p.fx.sct && fxSeen(p.fx.sct) ? ' fx-sct' : '') + (p.fx.phn ? ' fx-phn' : '') + (p.fx.dcy ? ' fx-dcy' : '') : '');
+function abValidate() {                          // drops a stale ability selection and computes the highlighted target squares
+  abSet = null;
+  mineSet = null;
+  if (game && game.mines) { const all = spectating || replay || ended(), arr = game.mines(all ? null : meId()); if (arr.length) mineSet = new Set(arr.map(m => m.x + ',' + m.y)); }
+  chargeSq = game && game.chargeOf && !spectating && !replay && !draft ? (game.chargeOf(meId()) || (game.overrunOf ? game.overrunOf(meId()) : null)) : null;
+  if (!abMode) { abFrom = null; return; }
+  const ab = game && game.abilities && !spectating && !replay && !draft && !M && !ended() ? game.abilities(meId()).find(a => a.id === abMode) : null;
+  if (!ab || ab.why) { abMode = null; abFrom = null; return; }
+  const t = game.abTargets(meId(), abMode, abFrom || undefined);
+  if (!t.length) { abFrom = null; abMode = null; return; }
+  abSet = new Set(t.map(q => q.x + ',' + q.y));
+}
+function abClick(x, y) {
+  const id = abMode;
+  if (!abSet || !abSet.has(x + ',' + y)) { abMode = null; abFrom = null; sel = null; render(); return; }      // clicking elsewhere cancels
+  if (game.abSteps(meId(), id) === 2 && !abFrom) { abFrom = { x, y }; sel = null; render(); return; }      // first click of a two-click ability
+  const m = { ab: id, c: meId(), tx: x, ty: y };
+  if (abFrom) { m.fx = abFrom.x; m.fy = abFrom.y; }
+  abMode = null; abFrom = null; sel = null;
+  play(m);
+}
+function renderClassBar() {
+  const box = $('classBar');
+  if (!game || !game.cls || draft || M || replay) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden'); box.innerHTML = '';
+  const me = meId(), mine = spectating ? null : game.cls[me];
+  const add = (html, cls) => { const d = document.createElement('div'); d.innerHTML = html; if (cls) d.className = cls; box.appendChild(d); return d; };
+  if (mine) {
+    const k = CLS(mine);
+    add('<b>' + k.name + '</b> · Points <b>' + game.pts(me) + '</b>/' + game.cfg.cap + ' <span class="dim">(+' + game.cfg.gain + ' each turn) · Passive: ' + k.passive.desc + '</span>');
+    const row = document.createElement('div');
+    game.abilities(me).forEach(a => {
+      const b = document.createElement('button');
+      b.textContent = (a.replace ? '★ ' : '') + a.name + ' (' + a.cost + ')';
+      b.title = a.desc + (a.why ? ' — ' + a.why : '');
+      b.disabled = !!a.why || ended();
+      if (abMode === a.id) b.classList.add('on');
+      b.onclick = () => {
+        if (a.steps === 0) { abMode = null; abFrom = null; sel = null; play({ ab: a.id, c: me }); return; }      // no target to click: cast right away
+        abMode = abMode === a.id ? null : a.id; abFrom = null; sel = null; render();
+      };
+      row.appendChild(b);
+    });
+    const ov = game.overrunOf ? game.overrunOf(me) : null;
+    if (ov && ov.n > 0 && game.turn === me) { const b = document.createElement('button'); b.textContent = 'End Overrun'; b.onclick = () => { abMode = null; abFrom = null; sel = null; play({ ab: 'stop', c: me }); }; row.appendChild(b); }
+    box.appendChild(row);
+    add('<span class="dim">Cast an ability first, then make your normal move (an ability marked ★ replaces your move). An ability that gives check ends your turn. Glows: frozen = blue, disarmed = grey, jumping = gold, shielded = green, sanctuary = purple. Brown blocks = walls; red-outlined squares = secret mines of your team; see-through cyan = phantom, see-through purple = decoy.</span>');
+  }
+  const others = partIds().filter(p => p !== me || spectating).filter(p => game.cls[p] && (spectating || !gs.clHide || isMate(p)));
+  if (others.length) add(others.map(p => whoName(p) + ': ' + CLS(game.cls[p]).name + ' (' + game.pts(p) + ' pts)').join(' · '), 'dim');
+}
+function announceAbilities() {
+  if (!game || !game.abLog || replay) return;
+  if (game.mirages) { const ml2 = game.mirages(); if (abSeenG === game) while (mirageSeen < ml2.length) { const e = ml2[mirageSeen++]; addChat('', 'Mirage! ' + whoName(e.c) + ' was about to be checkmated, but that king was a decoy: the real king appears on ' + sqName(e.tx, e.ty) + '.', true); } else mirageSeen = ml2.length; }
+  const log = game.abLog();
+  if (abSeenG !== game) { abSeenG = game; abSeen = log.length; return; }      // loading a game/record: don't re-announce the past
+  while (abSeen < log.length) {
+    const e = log[abSeen++], k = CLS(game.cls[e.c]), a = e.ab === 'stop' ? { name: 'End Overrun' } : k.abilities.find(q => q.id === e.ab);
+    const hide = gs.clHide && !spectating && e.c !== meId() && !isMate(e.c);
+    const foeCast = !spectating && e.c !== meId() && !isMate(e.c), noWhere = foeCast && (e.ab === 'mine' || (gs.clHideFx && (e.ab === 'shield' || e.ab === 'sanctuary')));
+    addChat('', whoName(e.c) + (hide ? '' : ' (' + k.name + ')') + ' used ' + a.name + (noWhere ? '' : e.fx != null ? ' from ' + sqName(e.fx, e.fy) + ' to ' + sqName(e.tx, e.ty) : e.tx != null ? ' at ' + sqName(e.tx, e.ty) : '') + '.', true);
+  }
 }
 function specStatus() {
   if (ended()) return 'Spectating — ' + $('status').textContent.replace(/\s*\(you are [^)]*\)/, '');
@@ -907,8 +1203,24 @@ function specStatus() {
 function render() {
   renderCore();
   renderDraft();
+  renderClassBar(); announceAbilities();
   notifyTurn();
   updateMoveList();
+  scheduleBot();
+  const canSwapNow = swapEligible();
+  $('swapBtn').classList.toggle('hidden', !canSwapNow);
+  if (!canSwapNow) { swapMode = false; swapFirst = null; }
+  else $('swapBtn').textContent = swapMode ? 'Cancel swap' : 'Swap two pieces';
+  if (!sel) pendingFriendly = null;
+  if (pendingFriendly) $('status').textContent = 'Friendly Fire: click that piece again to capture your own piece, or choose something else.';
+  if (abMode) { const ab = game.abilities(meId()).find(a => a.id === abMode); $('status').textContent = (ab ? ab.name : 'Ability') + (abFrom ? ': now click the destination/target square' : (ab && ab.steps === 2 ? ': first click the piece to use' : ': click a highlighted square')) + ' (click anywhere else to cancel).'; }
+  if (!abMode && !replay && !spectating && game.overrunOf && game.overrunOf(meId()) && game.turn === meId() && !ended()) $('status').textContent = 'Overrun! Keep capturing with the marked piece' + (game.overrunOf(meId()).n ? ' or press End Overrun.' : '.');
+  else if (!abMode && chargeSq && game.turn === meId() && !ended()) $('status').textContent = 'Charge! Move the marked piece' + (chargeSq.stage === 2 ? ' again (its second move).' : '.');
+  if (swapMode) $('status').textContent = 'Swap: ' + (swapFirst ? 'now pick the second piece (first: ' + sqName(swapFirst.x, swapFirst.y) + ')' : 'pick the first of your two pieces') + ' — not kings or pawns. Once per game.';
+  $('endRoundBtn').classList.toggle('hidden', !(isHost && M && M.phase === 'play' && !ended()));
+  $('botTakeBtn').classList.toggle('hidden', !(isHost && game && game.multi && !game.bug));
+  const botNow = botSeatToMove();
+  if (botNow && !swapMode) $('status').textContent += ' · ' + (game.multi ? CN[botNow] : 'the bot') + ' (bot) is thinking…';
   document.body.classList.toggle('spec', spectating);
   if (spectating) $('status').textContent = specStatus();
   if (replay) {
@@ -922,6 +1234,10 @@ function render() {
   $('replayBar').classList.add('hidden');
   $('replayBtn').classList.toggle('hidden', !canReplay());
   if (game && !game.multi && game.drainEvents) game.drainEvents();      // trait events are not announced
+  if (game && gclasses && !draft && !replay && ended() && !revealedCl) {
+    revealedCl = true;
+    addChat('', 'Classes this game: ' + partIds().map(p => whoName(p) + ' — ' + CLS(gclasses[p]).name).join(', ') + '.', true);
+  }
   if (game && gtraits && !draft && !replay) {
     const mine = spectating ? null : gtraits[meId()];
     if (mine && !$('status').textContent.includes('Your trait')) $('status').textContent += ' · Your trait: ' + TRAIT(mine).name;
@@ -933,6 +1249,8 @@ function render() {
 }
 
 function renderCore() {
+  cylSetup(false);
+  abValidate();
   $('boardWrap').classList.remove('zoomable'); $('boardWrap').style.height = ''; $('zoomCtl').classList.add('hidden'); $('board').style.transform = '';
   $('board').classList.remove('hexb'); $('board').style.height = ''; $('board2').style.width = '';
   if (M && M.phase === 'play' && game && ended()) finishRound();
@@ -944,9 +1262,9 @@ function renderCore() {
   if (game && game.layers) return renderAlice();
   const g = game, W = g.w, H = g.h, el = $('board');
   el.innerHTML = '';
-  const big = W > 12;
-  el.style.gridTemplateColumns = 'repeat(' + W + ',minmax(0,1fr))';
-  el.style.aspectRatio = W + '/' + H;
+  const big = W > 12, cylOn = !!g.cyl, Wd = cylOn ? W + 2 : W;
+  el.style.gridTemplateColumns = cylOn ? 'minmax(0,.5fr) minmax(0,.85fr) ' + 'minmax(0,1fr) '.repeat(W - 2) + 'minmax(0,.85fr) minmax(0,.5fr)' : 'repeat(' + W + ',minmax(0,1fr))';
+  el.style.aspectRatio = cylOn ? (W + 0.7) + '/' + H : W + '/' + H;
   el.style.width = big ? (W * 34) + 'px' : '100%';
   el.style.fontSize = big ? '24px' : (Math.min(innerWidth - 32, 480) / W * 0.7) + 'px';
   $('board2Wrap').classList.add('hidden'); $('capA').classList.add('hidden');
@@ -958,26 +1276,31 @@ function renderCore() {
     const p = g.at(x, y); if (p && p.t === 'k' && p.c === g.turn) kingSq = x + ',' + y;
   }
   const seen = gs.fog && !ended() && !replay && !spectating ? g.sees(myColor) : null;
-  for (let i = 0; i < W * H; i++) {
-    const r = Math.floor(i / W), c = i % W;
-    const x = myColor === 'w' ? c : W - 1 - c, y = myColor === 'w' ? H - 1 - r : r;
+  for (let i = 0; i < Wd * H; i++) {
+    const r = Math.floor(i / Wd), c = i % Wd, cc = cylOn ? c - 1 : c;
+    const bx = myColor === 'w' ? cc : W - 1 - cc, x = cylOn ? cylMod(bx + cylShift, W) : bx, y = myColor === 'w' ? H - 1 - r : r;
     const p0 = g.at(x, y), fogged = !!seen && !seen.has(y * W + x), p = ((hid && p0 && p0.c !== myColor) || fogged) ? null : p0, d = document.createElement('div');
     d.className = 'sq ' + ((x + y) % 2 === 1 ? 'l' : 'd');
+    if (cylOn && (c === 0 || c === Wd - 1)) d.classList.add('ghost');
     if (sel && sel.x === x && sel.y === y) d.classList.add('sel');
     if (last && !hid && ((last.tx === x && last.ty === y) || (last.fx === x && last.fy === y))) d.classList.add('last');
     if (fogged) d.classList.add('fog');
     if (kingSq === x + ',' + y) d.classList.add('check');
     if (hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (p) d.classList.add('cap'); }
+    if (abSet && abSet.has(x + ',' + y)) d.classList.add('hint');
+    if (mineSet && mineSet.has(x + ',' + y)) d.classList.add('mine');
+    if ((abFrom && abFrom.x === x && abFrom.y === y) || (chargeSq && chargeSq.x === x && chargeSq.y === y)) d.classList.add('sel');
     if (p) {
       const s = document.createElement('span');
-      s.textContent = GLYPH[p.t];
-      if (p.c === 'w') s.className = 'w-piece';
+      setGlyph(s, p.t);
+      s.className = (p.c === 'w' ? 'w-piece' : '') + (FAIRY.includes(p.t) ? ' fairy' : '') + (p.champ && p.c === myColor ? ' champ' : '') + fxClass(p);
       d.appendChild(s);
     }
     d.onclick = () => clickSq(x, y);
     el.appendChild(d);
   }
   if (big) setupBigBoard(34, 12);
+  if (cylOn) cylSetup(true);
   renderHand(myColor === 'w' ? 'b' : 'w', $('handTop'));
   renderHand(myColor, $('handBot'));
   $('status').textContent = statusText();
@@ -1019,7 +1342,10 @@ function updateAustUI() {
   $('gsTeams').classList.toggle('hidden', !op.includes('teams'));
   $('gsNeutral').classList.toggle('hidden', !op.includes('neutral'));
   $('gsTraits').classList.toggle('hidden', !op.includes('traits'));
+  $('gsClasses').classList.toggle('hidden', !op.includes('classes'));
+  $('classWrap').classList.toggle('hidden', !$('classesChk').checked);
   $('gsC960').classList.toggle('hidden', !op.includes('c960'));
+  $('gsCyl').classList.toggle('hidden', !(op.includes('cyl') && (!(MODES[v] && MODES[v].multi) || ($('teamsChk').checked && $('boardSel').value === 'wide'))));
   $('offerWrap').classList.toggle('hidden', !$('traitsChk').checked);
   $('gsBoard').classList.toggle('hidden', !(op.includes('teams') && $('teamsChk').checked && !op.includes('neutral') && !(MODES[v].v.alice || MODES[v].v.board)));
   $('drawBtn').classList.toggle('hidden', !!(game && game.multi));
@@ -1140,6 +1466,8 @@ $('nextBtn').onclick = () => {
 };
 $('modeSel').onchange = updateAustUI;
 $('traitsChk').onchange = updateAustUI;
+$('classesChk').onchange = updateAustUI;
+$('boardSel').onchange = updateAustUI;
 $('teamsChk').onchange = () => { updateAustUI(); if (isHost && !mstarted) renderRoster(); };
 $('modeSel2').onchange = updateAustUI;
 
@@ -1178,7 +1506,7 @@ function renderAlice() {
       if (sel && sel.l === l && hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (p) d.classList.add('cap'); }
       if (p) {
         const s = document.createElement('span');
-        s.textContent = GLYPH[p.t]; if (p.c === 'w') s.className = 'w-piece';
+        setGlyph(s, p.t); s.className = (p.c === 'w' ? 'w-piece' : '') + (FAIRY.includes(p.t) ? ' fairy' : '');
         d.appendChild(s);
       }
       d.onclick = () => clickAlice(x, y, l);
@@ -1198,7 +1526,7 @@ const maxSeats = () => MODES[mode].all.length;
 let hostTeam = 0;
 const teamsOn = () => !!MODES[mode].bug || (!!(MODES[mode].opts || []).includes('teams') && $('teamsChk').checked);
 function lobbySeats() {
-  const players = [{ team: hostTeam }].concat(conns.filter(c => c.ready));
+  const players = [{ team: hostTeam }].concat(conns.filter(c => c.ready)).concat(lobbyBots);
   if (teamsOn()) {
     const slots = [['r', 'y'], ['b', 'g']], used = [0, 0];
     const by = players.map(p => slots[p.team][used[p.team]++]);
@@ -1218,10 +1546,12 @@ function renderRoster() {
   };
   row('1. You (host)', hostTeam, () => { hostTeam ^= 1; renderRoster(); });
   ready.forEach((c, i) => row((i + 2) + '. Player joined', c.team, () => { c.team ^= 1; renderRoster(); }, () => kickConn(c)));
-  const n = ready.length + 1;
+  lobbyBots.forEach((b, j) => row((ready.length + j + 2) + '. Bot (' + b.level + ')', b.team, () => { b.team ^= 1; renderRoster(); }, () => { lobbyBots.splice(lobbyBots.indexOf(b), 1); renderRoster(); }));
+  const n = ready.length + 1 + lobbyBots.length;
+  $('addBotEasy').disabled = $('addBotNormal').disabled = n >= maxSeats();
   let ok = n >= 2;
   if (tOn) {
-    const cnt = [0, 0]; cnt[hostTeam]++; ready.forEach(c => cnt[c.team]++);
+    const cnt = [0, 0]; cnt[hostTeam]++; ready.forEach(c => cnt[c.team]++); lobbyBots.forEach(b => cnt[b.team]++);
     ok = cnt[0] >= 1 && cnt[1] >= 1 && cnt[0] <= 2 && cnt[1] <= 2;
     if (MODES[mode].bug) ok = cnt[0] === 2 && cnt[1] === 2;
     const note = document.createElement('div');
@@ -1243,7 +1573,7 @@ function hostMultiConn(c) {
   conns.push(c); c.team = conns.length % 2;
   onOpen(c, () => {
     c.ready = true; renderRoster();
-    if ($('autoChk').checked && conns.filter(x => x.ready).length === maxSeats() - 1) startMulti();
+    if ($('autoChk').checked && conns.filter(x => x.ready).length + lobbyBots.length === maxSeats() - 1) startMulti();
   });
   c.on('data', msg => hostRecv(c, msg));
   c.on('close', () => {
@@ -1255,15 +1585,17 @@ function hostMultiConn(c) {
 
 function startMulti() {
   const players = conns.filter(c => c.ready);
-  if (mstarted || players.length < 1) return;
+  if (mstarted || (players.length < 1 && !lobbyBots.length)) return;
   if ($('startBtn').disabled) return;
   conns = players; mstarted = true;
   const { seats, by } = lobbySeats();
   mySeat = by[0];
   conns.forEach((c, i) => { c.seat = by[i + 1]; });
+  bots = {};
+  lobbyBots.forEach((b, j) => { bots[by[1 + players.length + j]] = b.level; });
   newGame(mode, null, { seats, gs: readGS() });
   conns.forEach(c => c.send({ type: 'minit', mode, seat: c.seat, seats, gs }));
-  if (gs.traits) beginDraft();
+  if (needDraft()) beginDraft();
   $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
   $('hostCtl').classList.remove('hidden'); $('modeSel2').value = mode;
   addChat('', 'You are ' + CN[mySeat] + '. Turn order: ' + game.seats.map(c => CN[c]).join(' → ') + '.', true);
@@ -1278,7 +1610,7 @@ function hostRecv(c, msg) {
   if (replay && msg.type !== 'chat') { replay.queue.push({ host: true, c, msg }); return; }
   if (msg.type === 'tryMove') {
     if (game.bug && msg.m) msg.m.seat = c.seat;
-    if (!draft && !ended() && (game.bug ? game.canMove(c.seat) : game.turn === c.seat) && game.move(msg.m)) { broadcast({ type: 'mmove', m: msg.m }); announceMulti(); render(); }
+    if (!draft && !bots[c.seat] && !ended() && (game.bug ? game.canMove(c.seat) : game.turn === c.seat) && game.move(msg.m)) { broadcast({ type: 'mmove', m: msg.m }); announceMulti(); render(); }
   } else if (msg.type === 'pick') {
     recvPick(c.seat, msg.id);
   } else if (msg.type === 'tryResign') {
@@ -1370,12 +1702,15 @@ function fromView(c, X, Y, N = 14) {
 function clickMulti(x, y) {
   $('promo').classList.add('hidden');
   if (draft || replay || spectating) return;
+  if (swapMode) return swapClick(x, y);
+  if (abMode) return abClick(x, y);
   if (ended() || game.neutralPending || game.turn !== mySeat || !game.alive(mySeat)) return;
   const hid = MODES[mode].v.hidden;
   if (sel) {
     const cand = sel.drop
       ? game.drops().filter(m => m.drop === sel.drop && m.tx === x && m.ty === y)
       : game.moves(sel.x, sel.y).filter(m => m.tx === x && m.ty === y);
+    if (friendlyPending(x, y, cand)) return;
     if (cand.length) { cand[0].promo ? showPromo(cand) : playMulti(cand[0]); return; }
     const own = game.at(x, y) && game.at(x, y).c === mySeat;
     if (hid && !sel.drop && !own && !(x === sel.x && y === sel.y)) { addChat('', 'Referee: illegal move, try again.', true); return; }
@@ -1389,7 +1724,7 @@ function renderMultiHands() {
   const g = game, V = MODES[mode].v, top = $('handTop'), bot = $('handBot');
   top.innerHTML = ''; bot.innerHTML = ''; top.classList.remove('others');
   if (!V.drops) return;
-  const txt = h => 'qrbnpciwo'.split('').filter(t => h[t] > 0).map(t => GLYPH[t] + '×' + h[t]).join(' ') || '—';
+  const txt = h => 'qrbnpciwoal'.split('').filter(t => h[t] > 0).map(t => GLYPH[t] + '×' + h[t]).join(' ') || '—';
   top.classList.add('others');
   top.textContent = 'Hands: ' + g.seats.filter(c => c !== mySeat).map(c => CN[c] + ' ' + txt(g.hand(c))).join(' · ');
   const hand = g.hand(mySeat);
@@ -1557,9 +1892,12 @@ function renderMulti() {
     if (last && !hid && last.drop && last.tx === x && last.ty === y) d.classList.add('last');
     if (kp && kp.x === x && kp.y === y) d.classList.add('check');
     if (hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (shown) d.classList.add('cap'); }
+    if (abSet && abSet.has(x + ',' + y)) d.classList.add('hint');
+    if (mineSet && mineSet.has(x + ',' + y)) d.classList.add('mine');
+    if ((abFrom && abFrom.x === x && abFrom.y === y) || (chargeSq && chargeSq.x === x && chargeSq.y === y)) d.classList.add('sel');
     if (shown) {
       const sp = document.createElement('span');
-      setGlyph(sp, p.t); sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (FAIRY.includes(p.t) ? ' fairy' : '');
+      setGlyph(sp, p.t); sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (FAIRY.includes(p.t) ? ' fairy' : '') + (p.champ && sameSide(p.c, mySeat) ? ' champ' : '') + fxClass(p);
       if (p.c === 'n') d.classList.add('neu');
       d.appendChild(sp);
     }
@@ -1582,16 +1920,20 @@ function renderMulti() {
     }
   } else {
     const W = g.w, H = g.h, inf = !g.wide && W === 32, cell = Math.min(innerWidth - 32, 480) / W, north = mySeat === 'b' || mySeat === 'g';
-    el.style.gridTemplateColumns = 'repeat(' + W + ',minmax(0,1fr))'; el.style.aspectRatio = W + '/' + H;
+    const cylOn = !!g.cyl, Wd = cylOn ? W + 2 : W;
+    el.style.gridTemplateColumns = cylOn ? 'minmax(0,.5fr) minmax(0,.85fr) ' + 'minmax(0,1fr) '.repeat(W - 2) + 'minmax(0,.85fr) minmax(0,.5fr)' : 'repeat(' + W + ',minmax(0,1fr))';
+    el.style.aspectRatio = cylOn ? (W + 0.7) + '/' + H : W + '/' + H;
     el.style.width = inf ? (W * 34) + 'px' : '100%';
     el.style.fontSize = inf ? '24px' : (cell * 0.75) + 'px';
-    for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
-      const [x, y] = g.wide ? (north ? [W - 1 - c, r] : [c, H - 1 - r]) : fromView(mySeat, c, H - 1 - r, W), d = document.createElement('div');
+    for (let r = 0; r < H; r++) for (let c = 0; c < Wd; c++) {
+      const cc = cylOn ? c - 1 : c;
+      const [bx, y] = g.wide ? (north ? [W - 1 - cc, r] : [cc, H - 1 - r]) : fromView(mySeat, c, H - 1 - r, W), x = cylOn ? cylMod(bx + cylShift, W) : bx, d = document.createElement('div');
       if (!g.valid(x, y)) { d.style.visibility = 'hidden'; el.appendChild(d); continue; }
-      d.className = 'sq ' + ((x + y) % 2 === 1 ? 'l' : 'd');
+      d.className = 'sq ' + ((x + y) % 2 === 1 ? 'l' : 'd') + (cylOn && (c === 0 || c === Wd - 1) ? ' ghost' : '');
       decorate(d, x, y); el.appendChild(d);
     }
     if (inf) setupBigBoard(34, 18);
+    if (cylOn) cylSetup(true);
   }
   renderMultiHands();
   $('status').textContent = statusText();
@@ -1616,7 +1958,11 @@ function addChat(who, text, system) {
 }
 function sendChat() {
   const t = $('chatIn').value.trim();
-  if (!t || spectating) return;
+  if (!t) return;
+  if (spectating) {
+    if (!specChatAllowed) { addChat('', 'The host has not switched spectator chat on.', true); return; }
+    send({ type: 'specChat', text: t }); $('chatIn').value = ''; return;
+  }
   if (game && game.multi) {
     if (isHost) { addChat(CN[mySeat], t); broadcast({ type: 'mchat', from: mySeat, text: t }); }
     else send({ type: 'chat', text: t });
@@ -1656,7 +2002,7 @@ $('newBtn').onclick = () => {
     newGame(mode, null, { gs: readGS(), seats: mseats }); sel = null;
     broadcast({ type: 'newgame', mode, seats: mseats, gs });
     addChat('', 'New game: ' + MODES[mode].name + '.', true);
-    if (gs.traits) beginDraft();
+    if (needDraft()) beginDraft();
     render(); return;
   }
   newGame(m, m === 'austang' ? readSettings() : null, { gs: readGS() });
@@ -1664,7 +2010,7 @@ $('newBtn').onclick = () => {
   send({ type: 'newgame', mode: m, swap, settings: M && M.s, gs });
   $('promo').classList.add('hidden'); $('drawBanner').classList.add('hidden');
   addChat('', 'New game: ' + MODES[m].name + '. You are ' + (myColor === 'w' ? 'White' : 'Black') + '.', true);
-  if (gs.traits) beginDraft();
+  if (needDraft()) beginDraft();
   render();
 };
 $('specLinkBtn').onclick = () => {
@@ -1672,6 +2018,7 @@ $('specLinkBtn').onclick = () => {
   try { navigator.clipboard.writeText(url); } catch (e) { /* ignore */ }
   addChat('', 'Spectator link (copied if your browser allows): ' + url, true);
 };
+$('specChatChk').onchange = e => { specChatOn = e.target.checked; sendSpecs({ type: 'specChatSetting', on: specChatOn }); addChat('', 'Spectator chat is ' + (specChatOn ? 'on' : 'off') + '.', true); };
 $('rematchBtn').onclick = () => { send({ type: 'rematchReq' }); addChat('', 'You asked for a rematch.', true); };
 window.onresize = () => game && render();
 

@@ -133,6 +133,45 @@ const Engine = (() => {
 
 
 
+
+  // ================= simple bots (run by the host) =================
+  // Easy: mostly random, sometimes grabs the biggest piece it can. Normal: picks the move with the best
+  // "what I take, minus the most the opponents could take back next" score; takes checks and mates when it sees them.
+  const BOT_VAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0, c: 2, i: 3, w: 3, o: 3, a: 6, l: 6 };
+  const bv = t => BOT_VAL[t] || 0;
+  function botChoose(game, seat, level) {
+    const rand = a => a[Math.floor(Math.random() * a.length)];
+    let cands;
+    if (game.evalMoves) cands = game.evalMoves(seat);
+    else {                                         // hex / Alice boards: no look-ahead, just captures and randomness
+      cands = [];
+      for (let l = 0; l < (game.layers || 1); l++) for (let y = 0; y < game.h; y++) for (let x = 0; x < game.w; x++) {
+        if (game.valid && !game.valid(x, y)) continue;
+        for (const m of (game.layers ? game.moves(x, y, l) : game.moves(x, y))) {
+          const t = game.layers ? game.at(m.tx, m.ty, m.fl) : game.at(m.tx, m.ty);
+          cands.push({ m, cap: t && t.c !== seat ? t.t : null, threat: 0, check: false, mate: false, pos: 0 });
+        }
+      }
+      if (game.drops) game.drops().forEach(m => cands.push({ m, cap: null, threat: 0, check: false, mate: false, pos: 0 }));
+    }
+    if (!cands.length) return null;
+    if (level === 'easy') {
+      const caps = cands.filter(x => x.cap);
+      if (caps.length && Math.random() < 0.6) { const best = Math.max(...caps.map(x => bv(x.cap))); return rand(caps.filter(x => bv(x.cap) === best)).m; }
+      return rand(cands).m;
+    }
+    let best = -1e9, pool = [];
+    for (const x of cands) {
+      const m = x.m;
+      let sc = bv(x.cap) - 0.95 * x.threat + (x.check ? 0.4 : 0) + (x.mate ? 100 : 0) + 0.08 * x.pos + Math.random() * 0.35;
+      if (m.promo) sc += m.promo === 'q' ? 8 : 1.5;
+      if (m.drop) sc += 0.3;
+      if (m.castle) sc += 0.3;
+      if (sc > best + 1e-9) { best = sc; pool = [m]; } else if (Math.abs(sc - best) <= 1e-9) pool.push(m);
+    }
+    return rand(pool);
+  }
+
   // ================= class traits =================
   // Each player secretly picks one trait before the game (see the draft in index.html). A trait can change the starting
   // set-up (setup), piece movement (defs), pawn rules (pawn flags) or add a special rule handled inside the engines.
@@ -140,18 +179,27 @@ const Engine = (() => {
   const FIVE = [];
   for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) if (dx || dy) FIVE.push([dx, dy]);
   const CAMEL = [[3, 1], [3, -1], [-3, 1], [-3, -1], [1, 3], [1, -3], [-1, 3], [-1, -3]];
+  const KN8 = [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]];
+  const HOP4 = [[2, 0], [-2, 0], [0, 2], [0, -2]];
+  const HOP8 = [[2, 0], [-2, 0], [0, 2], [0, -2], [2, 2], [2, -2], [-2, 2], [-2, -2]];
+  const ZEBRA = [[3, 2], [3, -2], [-3, 2], [-3, -2], [2, 3], [2, -3], [-2, 3], [-2, -3]];
+  // Piece types only created by traits: a = Archbishop, l = Paladin.
+  const EXTRA_PIECES = {
+    a: { slide: BISHOP, leap: KN8.concat(HOP8) },
+    l: { leap: KN8.concat(CAMEL, ZEBRA) }
+  };
   const knightOffsets = () => STANDARD.pieces.n.leap;
+  // class passives like "knights can also jump 2 straight": append leaps to whatever the piece's definition currently is
+  const withAdd = (defs, add) => { const o = Object.assign({}, defs); for (const k in add) o[k] = Object.assign({}, o[k], { leap: ((o[k] && o[k].leap) || []).concat(add[k].leap) }); return o; };
   const TRAITS = {
     // ---- starting set-up ----
     flanker:       { name: 'Flanker', desc: 'Your edge pawns are replaced by a bishop and a knight.', setup: (back, pawns) => { pawns[0] = 'b'; pawns[7] = 'n'; } },
     twinTowers:    { name: 'Twin Towers', desc: 'Both of your knights are replaced by rooks.', setup: back => back.forEach((t, i) => { if (t === 'n') back[i] = 'r'; }) },
     bishopBrigade: { name: 'Bishop Brigade', desc: 'Both of your knights are replaced by bishops.', setup: back => back.forEach((t, i) => { if (t === 'n') back[i] = 'b'; }) },
     knightCavalry: { name: 'Knight Cavalry', desc: 'Both of your bishops are replaced by knights.', setup: back => back.forEach((t, i) => { if (t === 'b') back[i] = 'n'; }) },
-    twinQueens:    { name: 'Twin Queens', desc: 'One of your edge pawns is replaced by a second queen.', setup: (back, pawns) => { pawns[0] = 'q'; } },
     // ---- piece movement ----
-    longKing:      { name: 'Long Reach King', desc: 'Your king reaches every square in the 5×5 around it except the four corners. Squares 2 away in a straight line can be blocked; the knight-shaped ones are jumped.', defs: () => ({ k: { slide: ROOK, max: 2, leap: BISHOP.concat(knightOffsets()) } }) },
-    forwardKnight: { name: 'Forward Knight', desc: 'Your knights can also jump exactly 2 squares straight ahead.', defs: f => ({ n: { leap: knightOffsets().concat([[2 * f[0], 2 * f[1]]]) } }) },
-    steadfast:     { name: 'Steadfast Knights', desc: 'Your knights can also step 1 square in any direction.', defs: () => ({ n: { leap: knightOffsets().concat(EDGE8) } }) },
+    longKing:      { name: 'Long Reach King', desc: 'Your king reaches every square in the 5×5 around it except the four corners, but it cannot jump: a square 2 away in a straight line needs the square between to be empty, and a knight-shaped square needs at least one of its two connecting squares to be empty.', defs: () => ({ k: { slide: ROOK, max: 2, leap: BISHOP, kwalk: true } }) },
+    steadfast:     { name: 'Steadfast Knights', desc: 'Your knights can also step 1 square: straight steps can capture, diagonal steps can only move to empty squares.', defs: () => ({ n: { leap: knightOffsets().concat(ROOK), leapNC: BISHOP } }) },
     camelRiders:   { name: 'Camel Riders', desc: 'Your knights can also make the long 3-and-1 jump.', defs: () => ({ n: { leap: knightOffsets().concat(CAMEL) } }) },
     sidestepRooks: { name: 'Sidestep Rooks', desc: 'Your rooks can also step 1 square diagonally.', defs: () => ({ r: { slide: ROOK, leap: BISHOP } }) },
     pushyBishops:  { name: 'Pushy Bishops', desc: 'Your bishops can also step 1 square straight.', defs: () => ({ b: { slide: BISHOP, leap: ROOK } }) },
@@ -159,8 +207,7 @@ const Engine = (() => {
     jumpingRooks:  { name: 'Hurdling Rooks', desc: 'Your rooks can also jump exactly 2 squares straight, over anything.', defs: () => ({ r: { slide: ROOK, leap: [[2, 0], [-2, 0], [0, 2], [0, -2]] } }) },
     hoppingBishops:{ name: 'Hopping Bishops', desc: 'Your bishops can also jump exactly 2 squares diagonally, over anything.', defs: () => ({ b: { slide: BISHOP, leap: [[2, 2], [2, -2], [-2, 2], [-2, -2]] } }) },
     queenHop:      { name: 'Dancing Queen', desc: 'Your queen can also jump exactly 2 squares in any of the 8 directions, over anything.', defs: () => ({ q: { slide: EDGE8, leap: [[2, 0], [-2, 0], [0, 2], [0, -2], [2, 2], [2, -2], [-2, 2], [-2, -2]] } }) },
-    knightKing:    { name: 'Knightly King', desc: 'Your king can also move like a knight.', defs: () => ({ k: { leap: STANDARD.pieces.k.leap.concat(knightOffsets()) } }) },
-    camelBishops:  { name: 'Camel Bishops', desc: 'Your bishops can also make the long 3-and-1 jump.', defs: () => ({ b: { slide: BISHOP, leap: CAMEL } }) },
+    knightKing:    { name: 'Knightly King', desc: 'Your king can also move like a knight, jumping over pieces.', defs: () => ({ k: { leap: STANDARD.pieces.k.leap.concat(knightOffsets()) } }) },
     stags:         { name: 'Stag Knights', desc: 'Your knights can also jump exactly 2 squares straight in any direction.', defs: () => ({ n: { leap: knightOffsets().concat([[2, 0], [-2, 0], [0, 2], [0, -2]]) } }) },
     // ---- pawns ----
     brawlers:      { name: 'Brawlers', desc: 'Your pawns can also capture straight ahead.', pawn: { brawl: true } },
@@ -179,9 +226,15 @@ const Engine = (() => {
     bodyguard:     { name: 'Bodyguard', desc: 'Your other pieces standing next to your king cannot be captured by pawns.' },
     boobyTrap:     { name: 'Booby Trap', desc: 'The first piece that gives check to your king is destroyed.' },
     swap:          { name: 'Swap', desc: 'Once per game, instead of moving, swap two of your pieces (not kings or pawns).' },
-    loneWolf:      { name: 'Lone Wolf', desc: 'Your king can jump to any square in the 5×5 around it, but you start without your rooks.', setup: back => back.forEach((t, i) => { if (t === 'r') back[i] = '.'; }), defs: () => ({ k: { leap: FIVE } }) },
+    loneWolf:      { name: 'Lone Wolf', desc: 'Your king reaches every square in the full 5×5 around it: it jumps to the knight-shaped squares, and the other squares need the square between to be empty. While in check it can only move 1 square (but can still capture at full range). Your rooks move at most 3 squares and your bishops at most 4.', defs: () => ({ k: { slide: EDGE8, max: 2, leap: KN8 }, r: { slide: ROOK, max: 3 }, b: { slide: BISHOP, max: 4 } }) },
     glassCannon:   { name: 'Glass Cannon', desc: 'Your queen can also jump like a knight, but you start without one knight.', setup: back => { const i = back.indexOf('n'); if (i >= 0) back[i] = '.'; }, defs: () => ({ q: { slide: EDGE8, leap: knightOffsets() } }) },
     overlord:      { name: 'Overlord', desc: 'You start with a second queen in place of an edge pawn, but your pawns move 1 square at a time and can never capture.', setup: (back, pawns) => { pawns[0] = 'q'; }, pawn: { nocap: true, single: true } },
+    friendlyFire:  { name: 'Friendly Fire', desc: 'Your pieces can capture your own pieces (never your king). Click the target twice to confirm.' },
+    archbishop:    { name: 'Archbishop', desc: 'One of your bishops becomes an Archbishop (it also jumps like a knight and jumps to the 2nd square in every direction), but your other bishop is gone.', setup: back => { const a = back.indexOf('b'), z = back.lastIndexOf('b'); if (a >= 0) back[a] = 'a'; if (z > a) back[z] = '.'; } },
+    paladin:       { name: 'Paladin', desc: 'One of your knights becomes a Paladin (it also makes the long 3-and-1 and 3-and-2 jumps), but your other knight is gone.', setup: back => { const a = back.indexOf('n'), z = back.lastIndexOf('n'); if (a >= 0) back[a] = 'l'; if (z > a) back[z] = '.'; } },
+    juggernaut:    { name: 'Juggernauts', desc: 'Your rooks can also move up to 3 squares along a line and 1 square to either side of it (the line must be clear), but your bishops move at most 3 squares and your knights cannot jump (they need a free connecting square).', defs: () => ({ r: { slide: ROOK, plus: 3 }, b: { slide: BISHOP, max: 3 }, n: { kwalk: true } }) },
+    empress:       { name: 'Empress', desc: 'Your queen also jumps like a knight and jumps to the 2nd square in every direction, but your rooks and bishops move at most 4 squares and your knights cannot jump.', defs: () => ({ q: { slide: EDGE8, leap: KN8.concat(HOP8) }, r: { slide: ROOK, max: 4 }, b: { slide: BISHOP, max: 4 }, n: { kwalk: true } }) },
+    champions:     { name: 'Champion Pawns', desc: 'Your d- and e-pawns are Champions: they step and capture 1 square in any of the 8 directions, can also jump exactly 2 squares straight (moves only, over anything), and still promote. Your other six pawns can no longer promote.', setup: (back, pawns) => { pawns[3] = 'h'; pawns[4] = 'h'; }, pawn: { nopromo: true } },
     scout:         { name: 'Scout', desc: 'Fog of war: you can also see every square next to any of your pieces.', fog: true }
   };
   // Chess960: random back rank with bishops on opposite colours and the king between the rooks.
@@ -204,8 +257,9 @@ const Engine = (() => {
   function multiGeom(v) {
     const wide = v.board === 'wide', inf = v.board === 'infinite';
     const BW = wide ? 16 : inf ? 32 : 14, BH = wide ? (v.height || 10) : inf ? 32 : 14, SZ = BW * BH, O = inf ? 9 : 0;
-    const idx = (x, y) => y * BW + x;
-    const valid = (x, y) => x >= 0 && y >= 0 && x < BW && y < BH && (wide || inf || !((x < 3 || x > 10) && (y < 3 || y > 10)));
+    const cyl = wide && !!v.cylinder;                     // cylinder chess: the left and right edges of the wide board touch
+    const idx = (x, y) => y * BW + (cyl ? ((x % BW) + BW) % BW : x);
+    const valid = (x, y) => y >= 0 && y < BH && (cyl || (x >= 0 && x < BW)) && (wide || inf || !((x < 3 || x > 10) && (y < 3 || y > 10)));
     const FWD = wide ? { r: [0, 1], y: [0, 1], b: [0, -1], g: [0, -1] } : { r: [0, 1], b: [1, 0], y: [0, -1], g: [-1, 0] };
     const rankOf = wide
       ? (c, x, y) => (c === 'r' || c === 'y' ? y : BH - 1 - y)
@@ -219,7 +273,7 @@ const Engine = (() => {
         return [q[0] + O, q[1] + O];
       };
     const isCenter = (x, y) => x - O >= 3 && x - O <= 10 && y - O >= 3 && y - O <= 10;
-    return { wide, inf, BW, BH, SZ, idx, valid, FWD, rankOf, promoRank, place, isCenter };
+    return { wide, inf, cyl, BW, BH, SZ, idx, valid, FWD, rankOf, promoRank, place, isCenter };
   }
 
   /*
@@ -230,17 +284,39 @@ const Engine = (() => {
    * can be captured, kings included); a stalemated player just skips. The game ends when one team is left.
    */
   function createMulti(v) {
-    const { wide, BW, BH, SZ, idx, valid, FWD, rankOf, promoRank, place, isCenter } = multiGeom(v);
+    const { wide, cyl, BW, BH, SZ, idx, valid, FWD, rankOf, promoRank, place, isCenter } = multiGeom(v);
+    const dX = (a, b) => { const d = Math.abs(a - b); return cyl ? Math.min(d, BW - d) : d; };      // file distance (wraps on a cylinder)
     const ORDER = ['r', 'b', 'y', 'g'], seats = v.seats, per = () => v.movesPerTurn || 1;
     const teamOf = c => (v.teams ? v.teams[c] : c);
     // Neutral-piece fairy types: c commoner (king step), i imp (knight leap), w wraith (<=2 diagonal), o ox (<=2 straight).
     const baseDefs = Object.assign({}, STANDARD.pieces, {
       c: { leap: STANDARD.pieces.k.leap }, i: { leap: STANDARD.pieces.n.leap },
       w: { slide: BISHOP, max: 2 }, o: { slide: ROOK, max: 2 }
-    });
+    }, EXTRA_PIECES);
     const TR = v.traits || {}, traitOf = c => TRAITS[TR[c]] || null, rev = new Set(), dcache = {}, trapUsed = new Set(), swapUsed = new Set();
-    const D = (c, nt) => (nt || !traitOf(c) || !traitOf(c).defs ? baseDefs : (dcache[c] || (dcache[c] = Object.assign({}, baseDefs, traitOf(c).defs(FWD[c])))));
-    const pflags = (c, nt) => (nt || c === 'n' || !traitOf(c) ? {} : traitOf(c).pawn || {});
+    const D = (c, nt) => {
+      if (nt) return baseDefs;
+      if (dcache[c]) return dcache[c];
+      const t = traitOf(c), cp = v.cpass && v.cpass[c];
+      let d = t && t.defs ? Object.assign({}, baseDefs, t.defs(FWD[c])) : baseDefs;
+      if (cp && cp.add) d = withAdd(d, cp.add);
+      return t || (cp && cp.add) ? (dcache[c] = d) : d;
+    };
+    let rescueFn = null;                                // class layer hook: may save a player who is about to be checkmated
+    const CPm = c => (v.cpass && v.cpass[c]) || null;
+    const guarded = (B, p, t, tx, ty) => {              // class effects that stop a capture: Shield (any capturer), Sanctuary / Cleric king guard (pawns only)
+      if (t.fx && (t.fx.shd || t.fx.phn)) return true;
+      if (p.t !== 'p') return false;
+      if (t.fx && t.fx.sct) return true;
+      const cp = v.cpass && v.cpass[t.c];
+      if (!cp || !cp.kingGuard || t.t === 'k') return false;
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        if ((!dx && !dy) || !valid(tx + dx, ty + dy)) continue;
+        const k = B[idx(tx + dx, ty + dy)]; if (k && k.t === 'k' && k.c === t.c && !k.dead) return true;
+      }
+      return false;
+    };
+    const pflags = (c, nt) => (nt || c === 'n' ? {} : CPm(c) && CPm(c).pawn ? Object.assign({}, traitOf(c) ? traitOf(c).pawn : null, CPm(c).pawn) : (traitOf(c) ? traitOf(c).pawn || {} : {}));
     const NEU = !!v.neutral || Object.values(TR).includes('lastStand');
     const b = new Array(SZ).fill(null), alive = {}, events = [], hist = [], hands = {};
     ORDER.forEach(c => {
@@ -251,7 +327,7 @@ const Engine = (() => {
       for (let k = 0; k < 8; k++) {
         const [bx, by] = place(c, k, 0), [px, py] = place(c, k, 1);
         if (LY.back[k] !== '.') b[idx(bx, by)] = { t: LY.back[k], c, dead: !alive[c] };
-        if (LY.pawns[k] !== '.') b[idx(px, py)] = { t: LY.pawns[k], c, dead: !alive[c] };
+        if (LY.pawns[k] !== '.') b[idx(px, py)] = LY.pawns[k] === 'h' ? { t: 'p', champ: true, c, dead: !alive[c] } : { t: LY.pawns[k], c, dead: !alive[c] };
       }
     });
     // Neutral pieces (colour 'n') belong to nobody. They move by themselves after every full round of turns.
@@ -280,24 +356,38 @@ const Engine = (() => {
     const over = () => S.drawn || liveTeams() <= 1;
 
     function pseudo(B, x, y, atk, nt) {
-      const p = B[idx(x, y)], out = [], def = D(p.c, nt)[p.t];
+      // Kings never give check beyond their normal 3x3 (so extended-reach kings can't check or box in other kings).
+      const p = B[idx(x, y)], out = [], def = (atk && p.t === 'k') ? baseDefs.k : D(p.c, nt)[p.t];
       if (p.dead) return out;
-      const add = (tx, ty, e) => out.push(Object.assign({ fx: x, fy: y, tx, ty }, e));
+      if (p.fx && p.fx.frz) return out;                 // frozen (class ability): can't move or attack
+      const add = (tx, ty, e) => { if (cyl) tx = ((tx % BW) + BW) % BW; if (!out.some(o => o.tx === tx && o.ty === ty && (o.promo || null) === ((e && e.promo) || null))) out.push(Object.assign({ fx: x, fy: y, tx, ty }, e)); };
       // Gray (eliminated/inactive) pieces, kings too, can be captured by anyone; partners never.
       // Shield Wall (knights can't take pawns) and Bodyguard (pawns can't take pieces next to the king) are checked here.
       const blocked = (t, tx, ty) => {
         if (t.dead || nt) return false;
         if (p.t === 'n' && t.t === 'p' && TR[t.c] === 'shieldWall') return true;
         if (p.t === 'p' && t.t !== 'k' && TR[t.c] === 'bodyguard') {
-          for (let i = 0; i < SZ; i++) { const k = B[i]; if (k && k.t === 'k' && k.c === t.c && !k.dead) { return Math.abs((i % BW) - tx) <= 1 && Math.abs(Math.floor(i / BW) - ty) <= 1; } }
+          for (let i = 0; i < SZ; i++) { const k = B[i]; if (k && k.t === 'k' && k.c === t.c && !k.dead) { return dX(i % BW, tx) <= 1 && Math.abs(Math.floor(i / BW) - ty) <= 1; } }
         }
         return false;
       };
-      const can = (t, tx, ty) => t.dead || (teamOf(t.c) !== teamOf(p.c) && (atk || t.t !== 'k') && !blocked(t, tx, ty));
+      const can = (t, tx, ty) => !t.wall && !(p.fx && (p.fx.dis || p.fx.phn)) && !(!atk && guarded(B, p, t, tx, ty)) && (t.dead || (teamOf(t.c) !== teamOf(p.c) && (atk || t.t !== 'k') && !blocked(t, tx, ty)) ||
+        (!atk && !nt && t.c === p.c && t.t !== 'k' && TR[p.c] === 'friendlyFire'));      // Friendly Fire trait (a disarmed piece can't capture)
       if (p.t === 'p') {
         const oc = p.c === 'n' ? (p.o || 'r') : p.c, F = pflags(p.c, nt);
         const [dx, dy] = FWD[oc], pp = dx === 0 ? [1, 0] : [0, 1], promoAt = promoRank + (F.promoShift || 0);
-        const push = (tx, ty) => (!atk && rankOf(oc, tx, ty) === promoAt ? (p.c === 'n' ? ['q'] : STANDARD.promoteTo).forEach(t => add(tx, ty, { promo: t })) : add(tx, ty));
+        const push0 = (tx, ty) => (!atk && rankOf(oc, tx, ty) === promoAt ? (p.c === 'n' ? ['q'] : STANDARD.promoteTo).forEach(t => add(tx, ty, { promo: t })) : add(tx, ty));
+        const push = (F.nopromo && !p.champ) ? ((tx, ty) => add(tx, ty)) : push0;     // Champion Pawns: the other pawns can't promote
+        if (p.champ) {                                     // a Champion: king-step moves and captures, plus 2-square straight jumps (moves only)
+          for (const [cx2, cy2] of EDGE8) {
+            const tx = x + cx2, ty = y + cy2;
+            if (!valid(tx, ty)) continue;
+            const t = B[idx(tx, ty)];
+            if (atk || !t || can(t, tx, ty)) push(tx, ty);
+          }
+          if (!atk) for (const [jx, jy] of HOP4) { const tx = x + jx, ty = y + jy; if (valid(tx, ty) && !B[idx(tx, ty)]) push(tx, ty); }
+          return out;
+        }
         const fx = x + dx, fy = y + dy;
         if (!atk && valid(fx, fy) && !B[idx(fx, fy)]) {
           push(fx, fy);
@@ -339,11 +429,41 @@ const Engine = (() => {
         const tx = x + lx, ty = y + ly;
         if (valid(tx, ty)) { const t = B[idx(tx, ty)]; if (!t || can(t, tx, ty)) add(tx, ty); }
       }
+      if (!atk) for (const [lx, ly] of def.leapNC || []) {            // moves only (never captures)
+        const tx = x + lx, ty = y + ly;
+        if (valid(tx, ty) && !B[idx(tx, ty)]) add(tx, ty);
+      }
+      if (def.kwalk) for (const [lx, ly] of STANDARD.pieces.n.leap) {  // knight-shaped squares, reached by walking: one connecting square must be free
+        const tx = x + lx, ty = y + ly;
+        if (!valid(tx, ty)) continue;
+        const sgx = Math.sign(lx), sgy = Math.sign(ly), m1 = Math.abs(lx) === 2 ? [sgx, 0] : [0, sgy], m2 = [sgx, sgy];
+        const free = m => valid(x + m[0], y + m[1]) && !B[idx(x + m[0], y + m[1])];
+        if (!free(m1) && !free(m2)) continue;
+        const t = B[idx(tx, ty)];
+        if (!t || can(t, tx, ty)) add(tx, ty);
+      }
+      if (def.plus) {                    // rooks of Juggernauts: along a line (clear) and 1 square to either side of it
+        const seen = new Set();
+        for (const [dx, dy] of ROOK) {
+          const px = -dy, py = dx;
+          for (let d = 1; d <= def.plus; d++) {
+            const lx = x + dx * d, ly = y + dy * d;
+            if (!valid(lx, ly) || B[idx(lx, ly)]) break;
+            for (const sg of [-1, 1]) {
+              const tx = lx + px * sg, ty = ly + py * sg, key = tx + ',' + ty;
+              if (!valid(tx, ty) || seen.has(key)) continue;
+              seen.add(key);
+              const t = B[idx(tx, ty)];
+              if (!t || can(t, tx, ty)) add(tx, ty);
+            }
+          }
+        }
+      }
       for (const [sx, sy] of def.slide || []) {
         let tx = x + sx, ty = y + sy, n = 1;
-        while (valid(tx, ty) && (!def.max || n <= def.max)) {
+        while (valid(tx, ty) && (!def.max || n <= def.max) && (!cyl || n < BW)) {
           const t = B[idx(tx, ty)];
-          if (!t) add(tx, ty); else { if (can(t, tx, ty)) add(tx, ty); break; }
+          if (!t) add(tx, ty); else { if (can(t, tx, ty)) add(tx, ty); if (!(p.fx && p.fx.jmp)) break; }
           tx += sx; ty += sy; n++;
         }
       }
@@ -378,8 +498,8 @@ const Engine = (() => {
         for (const d of [1, -1]) {
           const dx = pp[0] * d, dy = pp[1] * d;
           let tx = x + dx, ty = y + dy, n = 1;
-          while (valid(tx, ty) && !B[idx(tx, ty)]) { tx += dx; ty += dy; n++; }
-          const r = valid(tx, ty) && B[idx(tx, ty)];
+          while (valid(tx, ty) && !B[idx(tx, ty)] && n <= BW && (!cyl || (tx >= 0 && tx < BW))) { tx += dx; ty += dy; n++; }
+          const r = valid(tx, ty) && (!cyl || (tx >= 0 && tx < BW)) && B[idx(tx, ty)];
           if (!r || r.t !== 'r' || r.c !== p.c || r.m || r.dead || n < 3) continue;
           const k1x = x + dx, k1y = y + dy, k2x = x + 2 * dx, k2y = y + 2 * dy;
           if (!sqAttacked(B, k1x, k1y, p.c) && !sqAttacked(B, k2x, k2y, p.c))
@@ -396,7 +516,7 @@ const Engine = (() => {
     function sqAttacked(B, kx, ky, c) {
       for (let i = 0; i < SZ; i++) {
         const p = B[i];
-        if (!p || p.dead || teamOf(p.c) === teamOf(c) || !alive[p.c]) continue;
+        if (!p || p.dead || teamOf(p.c) === teamOf(c) || !alive[p.c] || (p.fx && (p.fx.dis || p.fx.frz || p.fx.phn || p.fx.dcy))) continue;
         if (pseudo(B, i % BW, Math.floor(i / BW), true).some(m => m.tx === kx && m.ty === ky)) return true;
       }
       return false;
@@ -413,14 +533,18 @@ const Engine = (() => {
         B[idx(m.kx, m.ky)] = { t: 'k', c: p.c, m: true }; B[idx(m.rtx, m.rty)] = { t: 'r', c: p.c, m: true };
         return B;
       }
-      B[idx(m.tx, m.ty)] = { t: m.promo || p.t, c: p.c, m: true }; B[idx(m.fx, m.fy)] = null;
+      B[idx(m.tx, m.ty)] = { t: m.promo || p.t, c: p.c, m: true, champ: m.promo ? undefined : p.champ, fx: p.fx }; B[idx(m.fx, m.fy)] = null;
       if (m.castle) { B[idx(m.rx, m.ry)] = null; B[idx(m.rtx, m.rty)] = { t: 'r', c: p.c, m: true }; }
       return B;
     }
     function legalAt(x, y) {
       const p = b[idx(x, y)];
       if (!p || p.dead || !alive[p.c]) return [];
-      return pseudo(b, x, y).filter(m => !kingAttacked(sim(m, p), p.c));
+      let ms = pseudo(b, x, y);
+      // A king in check can only step 1 square (it may still capture at full range).
+      if (p.t === 'k' && ms.some(m => Math.max(dX(m.tx, x), Math.abs(m.ty - y)) > 1) && kingAttacked(b, p.c))
+        ms = ms.filter(m => Math.max(dX(m.tx, x), Math.abs(m.ty - y)) <= 1 || (b[idx(m.tx, m.ty)] && !m.castle));
+      return ms.filter(m => !kingAttacked(sim(m, p), p.c));
     }
     // Crazyhouse-style drops. dropZone 'own' = your own arm + the centre (cross) / your own half (wide).
     const inOwnZone = (c, x, y) => (wide ? rankOf(c, x, y) < BH / 2 : rankOf(c, x, y) < 3 || isCenter(x, y));
@@ -475,7 +599,7 @@ const Engine = (() => {
       while (liveTeams() > 1 && guard++ < 30) {
         if (!alive[S.turn]) { pass(S.turn); continue; }
         if (hasMove(S.turn)) return;
-        if (kingAttacked(b, S.turn)) { eliminate(S.turn, 'checkmate', attackerColors(S.turn)); pass(S.turn); skipped = 0; continue; }
+        if (kingAttacked(b, S.turn)) { if (rescueFn && rescueFn(S.turn)) continue; eliminate(S.turn, 'checkmate', attackerColors(S.turn)); pass(S.turn); skipped = 0; continue; }
         events.push({ e: 'skip', c: S.turn }); pass(S.turn);
         if (++skipped >= activeCount()) { S.drawn = true; return; }
       }
@@ -531,9 +655,10 @@ const Engine = (() => {
     }
 
     return {
-      w: BW, h: BH, multi: true, neutral: NEU, seats, teams: v.teams || null, wide,
+      w: BW, h: BH, multi: true, neutral: NEU, cyl, seats, teams: v.teams || null, wide,
       get turn() { return S.turn; },
       get left() { return S.left; },
+      perTurn: v.movesPerTurn || 1,
       get neutralPending() { return NEU && S.pending && nextNeutral() !== null; },
       neutralNext: nextNeutral, neutralApply,
       valid, kingPos,
@@ -559,10 +684,73 @@ const Engine = (() => {
         return set;
       },
       get traits() { return TR; },
+      // For the bots: every legal move with what it captures and the most the opponents could take back afterwards.
+      evalMoves(c) {
+        if (over() || c !== S.turn || (NEU && S.pending && nextNeutral() !== null)) return [];
+        const cands = [], out = [], cx = (BW - 1) / 2, cy = (BH - 1) / 2;
+        for (let i = 0; i < SZ; i++) { const p = b[i]; if (p && p.c === c && !p.dead) legalAt(i % BW, Math.floor(i / BW)).forEach(m => cands.push(m)); }
+        legalDrops(c).forEach(m => cands.push(m));
+        const enemyOf = s2 => teamOf(s2) !== teamOf(c), dummySeat = seats.find(s2 => alive[s2] && enemyOf(s2)) || 'n';
+        for (const m of cands) {
+          const p = m.drop ? null : b[idx(m.fx, m.fy)], B2 = sim(m, p);
+          const vic = m.drop || m.c960 ? null : b[idx(m.tx, m.ty)];
+          let threat = 0;
+          for (let i = 0; i < SZ; i++) {
+            const q = B2[i];
+            if (!q || q.dead || !alive[q.c] || teamOf(q.c) === teamOf(c)) continue;
+            const qx = i % BW, qy = Math.floor(i / BW);
+            for (const mv of pseudo(B2, qx, qy, false)) {
+              const tg = B2[idx(mv.tx, mv.ty)];
+              if (!tg || tg.dead || teamOf(tg.c) !== teamOf(c) || tg.t === 'k') continue;
+              const nb = B2.slice(); nb[idx(mv.tx, mv.ty)] = { t: 'q', c: dummySeat, m: true };
+              let defended = false;
+              for (let j = 0; j < SZ && !defended; j++) {
+                const f = nb[j];
+                if (!f || f.dead || teamOf(f.c) !== teamOf(c) || !alive[f.c]) continue;
+                defended = pseudo(nb, j % BW, Math.floor(j / BW), true).some(r => r.tx === mv.tx && r.ty === mv.ty);
+              }
+              const net = defended ? bv(tg.t) - bv(q.t) : bv(tg.t);
+              if (net > threat) threat = net;
+            }
+          }
+          const check = seats.some(s2 => alive[s2] && enemyOf(s2) && kingAttacked(B2, s2));
+          const pos = (m.drop || (p && p.t === 'k')) ? 0 : Math.hypot(m.fx - cx, m.fy - cy) - Math.hypot(m.tx - cx, m.ty - cy);
+          const own = !!vic && vic.c === c;
+          out.push({ m, cap: vic && !own ? vic.t : null, threat: threat + (own ? bv(vic.t) + 1 : 0), check, mate: false, pos });
+        }
+        return out;
+      },
       canSwap: c => TR[c] === 'swap' && !!alive[c] && !swapUsed.has(c),
       winner: () => (!S.drawn && liveTeams() === 1 ? seats.find(c => alive[c]) : null),
       get drawn() { return S.drawn; },
       inCheck: c => !!alive[c] && kingAttacked(b, c),
+      // Low-level hooks used by the class layer (withClasses). Not for normal play.
+      raw: {
+        snap: () => b.slice(), restore: s0 => { for (let i = 0; i < SZ; i++) b[i] = s0[i]; },
+        put: (x, y, p) => { b[idx(x, y)] = p; },
+        pass: () => { const c0 = S.turn; pass(c0); if (NEU && S.pending) S.needSettle = true; else settle(); },
+        check: c => kingAttacked(b, c),
+        foeCheck: c => seats.some(s2 => alive[s2] && teamOf(s2) !== teamOf(c) && kingAttacked(b, s2)),
+        home: c => { const out = []; for (let r = 0; r < 2; r++) for (let u = 0; u < 8; u++) out.push(place(c, u, r)); return out; },
+        ok: c => !over() && !!alive[c],
+        scan: () => { const out = []; for (let i = 0; i < SZ; i++) if (b[i]) out.push({ x: i % BW, y: Math.floor(i / BW), p: b[i] }); return out; },
+        valid: (x, y) => valid(x, y) && x >= 0 && x < BW, size: [BW, BH], depth: BH,
+        foe: (c, p) => !!p && !p.dead && p.c !== 'n' && !!alive[p.c] && teamOf(p.c) !== teamOf(c),
+        rank: (c, x, y) => rankOf(c, x, y),
+        promo: c => promoRank + (pflags(c).promoShift || 0),
+        remove: (x, y) => { b[idx(x, y)] = null; },
+        take: (x, y, by) => {
+          const vic = b[idx(x, y)];
+          if (v.drops && vic && vic.t !== 'k' && (!NEU || vic.c === 'n')) { const k = vic.pr ? 'p' : vic.t; hands[by][k] = (hands[by][k] || 0) + 1; }
+          b[idx(x, y)] = null;
+        },
+        clearEp: () => {},
+        setRescue: f => { rescueFn = f; },
+        fwd: c => FWD[c],
+        setTurn: c => { S.turn = c; S.left = per(); },
+        spend: () => { const c0 = S.turn; S.left--; if (S.left > 0 && alive[c0] && hasMove(c0)) return; pass(c0); if (NEU && S.pending) S.needSettle = true; else settle(); },
+        ally: (c, p) => !!p && !p.dead && p.c !== 'n' && !!alive[p.c] && teamOf(p.c) === teamOf(c)
+      },
       drainEvents() { const e = events.slice(); events.length = 0; return e; },
       history: () => hist.slice(),
       status: () => (over() ? 'over' : 'playing'),
@@ -599,7 +787,7 @@ const Engine = (() => {
           if (ok.c960) {
             b[idx(ok.fx, ok.fy)] = null; b[idx(ok.rx, ok.ry)] = null;
             b[idx(ok.kx, ok.ky)] = { t: 'k', c, m: true }; b[idx(ok.rtx, ok.rty)] = { t: 'r', c, m: true };
-          } else { b[idx(ok.tx, ok.ty)] = { t: ok.promo || p.t, c, m: true, pr: !!ok.promo || undefined }; b[idx(ok.fx, ok.fy)] = null; }
+          } else { b[idx(ok.tx, ok.ty)] = { t: ok.promo || p.t, c, m: true, pr: !!ok.promo || undefined, champ: ok.promo ? undefined : p.champ, fx: p.fx }; b[idx(ok.fx, ok.fy)] = null; }
           if (vic && vic.t === 'q' && !vic.dead && TR[vic.c] === 'martyr' && p.t !== 'k') {
             b[idx(ok.tx, ok.ty)] = null; rev.add(vic.c); events.push({ e: 'trait', c: vic.c, id: 'martyr' });
           }
@@ -1030,8 +1218,12 @@ const Engine = (() => {
     if (v.multi) return v.alice ? createAlice4(v) : createMulti(v);
     if (v.alice) return createAlice();
     const w = v.w, h = v.h;
-    const inB = (x, y) => x >= 0 && y >= 0 && x < w && y < h;
-    const idx = (x, y) => y * w + x;
+    // Cylinder chess (v.cyl): the left and right edges touch, so everything that moves sideways wraps around.
+    const cyl = !!v.cyl;
+    const inB = (x, y) => y >= 0 && y < h && (cyl || (x >= 0 && x < w));
+    const inRow = (x, y) => x >= 0 && y >= 0 && x < w && y < h;          // plain board bounds (castling never wraps)
+    const idx = (x, y) => y * w + (cyl ? ((x % w) + w) % w : x);
+    const distX = (a, b) => { const d = Math.abs(a - b); return cyl ? Math.min(d, w - d) : d; };
     const opp = c => (c === 'w' ? 'b' : 'w');
 
     const b0 = new Array(w * h).fill(null);
@@ -1043,8 +1235,33 @@ const Engine = (() => {
     }));
     // class traits (hidden picks, see index.html); only set-ups that are plain 8x8 are modified
     const TR = v.traits || {}, traitOf = c => TRAITS[TR[c]] || null, rev = new Set(), events = [], dcache = {}, trapUsed = new Set(), swapUsed = new Set();
-    const D2 = (c, nt) => (nt || !traitOf(c) || !traitOf(c).defs ? v.pieces : (dcache[c] || (dcache[c] = Object.assign({}, v.pieces, traitOf(c).defs(c === 'w' ? [0, 1] : [0, -1])))));
-    const pf2 = (c, nt) => (nt || !traitOf(c) ? {} : traitOf(c).pawn || {});
+    const PCS = Object.assign({}, v.pieces, EXTRA_PIECES);
+    const D2 = (c, nt) => {
+      if (nt) return PCS;
+      if (dcache[c]) return dcache[c];
+      const t = traitOf(c), cp = v.cpass && v.cpass[c];
+      let d = t && t.defs ? Object.assign({}, PCS, t.defs(c === 'w' ? [0, 1] : [0, -1])) : PCS;
+      if (cp && cp.add) d = withAdd(d, cp.add);
+      return t || (cp && cp.add) ? (dcache[c] = d) : d;
+    };
+    let curB = null;                                   // the board pseudo() is currently looking at
+    const guardedFrom = (p, t) => {                    // class effects that stop a capture: Shield (any capturer), Sanctuary / Cleric king guard (pawns only)
+      if (t.fx && (t.fx.shd || t.fx.phn)) return true;
+      if (p.t !== 'p') return false;
+      if (t.fx && t.fx.sct) return true;
+      const cp = v.cpass && v.cpass[t.c];
+      if (!cp || !cp.kingGuard || t.t === 'k' || !curB) return false;
+      const i = curB.indexOf(t); if (i < 0) return false;
+      const tx = i % w, ty = Math.floor(i / w);
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        if ((!dx && !dy) || tx + dx < 0 || tx + dx >= w || ty + dy < 0 || ty + dy >= h) continue;
+        const k = curB[(ty + dy) * w + tx + dx]; if (k && k.t === 'k' && k.c === t.c) return true;
+      }
+      return false;
+    };
+    const foe = (p, t, atk) => !t.wall && !(p.fx && (p.fx.dis || p.fx.phn)) && !(!atk && guardedFrom(p, t)) && (t.c !== p.c || (!atk && TR[p.c] === 'friendlyFire' && t.t !== 'k'));      // a disarmed piece (class ability) can't capture      // Friendly Fire trait
+    const CP = c => (v.cpass && v.cpass[c]) || null;
+    const pf2 = (c, nt) => (nt ? {} : CP(c) && CP(c).pawn ? Object.assign({}, traitOf(c) ? traitOf(c).pawn : null, CP(c).pawn) : (traitOf(c) ? traitOf(c).pawn || {} : {}));
     // Shield Wall (knights can't take pawns) / Bodyguard (pawns can't take pieces beside their king)
     const blocked2 = (S, p, t, tx, ty) => {
       if (p.t === 'n' && t.t === 'p' && TR[t.c] === 'shieldWall') return true;
@@ -1057,58 +1274,102 @@ const Engine = (() => {
       const t = traitOf(c);
       if (!t || !t.setup) return;
       const yb = c === 'w' ? 0 : h - 1, yp = c === 'w' ? 1 : h - 2, back = [], pawns = [];
-      for (let x = 0; x < 8; x++) { back.push(b0[idx(x, yb)].t); pawns.push(b0[idx(x, yp)].t); }
+      for (let x = 0; x < 8; x++) { back.push(b0[idx(x, yb)] ? b0[idx(x, yb)].t : '.'); pawns.push(b0[idx(x, yp)] ? b0[idx(x, yp)].t : '.'); }
       t.setup(back, pawns);
       for (let x = 0; x < 8; x++) {
-        b0[idx(x, yb)] = back[x] === '.' ? null : Object.assign({}, b0[idx(x, yb)], { t: back[x] });
-        b0[idx(x, yp)] = pawns[x] === '.' ? null : Object.assign({}, b0[idx(x, yp)], { t: pawns[x] });
+        b0[idx(x, yb)] = back[x] === '.' ? null : Object.assign({ c, m: false }, b0[idx(x, yb)], { t: back[x] });
+        b0[idx(x, yp)] = pawns[x] === '.' ? null : pawns[x] === 'h' ? Object.assign({ c, m: false }, b0[idx(x, yp)], { t: 'p', champ: true }) : Object.assign({ c, m: false }, b0[idx(x, yp)], { t: pawns[x] });
       }
     });
     let S = { b: b0, turn: v.first || 'w', ep: null, hands: { w: {}, b: {} }, left: v.firstSingle ? 1 : (v.movesPerTurn || 1) };
     const hist = [], stCache = new WeakMap();
 
     function pseudo(S, x, y, attackOnly, nt) {
-      const p = S.b[idx(x, y)], out = [], def = D2(p.c, nt)[p.t];
-      const add = (tx, ty, extra) => out.push(Object.assign({ fx: x, fy: y, tx, ty }, extra));
+      // Kings never give check beyond their normal 3x3 (so extended-reach kings can't check or box in other kings).
+      const p = S.b[idx(x, y)], out = [], def = (attackOnly && p.t === 'k') ? v.pieces.k : D2(p.c, nt)[p.t];
+      curB = S.b;
+      if (p.fx && p.fx.frz) return out;                 // frozen (class ability): can't move or attack
+      const add = (tx, ty, extra) => { if (cyl) tx = ((tx % w) + w) % w; if (!out.some(o => o.tx === tx && o.ty === ty && (o.promo || null) === ((extra && extra.promo) || null))) out.push(Object.assign({ fx: x, fy: y, tx, ty }, extra)); };
       if (p.t === 'p') {
         const d = p.c === 'w' ? 1 : -1, F = pf2(p.c, nt);
         const last = (v.promoRank ? v.promoRank[p.c] : (p.c === 'w' ? h - 1 : 0)) + (F.promoShift ? F.promoShift * d : 0);
         const start = v.pawnStart ? v.pawnStart[p.c] : (p.c === 'w' ? 1 : h - 2);
         const push = (tx, ty, extra) => {
-          if (ty === last) v.promoteTo.forEach(t => add(tx, ty, { promo: t }));
+          if (ty === last && !(F.nopromo && !p.champ)) v.promoteTo.forEach(t => add(tx, ty, { promo: t }));
           else add(tx, ty, extra);
         };
+        if (p.champ) {                                     // a Champion: king-step moves and captures, plus 2-square straight jumps (moves only)
+          for (const [cx2, cy2] of EDGE8) {
+            const tx = x + cx2, ty = y + cy2;
+            if (!inB(tx, ty)) continue;
+            const t = S.b[idx(tx, ty)];
+            if (attackOnly) add(tx, ty);
+            else if (!t || (foe(p, t, attackOnly) && !blocked2(S, p, t, tx, ty))) push(tx, ty);
+          }
+          if (!attackOnly) for (const [jx, jy] of HOP4) { const tx = x + jx, ty = y + jy; if (inB(tx, ty) && !S.b[idx(tx, ty)]) push(tx, ty); }
+          return out;
+        }
         if (inB(x, y + d) && !S.b[idx(x, y + d)]) {
           push(x, y + d);
           if (((y === start || F.charge) && !F.single) && inB(x, y + 2 * d) && !S.b[idx(x, y + 2 * d)]) add(x, y + 2 * d, { dbl: true });
         } else if (F.brawl && inB(x, y + d)) {
           const t = S.b[idx(x, y + d)];
-          if (t && t.c !== p.c && !blocked2(S, p, t, x, y + d)) push(x, y + d);
+          if (t && foe(p, t, attackOnly) && !blocked2(S, p, t, x, y + d)) push(x, y + d);
         }
         if (F.side) for (const dx of [-1, 1]) if (inB(x + dx, y) && !S.b[idx(x + dx, y)]) add(x + dx, y);
         if (F.back && inB(x, y - d) && !S.b[idx(x, y - d)]) add(x, y - d);
-        if (F.sidecap) for (const dx of [-1, 1]) { const t = inB(x + dx, y) && S.b[idx(x + dx, y)]; if (t && t.c !== p.c && !blocked2(S, p, t, x + dx, y)) add(x + dx, y); }
-        if (F.backcap) for (const dx of [-1, 1]) { const t = inB(x + dx, y - d) && S.b[idx(x + dx, y - d)]; if (t && t.c !== p.c && !blocked2(S, p, t, x + dx, y - d)) add(x + dx, y - d); }
-        if (F.sling && inB(x, y + 2 * d)) { const t = S.b[idx(x, y + 2 * d)]; if (t && t.c !== p.c && !blocked2(S, p, t, x, y + 2 * d)) push(x, y + 2 * d); }
+        if (F.sidecap) for (const dx of [-1, 1]) { const t = inB(x + dx, y) && S.b[idx(x + dx, y)]; if (t && foe(p, t, attackOnly) && !blocked2(S, p, t, x + dx, y)) add(x + dx, y); }
+        if (F.backcap) for (const dx of [-1, 1]) { const t = inB(x + dx, y - d) && S.b[idx(x + dx, y - d)]; if (t && foe(p, t, attackOnly) && !blocked2(S, p, t, x + dx, y - d)) add(x + dx, y - d); }
+        if (F.sling && inB(x, y + 2 * d)) { const t = S.b[idx(x, y + 2 * d)]; if (t && foe(p, t, attackOnly) && !blocked2(S, p, t, x, y + 2 * d)) push(x, y + 2 * d); }
         for (const dx of F.nocap ? [] : [-1, 1]) {
-          const tx = x + dx, ty = y + d;
+          const tx = cyl ? ((x + dx) % w + w) % w : x + dx, ty = y + d;
           if (!inB(tx, ty)) continue;
           const t = S.b[idx(tx, ty)];
-          if (t && t.c !== p.c && !blocked2(S, p, t, tx, ty)) push(tx, ty);
-          else if (!t && S.ep && S.ep.c !== p.c && S.ep.x === tx && S.ep.y === ty) add(tx, ty, { ep: true });
+          if (t && foe(p, t, attackOnly) && !blocked2(S, p, t, tx, ty)) push(tx, ty);
+          else if (!t && S.ep && S.ep.c !== p.c && S.ep.x === tx && S.ep.y === ty && !(p.fx && (p.fx.dis || p.fx.phn)) && !(S.b[idx(tx, y)] && S.b[idx(tx, y)].fx && (S.b[idx(tx, y)].fx.shd || S.b[idx(tx, y)].fx.sct || S.b[idx(tx, y)].fx.phn))) add(tx, ty, { ep: true });
         }
         return out;
       }
       for (const [dx, dy] of def.leap || []) {
         const tx = x + dx, ty = y + dy;
-        if (inB(tx, ty)) { const t = S.b[idx(tx, ty)]; if (!t || (t.c !== p.c && !blocked2(S, p, t, tx, ty))) add(tx, ty); }
+        if (inB(tx, ty)) { const t = S.b[idx(tx, ty)]; if (!t || (foe(p, t, attackOnly) && !blocked2(S, p, t, tx, ty))) add(tx, ty); }
+      }
+      if (!attackOnly) for (const [lx, ly] of def.leapNC || []) {      // moves only (never captures)
+        const tx = x + lx, ty = y + ly;
+        if (inB(tx, ty) && !S.b[idx(tx, ty)]) add(tx, ty);
+      }
+      if (def.kwalk) for (const [lx, ly] of v.pieces.n.leap) {          // knight-shaped squares, reached by walking: one connecting square must be free
+        const tx = x + lx, ty = y + ly;
+        if (!inB(tx, ty)) continue;
+        const sgx = Math.sign(lx), sgy = Math.sign(ly), m1 = Math.abs(lx) === 2 ? [sgx, 0] : [0, sgy], m2 = [sgx, sgy];
+        const free = m => inB(x + m[0], y + m[1]) && !S.b[idx(x + m[0], y + m[1])];
+        if (!free(m1) && !free(m2)) continue;
+        const t = S.b[idx(tx, ty)];
+        if (!t || (foe(p, t, attackOnly) && !blocked2(S, p, t, tx, ty))) add(tx, ty);
+      }
+      if (def.plus) {                    // rooks of Juggernauts: along a line (clear) and 1 square to either side of it
+        const seen = new Set();
+        for (const [dx, dy] of ROOK) {
+          const px = -dy, py = dx;
+          for (let d = 1; d <= def.plus; d++) {
+            const lx = x + dx * d, ly = y + dy * d;
+            if (!inB(lx, ly) || S.b[idx(lx, ly)]) break;
+            for (const sg of [-1, 1]) {
+              const tx = lx + px * sg, ty = ly + py * sg, key = tx + ',' + ty;
+              if (!inB(tx, ty) || seen.has(key)) continue;
+              seen.add(key);
+              const t = S.b[idx(tx, ty)];
+              if (!t || (foe(p, t, attackOnly) && !blocked2(S, p, t, tx, ty))) add(tx, ty);
+            }
+          }
+        }
       }
       for (const [dx, dy] of def.slide || []) {
         let tx = x + dx, ty = y + dy, n = 1;
-        while (inB(tx, ty) && (!def.max || n <= def.max)) {
+        while (inB(tx, ty) && (!def.max || n <= def.max) && (!cyl || n < w)) {
           const t = S.b[idx(tx, ty)];
           if (!t) add(tx, ty);
-          else { if (t.c !== p.c && !blocked2(S, p, t, tx, ty)) add(tx, ty); break; }
+          else { if (foe(p, t, attackOnly) && !blocked2(S, p, t, tx, ty)) add(tx, ty); if (!(p.fx && p.fx.jmp)) break; }      // jumping pieces slide through blockers
           tx += dx; ty += dy; n++;
         }
       }
@@ -1116,8 +1377,8 @@ const Engine = (() => {
         // Chess960: king ends on c/g, rook on d/f; click target = your own rook
         for (const d of [1, -1]) {
           let rx = x + d;
-          while (inB(rx, y)) { const r = S.b[idx(rx, y)]; if (r && r.t === 'r' && r.c === p.c && !r.m) break; rx += d; }
-          if (!inB(rx, y)) continue;
+          while (inRow(rx, y)) { const r = S.b[idx(rx, y)]; if (r && r.t === 'r' && r.c === p.c && !r.m) break; rx += d; }
+          if (!inRow(rx, y)) continue;
           const kx2 = d > 0 ? 6 : 2, rx2 = d > 0 ? 5 : 3;
           let ok = true;
           const lo = Math.min(x, kx2, rx, rx2), hi = Math.max(x, kx2, rx, rx2);
@@ -1132,10 +1393,10 @@ const Engine = (() => {
       } else if (p.t === 'k' && v.castling && !p.m && !attackOnly && !v.back960 && !attacked(S, x, y, opp(p.c))) {
         for (const d of [1, -1]) {
           let rx = x + d;
-          while (inB(rx, y) && !S.b[idx(rx, y)]) rx += d;
-          const r = inB(rx, y) && S.b[idx(rx, y)];
+          while (inRow(rx, y) && !S.b[idx(rx, y)]) rx += d;
+          const r = inRow(rx, y) && S.b[idx(rx, y)];
           if (!r || r.t !== 'r' || r.c !== p.c || r.m || Math.abs(rx - x) < 3) continue;
-          if (inB(x + 2 * d, y) && !attacked(S, x + d, y, opp(p.c)) && !attacked(S, x + 2 * d, y, opp(p.c)))
+          if (inRow(x + 2 * d, y) && !attacked(S, x + d, y, opp(p.c)) && !attacked(S, x + 2 * d, y, opp(p.c)))
             add(x + 2 * d, y, { castle: d > 0 ? 'k' : 'q', rx, rtx: x + d });
         }
       }
@@ -1145,14 +1406,15 @@ const Engine = (() => {
     function attacked(S, x, y, by) {
       for (let i = 0; i < w * h; i++) {
         const p = S.b[i];
-        if (!p || p.c !== by) continue;
+        if (!p || p.c !== by || (p.fx && (p.fx.dis || p.fx.frz || p.fx.phn || p.fx.dcy))) continue;      // disarmed/frozen pieces give no check
         const px = i % w, py = (i - px) / w;
         if (p.t === 'p') {
           const Fp = pf2(by), dir = by === 'w' ? 1 : -1;
+          if (p.champ) { if (Math.max(distX(px, x), Math.abs(py - y)) === 1) return true; continue; }
           if (Fp.nocap) continue;
-          if (py + dir === y && (Math.abs(px - x) === 1 || (px === x && Fp.brawl))) return true;
-          if (py === y && Math.abs(px - x) === 1 && Fp.sidecap) return true;
-          if (Fp.backcap && py - dir === y && Math.abs(px - x) === 1) return true;
+          if (py + dir === y && (distX(px, x) === 1 || (px === x && Fp.brawl))) return true;
+          if (py === y && distX(px, x) === 1 && Fp.sidecap) return true;
+          if (Fp.backcap && py - dir === y && distX(px, x) === 1) return true;
           if (Fp.sling && px === x && py + 2 * dir === y) return true;
         } else if (pseudo(S, px, py, true).some(m => m.tx === x && m.ty === y)) return true;
       }
@@ -1173,7 +1435,7 @@ const Engine = (() => {
           let hit;
           if (p.t === 'p') {
             const Fp = pf2(by);
-            hit = !Fp.nocap && ((py + dir === ky && (Math.abs(px - kx) === 1 || (px === kx && Fp.brawl))) || (py === ky && Math.abs(px - kx) === 1 && Fp.sidecap) || (Fp.backcap && py - dir === ky && Math.abs(px - kx) === 1) || (Fp.sling && px === kx && py + 2 * dir === ky));
+            hit = p.champ ? Math.max(distX(px, kx), Math.abs(py - ky)) === 1 : !Fp.nocap && ((py + dir === ky && (distX(px, kx) === 1 || (px === kx && Fp.brawl))) || (py === ky && distX(px, kx) === 1 && Fp.sidecap) || (Fp.backcap && py - dir === ky && distX(px, kx) === 1) || (Fp.sling && px === kx && py + 2 * dir === ky));
           } else hit = pseudo(S, px, py, true).some(mv => mv.tx === kx && mv.ty === ky);
           if (hit) kill.push(i);
         }
@@ -1210,7 +1472,7 @@ const Engine = (() => {
       if (v.drops && !v.bugBoard && victim) { copyHands(); const k = victim.pr ? 'p' : victim.t; hands[c][k] = (hands[c][k] || 0) + 1; }
       b[idx(m.fx, m.fy)] = null;
       if (m.ep) b[vx] = null;
-      b[idx(m.tx, m.ty)] = { t: m.promo || p.t, c: p.c, m: true, pr: !!m.promo || !!p.pr };
+      b[idx(m.tx, m.ty)] = { t: m.promo || p.t, c: p.c, m: true, pr: !!m.promo || !!p.pr, champ: m.promo ? undefined : p.champ, fx: p.fx };
       if (victim && victim.t === 'q' && TR[victim.c] === 'martyr' && p.t !== 'k') b[idx(m.tx, m.ty)] = null;
       if (m.castle) { b[idx(m.rx, m.fy)] = null; b[idx(m.rtx, m.fy)] = { t: 'r', c: p.c, m: true }; }
       return next(S, b, m.dbl ? { x: m.tx, y: (m.fy + m.ty) / 2, c: p.c } : null, hands);
@@ -1254,7 +1516,14 @@ const Engine = (() => {
       return out.filter(m => !inCheck(apply(S, m), S.turn));
     }
 
-    const legal = (S, x, y) => pseudo(S, x, y).filter(m => !inCheck(apply(S, m), S.turn));
+    const legal = (S, x, y) => {
+      let ms = pseudo(S, x, y);
+      const p = S.b[idx(x, y)];
+      // A king in check can only step 1 square (it may still capture at full range).
+      if (p && p.t === 'k' && ms.some(m => Math.max(distX(m.tx, x), Math.abs(m.ty - y)) > 1) && inCheck(S, p.c))
+        ms = ms.filter(m => Math.max(distX(m.tx, x), Math.abs(m.ty - y)) <= 1 || (S.b[idx(m.tx, m.ty)] && !m.castle));
+      return ms.filter(m => !inCheck(apply(S, m), S.turn));
+    };
 
     function all(S) {
       const out = [];
@@ -1273,8 +1542,8 @@ const Engine = (() => {
       return n;
     }
 
-    return {
-      w, h,
+    const api = {
+      w, h, cyl,
       get turn() { return S.turn; },
       get left() { return S.left; },
       at: (x, y) => S.b[idx(x, y)],
@@ -1296,6 +1565,35 @@ const Engine = (() => {
         return set;
       },
       get traits() { return TR; },
+      // For the bots: every legal move with what it captures and the most the opponent could take back afterwards.
+      evalMoves() {
+        const c = S.turn, o = opp(c), out = [], cands = [], cx = (w - 1) / 2, cy = (h - 1) / 2;
+        for (let i = 0; i < w * h; i++) { const q = S.b[i]; if (q && q.c === c) { const x = i % w; legal(S, x, (i - x) / w).forEach(m => cands.push(m)); } }
+        if (v.drops) drops(S).forEach(m => cands.push(m));
+        for (const m of cands) {
+          const S2 = apply(S, m), src = m.drop ? null : S.b[idx(m.fx, m.fy)];
+          const vic = m.drop || m.c960 ? null : (S.b[idx(m.tx, m.ty)] || (m.ep ? S.b[idx(m.tx, m.fy)] : null));
+          let threat = 0;
+          for (let i = 0; i < w * h; i++) {
+            const q = S2.b[i];
+            if (!q || q.c !== o) continue;
+            const qx = i % w, qy = (i - qx) / w;
+            for (const mv of pseudo(S2, qx, qy, false)) {
+              const tg = S2.b[idx(mv.tx, mv.ty)];
+              if (!tg || tg.c !== c || tg.t === 'k') continue;
+              const nb = S2.b.slice(); nb[idx(mv.tx, mv.ty)] = { t: 'q', c: o, m: true };
+              const defended = attacked(Object.assign({}, S2, { b: nb }), mv.tx, mv.ty, c);
+              const net = defended ? bv(tg.t) - bv(q.t) : bv(tg.t);
+              if (net > threat) threat = net;
+            }
+          }
+          const check = inCheck(S2, o), mate = check && S2.turn === o && all(S2).length === 0;
+          const pos = (m.drop || !src || src.t === 'k') ? 0 : Math.hypot(m.fx - cx, m.fy - cy) - Math.hypot(m.tx - cx, m.ty - cy);
+          const own = !!vic && vic.c === c;
+          out.push({ m, cap: vic && !own ? vic.t : null, threat: threat + (own ? bv(vic.t) + 1 : 0), check, mate, pos });
+        }
+        return out;
+      },
       canSwap: c => TR[c] === 'swap' && !swapUsed.has(c),
       drainEvents() { const e = events.slice(); events.length = 0; return e; },
       hand: c => Object.assign({}, S.hands[c]),
@@ -1348,8 +1646,535 @@ const Engine = (() => {
         stCache.set(S, r); return r;
       },
       history: () => hist.slice(),
-      perft: d => perft(S, d)
+      perTurn: v.movesPerTurn || 1,
+      perft: d => perft(S, d),
+      // Low-level hooks used by the class layer (withClasses). Not for normal play.
+      raw: {
+        snap: () => S, restore: s0 => { S = s0; },
+        put: (x, y, p) => { const nb = S.b.slice(); nb[idx(x, y)] = p; S = Object.assign({}, S, { b: nb }); },
+        pass: () => { S = Object.assign({}, S, { turn: opp(S.turn), left: v.movesPerTurn || 1, ep: null }); },
+        check: c => inCheck(S, c),
+        foeCheck: c => inCheck(S, opp(c)),
+        home: c => { const out = []; for (const y of c === 'w' ? [0, 1] : [h - 1, h - 2]) for (let x = 0; x < w; x++) out.push([x, y]); return out; },
+        ok: () => !['checkmate', 'stalemate', 'draw'].includes(api.status()),
+        scan: () => { const out = []; for (let i = 0; i < w * h; i++) if (S.b[i]) out.push({ x: i % w, y: Math.floor(i / w), p: S.b[i] }); return out; },
+        valid: (x, y) => inRow(x, y), size: [w, h], depth: h,
+        foe: (c, p) => !!p && !p.wall && p.c !== c,
+        rank: (c, x, y) => (c === 'w' ? y : h - 1 - y),
+        promo: c => h - 1 + (pf2(c).promoShift || 0),
+        remove: (x, y) => { const nb = S.b.slice(); nb[idx(x, y)] = null; S = Object.assign({}, S, { b: nb }); },
+        take: (x, y, by) => {                       // remove a captured piece; Crazyhouse: it goes to the capturer's hand
+          const vic = S.b[idx(x, y)], nb = S.b.slice(); nb[idx(x, y)] = null;
+          let hands = S.hands;
+          if (v.drops && !v.bugBoard && vic) { hands = { w: Object.assign({}, hands.w), b: Object.assign({}, hands.b) }; const k = vic.pr ? 'p' : vic.t; hands[by][k] = (hands[by][k] || 0) + 1; }
+          S = Object.assign({}, S, { b: nb, hands });
+        },
+        clearEp: () => { S = Object.assign({}, S, { ep: null }); },
+        fwd: c => (c === 'w' ? [0, 1] : [0, -1]),
+        setTurn: c => { S = Object.assign({}, S, { turn: c, left: 1, ep: null }); },
+        spend: () => { S = S.left > 1 ? Object.assign({}, S, { left: S.left - 1, ep: null }) : Object.assign({}, S, { turn: opp(S.turn), left: v.movesPerTurn || 1, ep: null }); },
+        ally: (c, p) => !!p && p.c === c
+      }
     };
+    return api;
+  }
+
+
+  /* ===== Classes (spell-chess style) =====
+   * A class = passive + abilities + one ultimate. Points are earned each turn and spent on abilities.
+   * withClasses(game, {classes:{seat:id}, cfg}) wraps a 2-player or 4-seat cross/wide engine. An ability is cast with
+   * game.move({ab:id, c, [fx,fy,] tx, ty}) (fx,fy = first click of a two-click ability, tx,ty = the last click).
+   * Most abilities are cast BEFORE the normal move; `replace:true` abilities use up the whole turn.
+   * Casts are kept in game.abLog() (`at` = number of normal moves played before the cast) so records/replays can rebuild them.
+   * Status effects live on piece objects as p.fx = { frz|dis|jmp: casterSeat }; they expire when that caster's next turn starts. */
+  const CLASS_DEFAULTS = { start: 2, gain: 1, cap: 8, ultRepeat: false, perTurn: 0, summonCap: 4 };
+  const ORTH1 = [[0, 1], [0, -1], [1, 0], [-1, 0]], ORTH2 = [[0, 2], [0, -2], [2, 0], [-2, 0]];
+  const CLASSES = {
+    summoner: {
+      name: 'Summoner',
+      desc: 'Calls new pieces onto empty squares of your first two ranks.',
+      passive: { desc: 'Pawns promote one rank sooner.', pawn: { promoShift: -1 } },
+      abilities: [
+        { id: 'sumP', name: 'Summon Pawn', cost: 2, kind: 'summon', piece: 'p', desc: 'Place a pawn on an empty square of your first two ranks.' },
+        { id: 'sumN', name: 'Summon Knight', cost: 4, kind: 'summon', piece: 'n', desc: 'Place a knight on an empty square of your first two ranks.' },
+        { id: 'sumB', name: 'Summon Bishop', cost: 4, kind: 'summon', piece: 'b', desc: 'Place a bishop on an empty square of your first two ranks.' },
+        { id: 'sumR', name: 'Summon Rook', cost: 5, kind: 'summon', piece: 'r', desc: 'Place a rook on an empty square of your first two ranks.' },
+        { id: 'sumQ', name: 'Summon Queen', cost: 8, ult: true, kind: 'summon', piece: 'q', desc: 'Ultimate: place a queen on an empty square of your first two ranks.' }
+      ]
+    },
+    rogue: {
+      name: 'Rogue',
+      desc: 'A sneaky class that turns the enemy\'s pieces against them.',
+      passive: { desc: 'Bishops can also step 1 square straight.', add: { b: { leap: ORTH1 } } },
+      abilities: [
+        { id: 'steal', name: 'Steal', cost: 4, kind: 'steal', desc: 'An enemy pawn changes sides.' },
+        { id: 'backstab', name: 'Backstab', cost: 3, kind: 'backstab', replace: true, desc: 'REPLACES one of your moves (your whole turn, or one of the two in Marseillais): one of your pieces captures any adjacent enemy piece (not a king), however it normally moves.' },
+        { id: 'disarm', name: 'Disarm', cost: 3, kind: 'disarm', desc: 'An enemy piece (not a king) can\'t capture or give check until your next turn.' },
+        { id: 'assassinate', name: 'Assassinate', cost: 8, ult: true, kind: 'assassinate', desc: 'Ultimate: destroy any enemy piece except a king.' }
+      ]
+    },
+    mage: {
+      name: 'Mage',
+      desc: 'Bends the board with spells.',
+      passive: { desc: 'Knights can also jump 2 squares straight.', add: { n: { leap: ORTH2 } } },
+      abilities: [
+        { id: 'freeze', name: 'Freeze', cost: 3, kind: 'freeze', desc: 'An enemy piece (not a king) can\'t move or give check until your next turn.' },
+        { id: 'blink', name: 'Blink', cost: 2, kind: 'blink', desc: 'Move one of your pieces (not the king) to an empty square within 2 squares. Doesn\'t use your turn.' },
+        { id: 'jump', name: 'Jump', cost: 4, kind: 'jump', desc: 'One of your rooks, bishops or queens ignores blockers (also for check) until your next turn.' },
+        { id: 'meteor', name: 'Meteor', cost: 8, ult: true, kind: 'meteor', desc: 'Ultimate: every piece in a 3x3 area is destroyed, kings excepted (your own pieces too).' }
+      ]
+    },
+    engineer: {
+      name: 'Engineer',
+      desc: 'Builds walls, rewires the army and lays secret mines.',
+      passive: { desc: 'Rooks can also step 1 square diagonally.', add: { r: { leap: [[1, 1], [1, -1], [-1, 1], [-1, -1]] } } },
+      abilities: [
+        { id: 'wall', name: 'Wall', cost: 3, kind: 'wall', desc: 'Build a blocking wall on an empty square for 2 turns. Nothing can pass through, land on or capture it (knights jump over it).' },
+        { id: 'rewire', name: 'Rewire', cost: 3, kind: 'rewire', replace: true, desc: 'REPLACES one of your moves: swap two of your pieces (not kings).' },
+        { id: 'mine', name: 'Mine', cost: 5, kind: 'laymine', desc: 'Secretly mine an empty square in your half for 2 turns. The first enemy non-king piece that lands there is destroyed. Only you and your teammates can see it.' },
+        { id: 'fortress', name: 'Fortress', cost: 8, ult: true, kind: 'fortress', desc: 'Ultimate: walls on every empty square around your king for 3 turns (knights and adjacent pawns can still reach it).' }
+      ]
+    },
+    illusioner: {
+      name: 'Illusioner',
+      desc: 'Fools the enemy with ghosts and decoys.',
+      passive: { desc: 'Mirage: the first time you would be checkmated, that king was a decoy: it vanishes and your real king appears on an empty square of your first two ranks (once per game).', mirage: true },
+      abilities: [
+        { id: 'decoyP', name: 'Decoy Pawn', cost: 2, kind: 'decoy', piece: 'p', desc: 'A ghost pawn appears on an empty square in your half for 3 turns. It can be captured and never gives check.' },
+        { id: 'decoyN', name: 'Decoy Knight', cost: 2, kind: 'decoy', piece: 'n', desc: 'A ghost knight appears on an empty square in your half for 3 turns. It can be captured and never gives check.' },
+        { id: 'phantom', name: 'Phantom', cost: 4, kind: 'phantom', desc: 'One of your pieces (not the king) becomes a ghost for 2 turns: it can\'t be captured, but it can\'t capture or give check either.' },
+        { id: 'mirror', name: 'Mirror', cost: 3, kind: 'mirror', desc: 'Swap places between one of your ghosts and another of your pieces (not the king).' },
+        { id: 'hall', name: 'Hall of Mirrors', cost: 8, ult: true, kind: 'hall', desc: 'Ultimate: every ghost of yours is duplicated once onto an adjacent empty square (the copies are temporary decoys).' }
+      ]
+    },
+    warrior: {
+      name: 'Warrior',
+      desc: 'A front-line fighter: pushes pawns, protects pieces, moves one piece twice and chain-captures.',
+      passive: { desc: 'Pawns can jump 2 squares forward from any rank.', pawn: { charge: true } },
+      abilities: [
+        { id: 'charge', name: 'Charge', cost: 4, kind: 'charge', desc: 'Pick a piece: it makes two moves in a row this turn (both with that piece). If the first move gives check, your turn ends. Not available with 2 moves per turn.' },
+        { id: 'shield', name: 'Shield', cost: 3, kind: 'shield', desc: 'One of your pieces (or a teammate\'s), not a king, can\'t be captured until your next turn.' },
+        { id: 'rally', name: 'Rally', cost: 4, kind: 'rally', desc: 'Every pawn of yours on your 2nd-4th rank steps one square forward (if the square is empty).' },
+        { id: 'overrun', name: 'Overrun', cost: 8, ult: true, kind: 'overrun', desc: 'Ultimate (replaces your move): pick a piece and chain-capture with it as long as it can. A capture that gives check ends the chain; the checked player responds, then control returns to you (in 4-player this overrides turn order). Not available with 2 moves per turn.' }
+      ]
+    },
+    cleric: {
+      name: 'Cleric',
+      desc: 'Protects and restores your army.',
+      passive: { desc: 'Your pieces next to your king can\'t be captured by pawns.', kingGuard: true },
+      abilities: [
+        { id: 'cleanse', name: 'Cleanse', cost: 2, kind: 'cleanse', desc: 'Removes Freeze/Disarm from your (and teammates\') pieces; the cleansed pieces can\'t be captured until your next turn.' },
+        { id: 'revive', name: 'Revive', cost: 6, kind: 'revive', desc: 'Your most recently captured piece (not a queen) returns on an empty square of your first two ranks.' },
+        { id: 'sanctuary', name: 'Sanctuary', cost: 3, kind: 'sanctuary', desc: 'Two of your pieces (or teammates\', not kings) can\'t be captured by pawns until your next turn.' },
+        { id: 'resurrect', name: 'Resurrection', cost: 8, ult: true, kind: 'resurrect', desc: 'Ultimate: your last 2 captured pieces (a queen is allowed) return on empty squares of your first two ranks.' }
+      ]
+    }
+  };
+  const classPass = map => { const out = {}; for (const c in map || {}) if (CLASSES[map[c]] && CLASSES[map[c]].passive) out[c] = CLASSES[map[c]].passive; return out; };
+  function withClasses(game, o) {
+    const cls = o.classes || {}, cfg = Object.assign({}, CLASS_DEFAULTS, o.cfg), raw = game.raw;
+    const ids = game.multi ? game.seats : ['w', 'b'];
+    const pts = {}, ults = {}, summoned = {}, casts = {}, log = [];
+    ids.forEach(c => { pts[c] = +cfg.start; ults[c] = 0; summoned[c] = 0; casts[c] = 0; });
+    let lastTurn = game.turn;
+    const grave = {}, g = Object.create(game);
+    ids.forEach(c => { grave[c] = []; });
+    let chg = null;                                // Charge in progress: {c, x, y, stage:1|2}
+    let ovr = null;                                // Overrun: {c, x, y, n, locked} while chain-capturing, {resume, c, responder} while the checked player answers
+    const mirageUsed = {}, mirageLog = [];
+    let mines = [];                                // secret mines {x, y, c, ttl} (kept off the board; the UI shows them only to the owner's team)
+    const stepsOf = (c, a) => { const st = KINDS[a.kind].steps; return typeof st === 'function' ? st(c, a) : st; };
+    const noteCapture = t => { if (t && !t.dead && t.t !== 'k' && grave[t.c]) grave[t.c].push({ t: t.pr ? 'p' : t.t }); };
+    // NOTE: stored history entries lose flags like `castle` / `ep`, so these are detected from the board only (live play and replay must agree)
+    const isCastle = m => { const p = m && !m.drop && game.at(m.fx, m.fy), t = p && game.at(m.tx, m.ty); return !!(p && p.t === 'k' && (Math.abs(m.tx - m.fx) >= 2 || (t && t.c === p.c))); };
+    const isEp = m => { const p = m && !m.drop && game.at(m.fx, m.fy); if (!p || p.t !== 'p' || p.champ || m.tx === m.fx || game.at(m.tx, m.ty)) return false; const v = game.at(m.tx, m.fy); return !!(v && v.t === 'p' && v.c !== p.c); };
+    const victimOf = m => (!m || m.drop || m.ab || isCastle(m) ? null : (isEp(m) ? game.at(m.tx, m.fy) : game.at(m.tx, m.ty)));
+    const setFx = (p, drop, add) => {             // copy of piece p with some status effects removed and/or added
+      const f = Object.assign({}, p.fx); (drop || []).forEach(k => { delete f[k]; });
+      return Object.assign({}, p, { fx: Object.keys(Object.assign(f, add)).length ? f : undefined });
+    };
+    const isCap = m => isEp(m) || (!isCastle(m) && !!(game.at(m.tx, m.ty) && !game.at(m.tx, m.ty).wall));
+    const ghostsOf = c => raw.scan().filter(({ p }) => p.fx && (p.fx.dcy === c || p.fx.phn === c));
+    const alive = c => (game.alive ? !!game.alive(c) : true);
+    function tryMirage(c) {                        // Illusioner passive: the king about to be checkmated was a decoy
+      if (cls[c] !== 'illusioner' || mirageUsed[c]) return false;
+      const k = raw.scan().find(({ p }) => p.t === 'k' && p.c === c && !p.dead);
+      if (!k) return false;
+      for (const [x, y] of raw.home(c)) {
+        if (game.at(x, y)) continue;
+        const s0 = raw.snap(); raw.remove(k.x, k.y); raw.put(x, y, Object.assign({}, k.p, { m: true }));
+        const nearKing = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]].some(([dx, dy]) => { const t = raw.valid(x + dx, y + dy) && game.at(x + dx, y + dy); return t && t.t === 'k' && raw.foe(c, t); });
+        if (!raw.check(c) && !nearKing) { mirageUsed[c] = true; mirageLog.push({ at: game.history().length, c, fx: k.x, fy: k.y, tx: x, ty: y }); return true; }
+        raw.restore(s0);
+      }
+      return false;
+    }
+    if (raw.setRescue) raw.setRescue(tryMirage);
+    const afterAction = () => { if (!game.multi && cls[game.turn] === 'illusioner' && game.status() === 'checkmate') tryMirage(game.turn); };   // (4-player: handled inside the engine's elimination step)
+    const WALL = (c, ttl) => ({ t: '#', c: 'x', wall: true, by: c, ttl });
+    const empties = () => { const out = [], [W, H] = raw.size; for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) if (raw.valid(x, y) && !game.at(x, y)) out.push({ x, y }); return out; };
+    const fortressSquares = c => { const k = raw.scan().find(({ p }) => p.t === 'k' && p.c === c && !p.dead); return k ? [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]].map(([dx, dy]) => ({ x: k.x + dx, y: k.y + dy })).filter(q => raw.valid(q.x, q.y) && !game.at(q.x, q.y)) : []; };
+    const cheap = (list, c, a) => (raw.check(c) ? list.filter(q => legalCast(c, a, undefined, undefined, q.x, q.y)).map(q => sq(q.x, q.y)) : list.map(q => sq(q.x, q.y)));   // walls/mines can't endanger the own king: only test while in check
+    function triggerMines() {                      // an enemy non-king piece standing on a mine is destroyed (unless that would expose its own king)
+      for (let i = mines.length - 1; i >= 0; i--) {
+        const m = mines[i], p = game.at(m.x, m.y);
+        if (!p || p.t === 'k' || p.wall || !raw.foe(m.c, p)) continue;
+        const s0 = raw.snap(); raw.remove(m.x, m.y);
+        if (raw.check(p.c)) { raw.restore(s0); continue; }
+        mines.splice(i, 1); raw.clearEp();
+      }
+    }
+    const allies = (c, f) => raw.scan().filter(({ x, y, p }) => raw.ally(c, p) && p.t !== 'k' && f(p, x, y));
+    const at = (x, y) => game.at(x, y);
+    const sq = (x, y) => ({ x, y });
+    const withFx = (p, k, by) => Object.assign({}, p, { fx: Object.assign({}, p.fx, { [k]: by }) });
+    const around = (x, y, r) => { const out = []; for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) if ((dx || dy) && raw.valid(x + dx, y + dy)) out.push([x + dx, y + dy]); return out; };
+    const foes = (c, f) => raw.scan().filter(({ x, y, p }) => raw.foe(c, p) && p.t !== 'k' && f(p, x, y));
+    const mine = (c, f) => raw.scan().filter(({ x, y, p }) => p.c === c && !p.dead && p.t !== 'k' && f(p, x, y));
+    // trial: would the cast leave the caster's own king attacked? (the board is restored afterwards)
+    const legalCast = (c, a, fx, fy, tx, ty) => {
+      const s0 = raw.snap(); KINDS[a.kind].run(c, a, fx, fy, tx, ty, true);
+      const bad = raw.check(c); raw.restore(s0); return !bad;
+    };
+    const oneClick = (cands, c, a) => cands.filter(q => legalCast(c, a, undefined, undefined, q.x, q.y)).map(q => sq(q.x, q.y));
+    const KINDS = {
+      summon: {
+        steps: 1,
+        first: (c, a) => oneClick(raw.home(c).filter(([x, y]) => !at(x, y)).map(([x, y]) => sq(x, y)), c, a),
+        run: (c, a, fx, fy, tx, ty) => raw.put(tx, ty, { t: a.piece, c, m: true })
+      },
+      steal: {
+        steps: 1,
+        first: (c, a) => oneClick(foes(c, p => p.t === 'p'), c, a),
+        run: (c, a, fx, fy, tx, ty) => { raw.put(tx, ty, Object.assign({}, at(tx, ty), { c, fx: undefined })); raw.clearEp(); }
+      },
+      assassinate: {
+        steps: 1,
+        first: (c, a) => oneClick(foes(c, () => true), c, a),
+        run: (c, a, fx, fy, tx, ty) => { raw.remove(tx, ty); raw.clearEp(); }
+      },
+      disarm: {
+        steps: 1,
+        first: (c, a) => oneClick(foes(c, p => !(p.fx && p.fx.dis)), c, a),
+        run: (c, a, fx, fy, tx, ty) => raw.put(tx, ty, withFx(at(tx, ty), 'dis', c))
+      },
+      freeze: {
+        steps: 1,
+        first: (c, a) => oneClick(foes(c, p => !(p.fx && p.fx.frz)), c, a),
+        run: (c, a, fx, fy, tx, ty) => raw.put(tx, ty, withFx(at(tx, ty), 'frz', c))
+      },
+      jump: {
+        steps: 1,
+        first: (c, a) => oneClick(mine(c, p => 'rbqa'.includes(p.t) && !(p.fx && p.fx.jmp)), c, a),
+        run: (c, a, fx, fy, tx, ty) => raw.put(tx, ty, withFx(at(tx, ty), 'jmp', c))
+      },
+      meteor: {
+        steps: 1,
+        first: (c, a) => {
+          const cands = [], [W, H] = raw.size;
+          for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) {
+            if (!raw.valid(x, y)) continue;
+            if ([[0, 0]].concat(around(x, y, 1).map(q => [q[0] - x, q[1] - y])).some(([dx, dy]) => { const p = raw.valid(x + dx, y + dy) && at(x + dx, y + dy); return p && p.t !== 'k'; })) cands.push(sq(x, y));
+          }
+          return oneClick(cands, c, a);
+        },
+        run: (c, a, fx, fy, tx, ty) => {
+          [[tx, ty]].concat(around(tx, ty, 1)).forEach(([x, y]) => { const p = at(x, y); if (p && p.t !== 'k') raw.remove(x, y); });
+          raw.clearEp();
+        }
+      },
+      wall: {
+        steps: 1,
+        first: (c, a) => cheap(empties(), c, a),
+        run: (c, a, fx, fy, tx, ty) => raw.put(tx, ty, WALL(c, 2))
+      },
+      fortress: {
+        steps: 0,
+        first: (c, a) => (fortressSquares(c).length && legalCast(c, a, 0, 0, 0, 0) ? [sq(0, 0)] : []),
+        run: (c, a) => { fortressSquares(c).forEach(q => raw.put(q.x, q.y, WALL(c, 3))); }
+      },
+      laymine: {
+        steps: 1,
+        first: (c, a) => cheap(empties().filter(q => raw.rank(c, q.x, q.y) < Math.floor(raw.depth / 2) && !mines.some(m => m.x === q.x && m.y === q.y)), c, a),
+        run: (c, a, fx, fy, tx, ty, dry) => { if (!dry) mines.push({ x: tx, y: ty, c, ttl: 2 }); }
+      },
+      rewire: {
+        steps: 2,
+        first: (c, a) => mine(c, () => true).filter(({ x, y }) => KINDS.rewire.second(c, a, sq(x, y)).length).map(q => sq(q.x, q.y)),
+        second: (c, a, from) => {
+          const p1 = at(from.x, from.y), pawnOk = (p, x, y) => p.t !== 'p' || (raw.rank(c, x, y) >= 1 && raw.rank(c, x, y) < raw.promo(c));
+          return mine(c, (p, x, y) => (x !== from.x || y !== from.y) && pawnOk(p1, x, y) && pawnOk(p, from.x, from.y))
+            .filter(q => legalCast(c, a, from.x, from.y, q.x, q.y)).map(q => sq(q.x, q.y));
+        },
+        run: (c, a, fx, fy, tx, ty) => { const p1 = at(fx, fy), p2 = at(tx, ty); raw.put(fx, fy, Object.assign({}, p2, { m: true })); raw.put(tx, ty, Object.assign({}, p1, { m: true })); }
+      },
+      decoy: {
+        steps: 1,
+        first: (c, a) => cheap(empties().filter(q => raw.rank(c, q.x, q.y) < Math.floor(raw.depth / 2)), c, a),
+        run: (c, a, fx, fy, tx, ty) => raw.put(tx, ty, { t: a.piece, c, m: true, fx: { dcy: c, gt: 3, dec: true } })
+      },
+      phantom: {
+        steps: 1,
+        first: (c, a) => cheap(mine(c, p => !(p.fx && (p.fx.phn || p.fx.dcy))), c, a),
+        run: (c, a, fx, fy, tx, ty) => raw.put(tx, ty, Object.assign({}, at(tx, ty), { fx: Object.assign({}, at(tx, ty).fx, { phn: c, gt: 2 }) }))
+      },
+      mirror: {
+        steps: 2,
+        first: (c, a) => ghostsOf(c).filter(({ p }) => p.t !== 'k').filter(({ x, y }) => KINDS.mirror.second(c, a, sq(x, y)).length).map(q => sq(q.x, q.y)),
+        second: (c, a, from) => {
+          const p1 = at(from.x, from.y), pawnOk = (p, x, y) => p.t !== 'p' || (raw.rank(c, x, y) >= 1 && raw.rank(c, x, y) < raw.promo(c));
+          return mine(c, (p, x, y) => (x !== from.x || y !== from.y) && pawnOk(p1, x, y) && pawnOk(p, from.x, from.y))
+            .filter(q => legalCast(c, a, from.x, from.y, q.x, q.y)).map(q => sq(q.x, q.y));
+        },
+        run: (c, a, fx, fy, tx, ty) => { const p1 = at(fx, fy), p2 = at(tx, ty); raw.put(fx, fy, Object.assign({}, p2, { m: true })); raw.put(tx, ty, Object.assign({}, p1, { m: true })); }
+      },
+      hall: {
+        steps: 0,
+        first: (c, a) => { const s0 = raw.snap(), n = KINDS.hall.run(c, a), bad = raw.check(c); raw.restore(s0); return n > 0 && !bad ? [sq(0, 0)] : []; },
+        run: (c, a) => {                           // every ghost makes ONE temporary decoy copy on an adjacent empty square
+          let n = 0;
+          ghostsOf(c).filter(({ p }) => p.t !== 'k').forEach(({ x, y, p }) => {
+            for (const [dx, dy] of [[0, 1], [1, 0], [0, -1], [-1, 0], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+              const tx = x + dx, ty = y + dy;
+              if (!raw.valid(tx, ty) || at(tx, ty)) continue;
+              if (p.t === 'p' && (raw.rank(c, tx, ty) < 1 || raw.rank(c, tx, ty) >= raw.promo(c))) continue;
+              raw.put(tx, ty, { t: p.t, c, m: true, fx: { dcy: c, gt: p.fx.gt || 2, dec: true } }); n++; break;
+            }
+          });
+          return n;
+        }
+      },
+      overrun: {
+        steps: 1,
+        first: (c, a) => game.perTurn > 1 ? [] : oneClick(raw.scan().filter(({ x, y, p }) => p.c === c && !p.dead && game.moves(x, y).some(isCap)), c, a),
+        run: (c, a, fx, fy, tx, ty, dry) => { if (!dry) ovr = { c, x: tx, y: ty, n: 0, locked: true }; }
+      },
+      charge: {
+        steps: 1,
+        first: (c, a) => game.perTurn > 1 ? [] : oneClick(raw.scan().filter(({ x, y, p }) => p.c === c && !p.dead && game.moves(x, y).length), c, a),
+        run: (c, a, fx, fy, tx, ty, dry) => { if (!dry) chg = { c, x: tx, y: ty, stage: 1 }; }
+      },
+      shield: {
+        steps: 1,
+        first: (c, a) => oneClick(allies(c, p => !(p.fx && p.fx.shd)), c, a),
+        run: (c, a, fx, fy, tx, ty) => raw.put(tx, ty, withFx(at(tx, ty), 'shd', c))
+      },
+      rally: {
+        steps: 0,
+        first: (c, a) => { const s0 = raw.snap(), n = KINDS.rally.run(c, a, 0, 0, 0, 0, true), bad = raw.check(c); raw.restore(s0); return n > 0 && !bad ? [sq(0, 0)] : []; },
+        run: (c, a) => {                           // pawns on own ranks 2-4 step forward (front pawns first); a step that would leave the king attacked is skipped
+          const [dx, dy] = raw.fwd(c); let n = 0;
+          mine(c, (p, x, y) => p.t === 'p' && raw.rank(c, x, y) >= 1 && raw.rank(c, x, y) <= 3)
+            .sort((u, w2) => raw.rank(c, w2.x, w2.y) - raw.rank(c, u.x, u.y)).forEach(({ x, y, p }) => {
+              const tx = x + dx, ty = y + dy;
+              if (!raw.valid(tx, ty) || at(tx, ty) || raw.rank(c, tx, ty) >= raw.promo(c)) return;
+              const s1 = raw.snap(); raw.remove(x, y); raw.put(tx, ty, Object.assign({}, p, { m: true }));
+              if (raw.check(c)) raw.restore(s1); else n++;
+            });
+          if (n) raw.clearEp();
+          return n;
+        }
+      },
+      cleanse: {
+        steps: 0,
+        first: (c, a) => (allies(c, p => p.fx && (p.fx.frz || p.fx.dis)).length && legalCast(c, a, 0, 0, 0, 0) ? [sq(0, 0)] : []),
+        run: (c, a) => { allies(c, p => p.fx && (p.fx.frz || p.fx.dis)).forEach(({ x, y, p }) => raw.put(x, y, setFx(p, ['frz', 'dis'], { shd: c }))); }
+      },
+      sanctuary: {
+        steps: 2,
+        first: (c, a) => allies(c, () => true).filter(({ x, y }) => KINDS.sanctuary.second(c, a, sq(x, y)).length).map(q => sq(q.x, q.y)),
+        second: (c, a, from) => allies(c, (p, x, y) => (x !== from.x || y !== from.y) && !(p.fx && p.fx.sct)).map(q => sq(q.x, q.y)).filter(q => legalCast(c, a, from.x, from.y, q.x, q.y)),
+        run: (c, a, fx, fy, tx, ty) => { [[fx, fy], [tx, ty]].forEach(([x, y]) => raw.put(x, y, withFx(at(x, y), 'sct', c))); }
+      },
+      revive: {
+        steps: 1,
+        first: (c, a) => (KINDS.revive.pick(c) < 0 ? [] : oneClick(raw.home(c).filter(([x, y]) => !at(x, y)).map(([x, y]) => sq(x, y)), c, a)),
+        pick: c => { for (let i = grave[c].length - 1; i >= 0; i--) if (grave[c][i].t !== 'q') return i; return -1; },
+        run: (c, a, fx, fy, tx, ty, dry) => { const i = KINDS.revive.pick(c); raw.put(tx, ty, { t: grave[c][i].t, c, m: true }); if (!dry) grave[c].splice(i, 1); }
+      },
+      resurrect: {
+        steps: c => (grave[c].length >= 2 ? 2 : 1),
+        first: (c, a) => {
+          if (!grave[c].length) return [];
+          const empty = raw.home(c).filter(([x, y]) => !at(x, y)).map(([x, y]) => sq(x, y));
+          return grave[c].length >= 2 ? empty.filter(q => KINDS.resurrect.second(c, a, q).length) : oneClick(empty, c, a);
+        },
+        second: (c, a, from) => raw.home(c).filter(([x, y]) => !at(x, y) && (x !== from.x || y !== from.y)).map(([x, y]) => sq(x, y)).filter(q => legalCast(c, a, from.x, from.y, q.x, q.y)),
+        run: (c, a, fx, fy, tx, ty, dry) => {
+          const gv = grave[c], n = Math.min(2, gv.length);
+          if (n === 2) { raw.put(fx, fy, { t: gv[gv.length - 1].t, c, m: true }); raw.put(tx, ty, { t: gv[gv.length - 2].t, c, m: true }); }
+          else if (n === 1) raw.put(tx, ty, { t: gv[gv.length - 1].t, c, m: true });
+          if (!dry) gv.splice(gv.length - n, n);
+        }
+      },
+      blink: {
+        steps: 2,
+        first: (c, a) => mine(c, p => !(p.fx && p.fx.frz)).filter(({ x, y }) => KINDS.blink.second(c, a, sq(x, y)).length).map(q => sq(q.x, q.y)),
+        second: (c, a, from) => {
+          const p = at(from.x, from.y), out = [];
+          if (!p) return out;
+          around(from.x, from.y, 2).forEach(([x, y]) => {
+            if (at(x, y)) return;
+            if (p.t === 'p') { const r = raw.rank(c, x, y); if (r < 1 || r >= raw.promo(c)) return; }
+            if (legalCast(c, a, from.x, from.y, x, y)) out.push(sq(x, y));
+          });
+          return out;
+        },
+        run: (c, a, fx, fy, tx, ty) => { const p = at(fx, fy); raw.remove(fx, fy); raw.put(tx, ty, Object.assign({}, p, { m: true })); }
+      },
+      backstab: {
+        steps: 2,
+        first: (c, a) => mine(c, p => !(p.fx && (p.fx.frz || p.fx.dis))).filter(({ x, y }) => KINDS.backstab.second(c, a, sq(x, y)).length).map(q => sq(q.x, q.y)),
+        second: (c, a, from) => around(from.x, from.y, 1).filter(([x, y]) => { const t = at(x, y); return t && raw.foe(c, t) && t.t !== 'k' && legalCast(c, a, from.x, from.y, x, y); }).map(([x, y]) => sq(x, y)),
+        run: (c, a, fx, fy, tx, ty, dry) => {
+          const p = at(fx, fy);
+          if (dry) raw.remove(tx, ty); else { noteCapture(at(tx, ty)); raw.take(tx, ty, c); }
+          raw.remove(fx, fy);
+          const np = Object.assign({}, p, { m: true });
+          if (p.t === 'p' && raw.rank(c, tx, ty) >= raw.promo(c)) { np.t = 'q'; np.pr = true; np.champ = undefined; }
+          raw.put(tx, ty, np); raw.clearEp();
+        }
+      }
+    };
+    const find = (c, id) => { const k = CLASSES[cls[c]]; return k ? k.abilities.find(a => a.id === id) || null : null; };
+    const TIMED = { frz: 1, dis: 1, jmp: 1, shd: 1, sct: 1 };
+    function expire() {                            // status effects end when their caster's next turn begins (or the caster is out)
+      raw.scan().forEach(({ x, y, p }) => {
+        if (!p.fx) return;
+        const nf = {}; let ch = false;
+        for (const k in p.fx) { const by = p.fx[k]; if (!TIMED[k]) { nf[k] = by; continue; } if (by === game.turn || (game.alive && !game.alive(by))) ch = true; else nf[k] = by; }
+        if (ch) raw.put(x, y, Object.assign({}, p, { fx: Object.keys(nf).length ? nf : undefined }));
+      });
+      raw.scan().forEach(({ x, y, p }) => {         // walls vanish after their turns run out (kept one more turn if removal would leave an enemy king attacked)
+        if (!p.wall) return;
+        const gone = game.alive && !game.alive(p.by);
+        if (p.by !== game.turn && !gone) return;
+        const ttl = gone ? 0 : p.ttl - 1;
+        if (ttl > 0) { raw.put(x, y, Object.assign({}, p, { ttl })); return; }
+        const s0 = raw.snap(); raw.remove(x, y);
+        if (raw.foeCheck(game.turn)) { raw.restore(s0); raw.put(x, y, Object.assign({}, p, { ttl: 0 })); }
+      });
+      raw.scan().forEach(({ x, y, p }) => {         // ghosts: decoys vanish and phantoms turn solid after their turns run out (postponed if that would leave an enemy king attacked)
+        if (!p.fx || p.fx.gt == null) return;
+        const by = p.fx.dcy || p.fx.phn, gone = game.alive && !game.alive(by);
+        if (by !== game.turn && !gone) return;
+        const gt = gone ? 0 : p.fx.gt - 1;
+        if (gt > 0) { raw.put(x, y, Object.assign({}, p, { fx: Object.assign({}, p.fx, { gt }) })); return; }
+        const s0 = raw.snap();
+        if (p.fx.dec) raw.remove(x, y); else { const f = Object.assign({}, p.fx); delete f.phn; delete f.gt; raw.put(x, y, Object.assign({}, p, { fx: Object.keys(f).length ? f : undefined })); }
+        if (raw.foeCheck(game.turn)) { raw.restore(s0); raw.put(x, y, Object.assign({}, p, { fx: Object.assign({}, p.fx, { gt: 0 }) })); }
+      });
+      mines = mines.filter(m => !(game.alive && !game.alive(m.c)) && !(m.c === game.turn && --m.ttl <= 0));
+    }
+    function turnChanged() {                       // a new turn starts: that player earns points
+      if (game.turn === lastTurn) return;
+      lastTurn = game.turn;
+      expire();
+      if (pts[lastTurn] != null) { pts[lastTurn] = Math.max(pts[lastTurn], Math.min(+cfg.cap, pts[lastTurn] + +cfg.gain)); casts[lastTurn] = 0; }
+    }
+    const base = (c, a) => {                       // reasons an ability can't be cast right now (not counting targets)
+      if (game.turn !== c) return 'Not your turn';
+      if (!raw.ok(c)) return 'Game over';
+      if (chg && chg.c === c) return 'Finish your Charge first';
+      if (ovr && ovr.locked && ovr.c === c) return 'Finish your Overrun first';
+      if ((a.kind === 'charge' || a.kind === 'overrun') && game.perTurn > 1) return 'Not available with 2 moves per turn';
+      if (pts[c] < a.cost) return 'Needs ' + a.cost + ' points';
+      if (a.ult && ults[c] && !cfg.ultRepeat) return 'Ultimate already used';
+      if (+cfg.perTurn && casts[c] >= +cfg.perTurn) return 'Ability limit reached this turn';
+      if (a.kind === 'summon' && summoned[c] >= +cfg.summonCap) return 'Summon limit reached';
+      return '';
+    };
+    const why = (c, a) => base(c, a) || (KINDS[a.kind].first(c, a).length ? '' : 'No valid target');
+    function cast(m) {
+      const c = game.turn;
+      if (m.c && m.c !== c) return false;
+      if (m.ab === 'stop') {                       // end an Overrun chain voluntarily (after at least one capture)
+        if (!(ovr && ovr.locked && ovr.c === c && ovr.n > 0)) return false;
+        log.push({ at: game.history().length, ab: 'stop', c }); ovr = null; raw.pass(); afterAction(); turnChanged(); return true;
+      }
+      const a = find(c, m.ab);
+      if (!a || why(c, a)) return false;
+      const K = KINDS[a.kind], st = stepsOf(c, a);
+      if (st === 2) {
+        if (!K.first(c, a).some(q => q.x === m.fx && q.y === m.fy) || !K.second(c, a, sq(m.fx, m.fy)).some(q => q.x === m.tx && q.y === m.ty)) return false;
+      } else if (st === 1) { if (!K.first(c, a).some(q => q.x === m.tx && q.y === m.ty)) return false; }
+      else if (!K.first(c, a).length) return false;
+      K.run(c, a, m.fx, m.fy, m.tx, m.ty, false);
+      if (a.kind === 'summon') summoned[c]++;
+      pts[c] -= a.cost; casts[c]++; if (a.ult) ults[c]++;
+      const e = { at: game.history().length, ab: a.id, c };
+      if (st >= 1) { e.tx = m.tx; e.ty = m.ty; }
+      if (st === 2) { e.fx = m.fx; e.fy = m.fy; }
+      log.push(e);
+      triggerMines();
+      if (raw.foeCheck(c)) raw.pass();                // giving check ends your turn
+      else if (a.replace) raw.spend();                // a replacing ability uses up one move (the whole turn unless you have 2 moves per turn)
+      if (game.turn !== c) chg = null;
+      afterAction();
+      turnChanged();
+      return true;
+    }
+    g.move = m => {
+      if (m && m.ab) return cast(m);
+      const mover = game.turn;
+      if (chg && chg.c === mover && (m.drop || m.fx !== chg.x || m.fy !== chg.y)) return false;     // a Charge must be finished with the chosen piece
+      const chain = ovr && ovr.locked && ovr.c === mover;
+      if (chain && (m.drop || m.fx !== ovr.x || m.fy !== ovr.y || !isCap(m))) return false;      // an Overrun chain only continues with captures by the chosen piece
+      const resume = ovr && ovr.resume && ovr.responder === mover;
+      const vic = victimOf(m), castled = isCastle(m), stage = chg && chg.c === mover ? chg.stage : 0;
+      if (!game.move(m)) return false;
+      noteCapture(vic);
+      triggerMines();
+      if (chain) {
+        ovr.n++;
+        if (!raw.ok(mover) || game.turn === mover) ovr = null;
+        else if (raw.foeCheck(mover)) {            // a capture that gives check ends the chain: the checked player answers, then control returns to the Overrun player
+          const order = ids.slice(ids.indexOf(mover) + 1).concat(ids.slice(0, ids.indexOf(mover)));
+          const r = order.find(s0 => alive(s0) && raw.check(s0) && s0 !== mover);
+          ovr = r ? { resume: true, c: mover, responder: r } : null;
+          if (r) raw.setTurn(r);
+        } else {
+          raw.setTurn(mover);
+          if (game.moves(m.tx, m.ty).some(isCap)) { ovr.x = m.tx; ovr.y = m.ty; } else { ovr = null; raw.pass(); }
+        }
+      } else if (resume) {
+        const c0 = ovr.c; ovr = null;
+        if (alive(c0) && raw.ok(c0) && game.turn !== c0) raw.setTurn(c0);      // control returns to the Overrun player (a normal new turn, even in 4-player)
+      }
+      if (stage) {
+        chg = null;
+        if (stage === 1 && !castled && !raw.foeCheck(mover) && raw.ok(mover) && game.turn !== mover) {   // first Charge move done: same player moves the same piece again
+          raw.setTurn(mover);
+          if (game.moves(m.tx, m.ty).length) chg = { c: mover, x: m.tx, y: m.ty, stage: 2 }; else raw.pass();
+        }
+      }
+      afterAction();
+      turnChanged();
+      return true;
+    };
+    g.moves = (x, y, ...r) => {
+      if (chg && chg.c === game.turn && (x !== chg.x || y !== chg.y)) return [];
+      if (ovr && ovr.locked && ovr.c === game.turn) return x === ovr.x && y === ovr.y ? game.moves(x, y, ...r).filter(isCap) : [];
+      return game.moves(x, y, ...r);
+    };
+    if (game.drops) g.drops = (...r) => ((chg && chg.c === game.turn) || (ovr && ovr.locked && ovr.c === game.turn) ? [] : game.drops(...r));
+    g.overrunOf = c => (ovr && ovr.locked && ovr.c === c ? { x: ovr.x, y: ovr.y, n: ovr.n } : null);
+    g.mirages = () => mirageLog.slice();
+    g.mines = c => mines.filter(m => c == null || m.c === c || raw.ally(c, { c: m.c })).map(m => ({ x: m.x, y: m.y, c: m.c, ttl: m.ttl }));   // c = viewer (their team's mines); null = all
+    g.chargeOf = c => (chg && chg.c === c ? { x: chg.x, y: chg.y, stage: chg.stage } : null);
+    if (game.resign) g.resign = c => { game.resign(c); turnChanged(); };
+    g.cls = cls; g.cfg = cfg;
+    g.abLog = () => log.slice();
+    g.pts = c => pts[c];
+    g.abilities = c => { const k = CLASSES[cls[c]]; return k ? k.abilities.map(a => ({ id: a.id, name: a.name, cost: a.cost, ult: !!a.ult, replace: !!a.replace, steps: stepsOf(c, a), desc: a.desc, why: why(c, a) })) : []; };
+    g.abSteps = (c, id) => { const a = find(c, id); return a ? stepsOf(c, a) : 0; };
+    g.abTargets = (c, id, from) => {               // squares to click: the first click, or (with `from`) the second click of a two-click ability
+      const a = find(c, id); if (!a || base(c, a)) return [];
+      const K = KINDS[a.kind];
+      const st = stepsOf(c, a);
+      return st === 0 ? [] : from ? (st === 2 ? K.second(c, a, from) : []) : K.first(c, a);
+    };
+    return g;
   }
 
   const CRAZYHOUSE = Object.assign({}, STANDARD, { drops: true });
@@ -1375,7 +2200,7 @@ const Engine = (() => {
   const FOUR = { multi: true, seats: ['r', 'b', 'y', 'g'], dead: [], castling: true };
   const THREE = { multi: true, hex: true, seats: ['r', 'b', 'y'], dead: [] };
 
-  return { create, STANDARD, CRAZYHOUSE, MARSEILLAIS, INFINITE, ALICE, FOUR, THREE, BUGHOUSE, TRAITS, randomBack960, ROOK, BISHOP, ALL, KNIGHT };
+  return { create, STANDARD, CRAZYHOUSE, MARSEILLAIS, INFINITE, ALICE, FOUR, THREE, BUGHOUSE, TRAITS, randomBack960, botChoose, CLASSES, CLASS_DEFAULTS, withClasses, classPass, ROOK, BISHOP, ALL, KNIGHT };
 })();
 
 if (typeof module !== 'undefined') module.exports = Engine;
