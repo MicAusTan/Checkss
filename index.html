@@ -137,7 +137,7 @@
     <select id="dropSel"><option value="any">Anywhere empty (standard)</option><option value="own">Own side only (4-player: own arm + centre)</option></select>
   </div>
   <div id="gsNeutral">Neutral pieces:
-    <select id="nsetSel"><option value="commoner">Commoners (1 step any direction)</option><option value="mixed">Mixed (imps = knights, wraiths = 2 diagonal)</option><option value="oxen">Oxen &amp; commoners (oxen charge up to 2 squares in straight lines)</option></select>
+    <select id="nsetSel"><option value="commoner">Commoners (1 step any direction)</option><option value="mixed">Mixed (imps = knight-jump captures + blink 3 squares, wraiths = 2 diagonal)</option><option value="oxen">Oxen &amp; commoners (oxen charge up to 2 squares in straight lines)</option></select>
     <label><input type="checkbox" id="fallenChk"> Fallen armies: a knocked-out player's pieces turn neutral</label>
   </div>
   <div id="gsTraits"><label><input type="checkbox" id="traitsChk"> Class traits: each player secretly picks 1 of a few random traits</label>
@@ -1724,11 +1724,11 @@ function renderMultiHands() {
   const g = game, V = MODES[mode].v, top = $('handTop'), bot = $('handBot');
   top.innerHTML = ''; bot.innerHTML = ''; top.classList.remove('others');
   if (!V.drops) return;
-  const txt = h => 'qrbnpciwoal'.split('').filter(t => h[t] > 0).map(t => GLYPH[t] + '×' + h[t]).join(' ') || '—';
+  const txt = h => 'qrbnpciwoal'.split('').filter(t => h[t] > 0).map(t => glyphHTML(t) + '×' + h[t]).join(' ') || '—';
   top.classList.add('others');
-  top.textContent = 'Hands: ' + g.seats.filter(c => c !== mySeat).map(c => CN[c] + ' ' + txt(g.hand(c))).join(' · ');
+  top.innerHTML = 'Hands: ' + g.seats.filter(c => c !== mySeat).map(c => CN[c] + ' ' + txt(g.hand(c))).join(' · ');
   const hand = g.hand(mySeat);
-  'qrbnp'.split('').forEach(t => {
+  'qrbnpciwoal'.split('').forEach(t => {
     if (!(hand[t] > 0)) return;
     const b = document.createElement('button');
     b.innerHTML = glyphHTML(t) + '×' + hand[t];
@@ -1945,7 +1945,7 @@ function renderMulti() {
     if (prev) rs.value = prev;
   }
   $('history').textContent = 'Order: ' + g.seats.map(c => CN[c] + (g.alive(c) ? '' : ' ✖')).join(' → ') +
-    (g.neutral ? '   |   Neutral (purple, dashed ring): shield = commoner (1 step any way), horned face = imp (knight jump), ghost = wraith (up to 2 diagonally), bull = ox (up to 2 straight). They always capture when they can. Capture one to tame it — drop it on your own arm.' : '');
+    (g.neutral ? '   |   Neutral (purple, dashed ring): shield = commoner (1 step any way), horned face = imp (captures like a knight, but can also blink to any empty square within 3), ghost = wraith (up to 2 diagonally), bull = ox (up to 2 straight). They always capture when they can. Capture one to tame it — drop it on your own arm.' : '');
 }
 
 /* ============ CHAT ============ */
