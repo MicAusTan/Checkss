@@ -26,14 +26,31 @@
   body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,sans-serif;
          display:flex; flex-direction:column; align-items:center; padding:16px; }
   h1 { font-size:1.3rem; margin:0 0 12px; }
-  #lobby, #game { width:100%; max-width:480px; }
+  #lobby { width:100%; max-width:480px; }
+  /* in a game: big board on the left (as large as the window height allows), panel on the right */
+  #game { width:100%; max-width:1320px; display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,390px); gap:18px; align-items:start; }
+  #game.hidden { display:none; }
+  #gameMain { width:100%; max-width:calc((100vh - 190px) / var(--asp, 1)); min-width:300px; margin:0 auto; }
+  #gameSide { min-width:0; }
+  @media (max-width: 900px) { #game { display:block; max-width:640px; } #gameMain { max-width:none; min-width:0; } }
+  body.nopagescroll { overflow:hidden; height:100vh; }
+  body.nopagescroll #gameSide { max-height:calc(100vh - 90px); overflow-y:auto; scrollbar-width:thin; }
+  .panel { border:1px solid #4a4741; border-radius:8px; padding:6px 10px; margin:10px 0; background:#262421; }
+  .panel > summary { cursor:pointer; font-weight:600; }
+  .hrow { display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; margin:7px 0; }
+  .hrow button, .hrow select { margin:0; padding:6px 10px; font-size:.9rem; }
+  .hrow label { font-size:.9rem; }
+  .hl { width:78px; flex:none; opacity:.6; font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; }
+  .actions { margin:8px 0; } .actions button { margin:4px 6px 4px 0; padding:8px 14px; }
+  .optgrp { border-top:1px solid #3d3a35; margin-top:8px; padding-top:4px; }
+  .optgrp .gh { font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; opacity:.6; margin:2px 0 2px; }
   button { background:#779556; color:#fff; border:0; border-radius:6px; padding:10px 16px;
            font-size:1rem; cursor:pointer; margin:4px 4px 4px 0; }
   button:hover { background:#8aa866; }
   input, select { padding:10px; border-radius:6px; border:1px solid #555; background:#1b1a18; color:var(--fg); font-size:1rem; }
   #board, #board2 { display:grid; width:100%; border:2px solid #111; grid-auto-rows:minmax(0,1fr); box-sizing:border-box; }
-  #boardWrap { overflow:auto; max-height:80vh; max-width:100%; }
-  #boardWrap.zoomable { overflow:hidden; max-height:none; position:relative; touch-action:none; cursor:grab; border:1px solid #333; background:#1b1b1b; }
+  #boardWrap { max-width:100%; }
+  #boardWrap.zoomable { overflow:hidden; max-height:none; overscroll-behavior:contain; position:relative; touch-action:none; cursor:grab; border:1px solid #333; background:#1b1b1b; }
   #boardWrap.zoomable #board { border:0; }
   #zoomCtl { position:absolute; top:6px; right:6px; z-index:5; display:flex; gap:4px; }
   #zoomCtl button { margin:0; padding:2px 9px; font-size:.9rem; opacity:.9; }
@@ -53,6 +70,11 @@
   .sq.neu::before { content:''; position:absolute; inset:7%; border:2px dashed #b57bff; border-radius:50%; pointer-events:none; }
   .fairy { font-weight:bold; }
   .champ { text-shadow:0 0 5px #ffd54a,0 0 2px #000 !important; }
+  .sq.cut { visibility:hidden; }
+  .pg { display:flex; gap:8px; margin:3px 0; align-items:flex-start; } .pgi { flex:0 0 1.5em; font-size:20px; line-height:1; text-align:center; } .pgi svg { width:1em; height:1em; display:block; }
+  .wl { position:absolute; right:-.2em; bottom:-.15em; font-size:.42em; line-height:1; padding:.1em .25em; border-radius:3px; background:#000d; color:#fff; font-family:sans-serif; font-weight:bold; }
+  .sq.splash { box-shadow:inset 0 0 0 4px rgba(220,40,40,.9); }
+  #rulesBox { margin:6px 0; } #rulesBody { font-size:13px; line-height:1.45; max-height:46vh; overflow:auto; padding:4px 8px; } #rulesBody h4 { margin:8px 0 2px; } #rulesBody ul { margin:2px 0; padding-left:18px; }
   .w-piece { color:#fff; text-shadow:0 0 2px #000,0 0 2px #000,0 0 2px #000; }
   #status { margin:10px 0; font-weight:600; min-height:1.4em; }
   #link { word-break:break-all; font-size:.85rem; opacity:.8; }
@@ -87,6 +109,9 @@
   .fx-shd { filter:drop-shadow(0 0 3px #1fa84f) drop-shadow(0 0 6px #6fe39a); }
   .fx-sct { filter:drop-shadow(0 0 3px #a14fd6) drop-shadow(0 0 6px #d9a8f5); }
   .fx-wall { color:#8b5a2b !important; text-shadow:none !important; }
+  .fx-msk { filter:drop-shadow(0 0 3px #ff4fa8) drop-shadow(0 0 6px #ffb3d9); }
+  .sq.foe { box-shadow:inset 0 0 0 3px rgba(230,126,34,.9); }
+  .sq.rmark { box-shadow:inset 0 0 0 3px rgba(0,190,230,.9); }
   .fx-phn { opacity:.55; filter:drop-shadow(0 0 4px #29b6c9) drop-shadow(0 0 8px #8fe3ee); }
   .fx-dcy { opacity:.6; filter:drop-shadow(0 0 3px #b07be0) drop-shadow(0 0 7px #dcc2f5); }
   .sq.mine { box-shadow:inset 0 0 0 3px rgba(192,57,43,.8); }
@@ -113,6 +138,7 @@
 <div id="prefs">
   <label>Board colours <select id="themeSel"><option value="classic">Classic</option><option value="green">Green</option><option value="blue">Blue</option><option value="slate">Slate</option><option value="rose">Rose</option></select></label>
   <label><input type="checkbox" id="soundChk" checked> Soft turn sound</label>
+  <label title="How the mouse wheel behaves over an Infinite board. Ctrl + wheel always zooms.">Infinite board wheel <select id="wheelSel"><option value="zoom">Zoom at the cursor</option><option value="pan">Scroll (Shift = sideways, Ctrl = zoom)</option></select></label>
 </div>
 
 <div id="lobby">
@@ -133,13 +159,27 @@
 </div>
 <details id="gsBox" class="hidden" open>
   <summary><b>Game options</b> <span id="gsNote" style="opacity:.7"></span></summary>
+  <div class="optgrp" id="grpRules"><div class="gh">Rules</div>
   <div id="gsDrop">Crazyhouse drops:
     <select id="dropSel"><option value="any">Anywhere empty (standard)</option><option value="own">Own side only (4-player: own arm + centre)</option></select>
   </div>
-  <div id="gsNeutral">Neutral pieces:
-    <select id="nsetSel"><option value="commoner">Commoners (1 step any direction)</option><option value="mixed">Mixed (imps = knight-jump captures + blink 3 squares, wraiths = 2 diagonal)</option><option value="oxen">Oxen &amp; commoners (oxen charge up to 2 squares in straight lines)</option></select>
-    <label><input type="checkbox" id="fallenChk"> Fallen armies: a knocked-out player's pieces turn neutral</label>
+  <label id="gsC960"><input type="checkbox" id="c960Chk"> Chess960: shuffled back rank (same layout for everyone; castle by moving your king onto your own rook)</label>
+  <label id="gsFog"><input type="checkbox" id="fogChk"> Fog of war: you only see squares your pieces can reach</label>
+    <label id="gsFoes"><input type="checkbox" id="foesChk" checked> Click an enemy piece to see where it can move</label>
+  <label id="gsTeams"><input type="checkbox" id="teamsChk"> 2v2 teams: partners can't capture or check each other</label>
+  <div id="gsBoard"><span id="boardKindWrap">Team board: <select id="boardSel"><option value="cross">Cross board (partners sit opposite)</option><option value="wide">Wide board (teams face each other)</option></select></span>
+    <span id="heightWrap">Height: <select id="heightSel"><option>8</option><option selected>10</option><option>12</option><option>16</option></select></span>
   </div>
+  </div>
+  <div class="optgrp" id="grpNeutral"><div class="gh">Neutral pieces</div>
+  <div id="gsNeutral">Neutral pieces:
+    <select id="nsetSel"><option value="commoner">Commoners (1 step any direction)</option><option value="mixed">Mixed (imps = knights, wraiths = 2 diagonal)</option><option value="oxen">Oxen &amp; commoners (oxen charge up to 2 squares in straight lines)</option></select>
+    <label><input type="checkbox" id="fallenChk"> Fallen armies: a knocked-out player's pieces turn neutral</label><br>
+    <label><input type="checkbox" id="neutralDropChk"> Captured neutral pieces join your hand (you can drop them back on the board, Crazyhouse-style)</label><br>
+    <span id="impRoamLbl"><br><label><input type="checkbox" id="impRoamChk"> Imps roam: an imp can move to ANY empty square in the 5x5 around it, but still captures only like a knight</label></span>
+  </div>
+  </div>
+  <div class="optgrp" id="grpExtras"><div class="gh">Traits &amp; classes</div>
   <div id="gsTraits"><label><input type="checkbox" id="traitsChk"> Class traits: each player secretly picks 1 of a few random traits</label>
     <span id="offerWrap">Offers per player: <select id="offerSel"><option>3</option><option selected>4</option></select></span>
   </div>
@@ -156,26 +196,12 @@
       <label><input type="checkbox" id="clHideFx"> Hide Shield / Sanctuary glows from opponents (they can't see which pieces are protected)</label>
     </div>
   </div>
-  <label id="gsC960"><input type="checkbox" id="c960Chk"> Chess960: shuffled back rank, the same random layout for everyone (castle by moving your king onto your own rook)</label>
-  <label id="gsCyl"><input type="checkbox" id="cylChk"> Cylinder: the left and right edges connect (pieces wrap around the sides)</label>
-  <label id="gsFog"><input type="checkbox" id="fogChk"> Fog of war (you only see squares your pieces can move to or attack)</label>
-  <label id="gsTeams"><input type="checkbox" id="teamsChk"> 2v2 teams (partners can't capture or check each other; a team wins when both opponents are out)</label>
-  <div id="gsBoard">Team board:
-    <select id="boardSel"><option value="cross">Cross board (partners sit opposite)</option><option value="wide">Wide board (teams face each other)</option></select>
-    Height: <select id="heightSel"><option>8</option><option selected>10</option><option>12</option><option>16</option></select>
   </div>
 </details>
 
 <div id="game" class="hidden">
-  <div id="draftBox" class="hidden"></div>
-  <div id="classBar" class="hidden"></div>
-  <div id="replayBar" class="hidden"><b>Replay</b> <button id="rpStart" title="Start">⏮</button><button id="rpBack" title="Back one move">◀</button><button id="rpPlay" title="Play / pause">▶▶</button><button id="rpFwd" title="Forward one move">▶</button><button id="rpEnd" title="Latest">⏭</button> <input type="range" id="rpSlider" min="0" max="0" value="0" style="width:38%;vertical-align:middle"> <span id="rpLabel"></span> <button id="rpExit">Back to game</button></div>
+ <div id="gameMain">
   <div id="status"></div>
-  <details id="moveBox" class="hidden" open><summary>Moves <span id="moveCount"></span></summary><div id="moveList"></div></details>
-  <div id="drawBanner" class="hidden">
-    Your opponent offers a draw.
-    <button id="acceptDraw">Accept</button><button id="declineDraw">Decline</button>
-  </div>
   <div id="promo" class="hidden"></div>
   <div id="handTop" class="hand"></div>
   <div id="capA" class="lbl hidden">Board A</div>
@@ -183,18 +209,35 @@
   <div id="cylNote" class="hidden">Cylinder chess: the a-file and the last file touch, so rooks, bishops, knights, kings and pawns can all wrap around the sides. The faded strips show the files just beyond each edge. Drag the board, or use Spin, to turn the cylinder.</div>
   <div id="board2Wrap" class="hidden"><div class="lbl">Board B</div><div id="board2"></div></div>
   <div id="handBot" class="hand"></div>
+ </div>
+ <div id="gameSide">
+  <div id="draftBox" class="hidden"></div>
+  <div id="classBar" class="hidden"></div>
+  <div id="replayBar" class="hidden"><b>Replay</b> <button id="rpStart" title="Start">⏮</button><button id="rpBack" title="Back one move">◀</button><button id="rpPlay" title="Play / pause">▶▶</button><button id="rpFwd" title="Forward one move">▶</button><button id="rpEnd" title="Latest">⏭</button> <input type="range" id="rpSlider" min="0" max="0" value="0" style="width:38%;vertical-align:middle"> <span id="rpLabel"></span> <button id="rpExit">Back to game</button></div>
+  <div id="drawBanner" class="hidden">
+    Your opponent offers a draw.
+    <button id="acceptDraw">Accept</button><button id="declineDraw">Decline</button>
+  </div>
+  <details id="moveBox" class="hidden" open><summary>Moves <span id="moveCount"></span></summary><div id="moveList"></div></details>
+  <details id="rulesBox" class="hidden"><summary>Imperial Chess rules</summary><div id="rulesBody">
+<h4>Goal</h4><ul><li>Destroy the enemy army. The <b>Imperials</b> (Emperor Ⓔ, Empress Ⓧ, Heir Ⓗ) are special: with 2 or more alive there is <b>no check</b>. When exactly one is left it is the check target (normal check/checkmate).</li><li>You <b>lose immediately</b> if only Imperials remain (no other pieces). Stalemate is a draw. Losing the King or Queen is never a loss.</li></ul>
+<h4>Board</h4><ul><li>17×16. The corner squares of each army's 3 ranks are cut away: nothing lands there or slides through. Pawns promote on the first full-width rank in front of the enemy (and deeper) — promotion is compulsory.</li></ul>
+<h4>Imperials</h4><ul><li>Immune to pawn-family captures (Pawn, Pikeman, Skirmisher). Emperor also immune to Rooks, Empress to Bishops, Heir to Knights (Grand pieces ignore this).</li><li><b>Emperor</b>: rook lines plus the squares beside the line. <b>Empress</b>: diagonals plus the 4 orthogonal neighbours of each line square. A piece on the line cuts off the side squares at and beyond it. Lose your Empress → the Emperor reaches only 3 squares and loses Rook immunity (and vice-versa). <b>Heir</b>: 16 knight + camel leaps; when both Emperor and Empress are gone he also gets (±2,±4),(±4,±2) and loses Knight immunity.</li><li><b>Castle</b>: Emperor hops a friendly Rook/Grand Rook, Empress a friendly Bishop/Grand Bishop, landing on an empty square beyond it (max 6 away, cooldown 3 of your turns, not while in check). <b>Swap</b>: the Heir may swap with a friendly Knight/Grand Knight in his reach.</li></ul>
+<h4>King &amp; Queen auras (5×5)</h4><ul><li>King: friendly pawn-family may repeat their 2-step; Rooks, Bishops, Knights and Grands can't be captured by pawn-family pieces.</li><li>Queen: ordinary Pawns also capture straight ahead; Archers, Guards, Chariots, Sappers, Catapults can't be captured by pawn-family pieces.</li></ul>
+<h4>Royals</h4><ul><li><b>Prince</b> / <b>Princess</b> (promotion only, one each): Prince captures on the 5×5 (no corners) and also steps to corners and 3 straight; blockable. Princess moves 1, <b>shoots</b> the outer ring and 3 straight without moving; she can't be captured while the Prince is next to her.</li></ul>
+<h4>Pieces</h4><ul><li><b>Grand Rook ♖</b> rook + knight moves (move only). <b>Grand Bishop ♗</b> bishop + 1–2 straight. <b>Grand Knight ♘</b> the whole outer ring of the 5×5. Only original Rooks/Bishops/Knights become Grands (automatically on reaching the promotion rank).</li><li><b>Guard Ⓖ</b> king moves, plus steps 2 straight or onto squares around a nearby friend; Archers can't hit it or its neighbours. <b>Chariot Ⓒ</b> slides 2 straight with knight squares off each lane. <b>Archer Ⓐ</b> steps 1; shoots 16 squares around it without moving. <b>Sapper Ⓢ</b> leaps, never captures; after moving it may place a wall next to itself (once per 2 turns). <b>Catapult Ⓣ</b> walks 1–2 straight; fires on 7 squares ahead (hitting (0,4) also splashes (±1,4)), then reloads a turn.</li><li><b>Pawn ♟</b> 1 step (up to 3 on its first move), captures diagonally. <b>Pikeman ♙</b> also captures straight. <b>Skirmisher ⓜ</b> also steps sideways. Pikeman → <b>Lancer Ⓛ</b>, Skirmisher → <b>Raider Ⓓ</b> on promotion.</li></ul>
+<h4>Piece guide</h4><div id="pieceGuide"></div>
+<h4>4-player free-for-all (29×29)</h4><ul><li>Cross-shaped board: a 21×21 centre with a 13×4 arm for each army (same 39-piece layout, rotated). Seats take turns in order; last seat standing wins.</li><li>Promotion happens on the far edge of the centre square (22 steps from your army). Tick <b>Teams</b> for 2v2 (partners sit opposite and never capture or check each other); choose the <b>Wide board</b> for the 30×16 version where each team's two armies sit side by side.</li><li>Check applies to a seat only when it has exactly one Imperial left, and any opponent can give it. A checkmated seat — or one left with only Imperials — is out; a stalemated seat just skips. Their pieces turn <b>gray</b>: they stop moving but can be captured, Imperials included, with no immunities.</li></ul>
+<h4>Walls &amp; special rules</h4><ul><li>Walls block movement and lines; capture one by moving onto it. Ranged shots pass over them. The number on a wall is how many full rounds it still stands (it vanishes at the start of the enemy's 4th turn in 2-player; lifetime scales with the number of seats).</li><li>En passant: after a 2–3 step pawn move, an enemy pawn-family piece may capture diagonally onto a square it passed, next turn only.</li><li>Ranged shots (⌖) capture without moving. Click a piece to see its squares.</li></ul></div></details>
   <div id="history"></div>
-  <div style="margin-top:10px">
-    <span id="hostCtl" class="hidden">
-      <select id="modeSel2"></select>
-      <label id="swapLbl"><input type="checkbox" id="swapChk" checked> swap colors</label>
-      <button id="newBtn">New game</button>
-      <button id="specLinkBtn">Copy spectator link</button>
-      <button id="endRoundBtn" class="hidden">End round (draw)</button>
-      <button id="botTakeBtn" class="hidden">Bot takes over the selected seat</button>
-      <label id="specChatLbl"><input type="checkbox" id="specChatChk"> Let spectators chat</label>
-      <select id="removeSel" class="hidden"></select><button id="removeBtn" class="hidden">Remove player</button>
-    </span>
+  <details id="hostCtl" class="panel hidden" open>
+    <summary>Host controls</summary>
+    <div class="hrow"><span class="hl">Next game</span><select id="modeSel2" title="Mode for the next game"></select><label id="swapLbl" title="Swap who plays which colour in the next game"><input type="checkbox" id="swapChk" checked> swap colours</label><button id="newBtn" title="Start a new game with the options above">New game</button></div>
+    <div class="hrow"><span class="hl">Room</span><button id="specLinkBtn" title="Copy a link that lets people watch without playing">Copy spectator link</button><label id="specChatLbl"><input type="checkbox" id="specChatChk"> let spectators chat</label></div>
+    <div class="hrow"><span class="hl">Players</span><select id="removeSel" class="hidden"></select><button id="removeBtn" class="hidden">Remove player</button><button id="botTakeBtn" class="hidden" title="Choose a seat in the list, then let a bot play it">Bot takes over the selected seat</button></div>
+    <div class="hrow"><span class="hl">Round</span><button id="endRoundBtn" class="hidden">End round (draw)</button></div>
+  </details>
+  <div class="actions">
     <button id="swapBtn" class="hidden">Swap two pieces</button>
     <button id="replayBtn" class="hidden">Replay</button>
     <button id="rematchBtn" class="hidden">Ask for rematch</button>
@@ -208,6 +251,7 @@
     <input id="chatIn" placeholder="Say something…" maxlength="300">
     <button id="chatBtn" style="margin:0">Send</button>
   </div>
+ </div>
 </div>
 
 <div id="austSettings" class="hidden">
@@ -221,25 +265,30 @@
 </div>
 
 <script src="engine.js"></script>
+<script src="imperial.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 /* ============ MODES ============ */
 // Add a mode = add a variant object here (see engine.js for the format).
 const MODES = {
-  standard:   { name: 'Standard Chess', opts: ['fog', 'traits', 'classes', 'c960', 'cyl'], v: Engine.STANDARD },
-  crazyhouse: { name: 'Crazyhouse',     opts: ['drop', 'fog', 'traits', 'classes', 'c960', 'cyl'], v: Engine.CRAZYHOUSE },
-  marseillais: { name: 'Marseillais (2 moves per turn)', opts: ['fog', 'traits', 'classes', 'c960', 'cyl'], v: Engine.MARSEILLAIS },
+  imperial: { name: 'Imperial Chess (17×16, destroy the army)', imperial: true, opts: [], v: { imperial: true } },
+  imperial4: { name: 'Imperial Chess — 4-Player (29×29; free-for-all or 2v2)', imperial: true, multi: true, all: ['r', 'b', 'y', 'g'], opts: ['teams'], v: { imperial: true } },
+  standard:   { name: 'Standard Chess', opts: ['fog', 'traits', 'classes', 'c960'], v: Engine.STANDARD },
+  crazyhouse: { name: 'Crazyhouse',     opts: ['drop', 'fog', 'traits', 'classes', 'c960'], v: Engine.CRAZYHOUSE },
+  marseillais: { name: 'Marseillais (2 moves per turn)', opts: ['fog', 'traits', 'classes', 'c960'], v: Engine.MARSEILLAIS },
+  cylinder: { name: 'Cylinder Chess (the board wraps around)', cyl: true, opts: ['fog', 'traits', 'c960'], v: Engine.STANDARD },
   // hidden:true is read by the UI only: you see just your own pieces, the referee announces things
-  kriegspiel: { opts: ['traits', 'c960', 'cyl'], name: 'Kriegspiel (hidden pieces)', v: Object.assign({}, Engine.STANDARD, { hidden: true }) },
+  kriegspiel: { opts: ['traits', 'c960'], name: 'Kriegspiel (hidden pieces)', v: Object.assign({}, Engine.STANDARD, { hidden: true }) },
   // The real game is built each round from both players' setups; v here only supplies flags.
   austang: { name: 'Austang (build your army)', match: true, opts: ['fog'], v: Object.assign({}, Engine.STANDARD, { castling: true }) },
   alice:    { name: 'Alice Chess (two boards)', v: Engine.ALICE },
   infinite: { name: 'Infinite Chess (32×32 board)', opts: ['fog'], v: Engine.INFINITE },
   // multi:true modes are hosted as a hub; `all` = every seat on that board, 2..n players may start.
-  fourplayer:  { name: '4-Player Chess (cross board)', multi: true, opts: ['fog', 'teams', 'traits', 'classes', 'c960', 'cyl'], all: ['r', 'b', 'y', 'g'], v: Engine.FOUR },
-  fourmars:    { name: '4-Player Marseillais (2 moves per turn)', multi: true, opts: ['fog', 'teams', 'traits', 'classes', 'c960', 'cyl'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { movesPerTurn: 2, firstSingle: true }) },
-  fourcrazy:   { name: '4-Player Crazyhouse', multi: true, opts: ['drop', 'fog', 'teams', 'traits', 'classes', 'c960', 'cyl'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { drops: true }) },
-  fourkrieg:   { name: '4-Player Kriegspiel (hidden pieces)', multi: true, opts: ['teams', 'traits', 'c960', 'cyl'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { hidden: true }) },
+  fourplayer:  { name: '4-Player Chess (cross board)', multi: true, opts: ['fog', 'teams', 'traits', 'classes', 'c960'], all: ['r', 'b', 'y', 'g'], v: Engine.FOUR },
+  fourmars:    { name: '4-Player Marseillais (2 moves per turn)', multi: true, opts: ['fog', 'teams', 'traits', 'classes', 'c960'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { movesPerTurn: 2, firstSingle: true }) },
+  fourcrazy:   { name: '4-Player Crazyhouse', multi: true, opts: ['drop', 'fog', 'teams', 'traits', 'classes', 'c960'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { drops: true }) },
+  fourcyl:     { name: '4-Player Cylinder Chess (wide board wraps around)', multi: true, cyl: true, opts: ['fog', 'teams', 'traits', 'c960'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { board: 'wide' }) },
+  fourkrieg:   { name: '4-Player Kriegspiel (hidden pieces)', multi: true, opts: ['teams', 'traits', 'c960'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { hidden: true }) },
   fourneutral: { name: '4-Player Neutral Pieces (centre monsters)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['fog', 'teams', 'neutral', 'traits', 'c960'], v: Object.assign({}, Engine.FOUR, { neutral: true, drops: true }) },
   bughouse:    { name: 'Bughouse (2v2, two boards, partner passes pieces)', multi: true, bug: true, all: ['r', 'b', 'y', 'g'], opts: [], v: Engine.BUGHOUSE },
   fouralice:   { name: '4-Player Alice Chess (two cross boards)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['teams'], v: Object.assign({}, Engine.FOUR, { alice: true, castling: false }) },
@@ -252,7 +301,7 @@ const CN = { r: 'Red', b: 'Blue', y: 'Yellow', g: 'Green' };
 const PREFIX = 'chessfriends-';
 // c/i/w/o are the neutral-mode fairy pieces; they use the hollow glyphs so they never look like real pieces.
 const GLYPH = { p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', c:'♔', i:'♘', w:'♗', o:'♖', a:'A', l:'L' };
-const FAIRY = 'ciwoal';
+const FAIRY = 'ciwoalEXHRBNghustyzjdvm#';
 const SVG = inner => '<svg viewBox="0 0 24 24" aria-hidden="true">' + inner + '</svg>';
 const FAIRY_SVG = {   // custom icons for the neutral / fairy pieces (they take the owner's colour)
   c: SVG('<path d="M12 2.5l8 3v6c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10v-6z" fill="currentColor"/><path d="M12 7v9M8 11h8" stroke="#000a" stroke-width="1.6" fill="none"/>'),
@@ -264,7 +313,41 @@ const FAIRY_SVG = {   // custom icons for the neutral / fairy pieces (they take 
 };
 const glyphHTML = t => FAIRY_SVG[t] || GLYPH[t];
 GLYPH['#'] = '▒';
-const setGlyph = (el, t) => { if (FAIRY_SVG[t]) el.innerHTML = FAIRY_SVG[t]; else el.textContent = GLYPH[t]; };
+Object.assign(GLYPH, { v:'♙', m:'ⓜ', R:'♖', B:'♗', N:'♘', j:'Ⓛ', d:'Ⓓ', E:'Ⓔ', X:'Ⓧ', H:'Ⓗ', g:'Ⓖ', h:'Ⓒ', u:'Ⓐ', s:'Ⓢ', t:'Ⓣ', });
+
+const PAWN = '<circle cx="12" cy="7" r="3.6" fill="currentColor"/><path d="M8.5 20c.3-4.5 1.6-6 3.5-7.5 1.9 1.5 3.2 3 3.5 7.5z" fill="currentColor"/><rect x="6.5" y="19.5" width="11" height="2.5" rx="1" fill="currentColor"/>';
+const CROWN = '<rect x="4.5" y="18" width="15" height="3" rx="1" fill="currentColor"/>';
+const STK = 'stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"';
+Object.assign(FAIRY_SVG, {   // Imperial Chess icons
+  E: SVG('<path d="M5 18l-1.5-9 4.7 3.6L12 6l3.8 6.6L20.5 9 19 18z" fill="currentColor"/>' + CROWN + '<path d="M12 1.5v4M10 3.2h4" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="13.5" r="1.5" fill="#000a"/>'),
+  X: SVG('<path d="M5 18l1.2-8.5 3.3 3L12 6l2.5 6.5 3.3-3L19 18z" fill="currentColor"/>' + CROWN + '<circle cx="6" cy="8.5" r="1.5" fill="currentColor"/><circle cx="12" cy="4.6" r="1.6" fill="currentColor"/><circle cx="18" cy="8.5" r="1.5" fill="currentColor"/><path d="M9 15.5h6" stroke="#000a" stroke-width="1.4"/>'),
+  H: SVG('<path d="M6 18l-1-7 4 2.8L12 8l3 5.8 4-2.8-1 7z" fill="currentColor"/>' + CROWN + '<path d="M12 2l1.6 3H10.4z" fill="currentColor"/><circle cx="12" cy="14" r="1.2" fill="#000a"/><path d="M9.5 16.2h5" stroke="#000a" stroke-width="1.2"/>'),
+  R: SVG('<path d="M5 21h14v-2.5H5zM7 18.5V10h10v8.5zM5.5 10V4.5H8V7h2V4.5h4V7h2V4.5h2.5V10z" fill="currentColor"/><path d="M12 12l.9 1.9 2.1.3-1.5 1.5.4 2.1-1.9-1-1.9 1 .4-2.1L9 14.2l2.1-.3z" fill="#000a"/>'),
+  B: SVG('<path d="M12 2c3.2 2.6 5.2 5.2 5.2 8.2 0 2-1.4 3.6-2.6 4.6V17H9.4v-2.2C8.2 13.8 6.8 12.2 6.8 10.2 6.8 7.2 8.8 4.6 12 2z" fill="currentColor"/><rect x="5.5" y="18.5" width="13" height="2.8" rx="1" fill="currentColor"/><path d="M12 5.5v5M9.5 8h5" stroke="#000a" stroke-width="1.5"/><path d="M4 13h3M17 13h3M12 17.2v1" stroke="currentColor" stroke-width="1.6"/>'),
+  N: SVG('<path d="M6.5 21.5v-2.5c0-4 2.2-6.2 4.2-8.2L8.2 11.6 6 9l5.2-6.6 3 1.100c3.1 1.2 5.3 4.2 5.3 8.200v9.800z" fill="currentColor"/><circle cx="12.2" cy="7.5" r="1.1" fill="#000a"/><path d="M9.5 14l2.5 1" stroke="#000a" stroke-width="1.4"/><path d="M3.5 6l1 2 2 .6-1.5 1.5" stroke="currentColor" stroke-width="1.4" fill="none"/>'),
+  g: SVG('<path d="M5 20.500V11a7 7 0 0 1 14 0v9.500z" fill="currentColor"/><path d="M7 10.500h10v2.600H7z" fill="#000a"/><path d="M12 2.500v5M12 13v7" stroke="#000a" stroke-width="1.5"/>'),
+  h: SVG('<circle cx="12" cy="12" r="9.5" fill="currentColor"/><circle cx="12" cy="12" r="6.6" fill="#000a"/><path d="M12 5.500v13M5.5 12h13M7.4 7.400l9.2 9.200M16.6 7.400l-9.2 9.2" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/>'),
+  u: SVG('<path d="M6 2.500c9 3 9 16 0 19" ' + STK + ' stroke-width="2.2"/><path d="M6 2.500v19" stroke="currentColor" stroke-width="1"/><path d="M3 12h17" ' + STK + '/><path d="M21.5 12l-4.5-3.200v6.400z" fill="currentColor"/>'),
+  s: SVG('<path d="M4.5 21L15 8.5" ' + STK + ' stroke-width="2.6"/><path d="M5.5 9C9.5 3 17 3 21 8.500l-3.3-.6-2.2-3z" fill="currentColor"/><path d="M13 11l4.5 5" stroke="currentColor" stroke-width="2.4"/>'),
+  t: SVG('<path d="M2.5 20.500h19" ' + STK + '/><circle cx="7" cy="18" r="3" fill="currentColor"/><circle cx="17" cy="18" r="3" fill="currentColor"/><path d="M6.5 16L17 5" ' + STK + ' stroke-width="2.6"/><path d="M13.5 3.500c1.5-1.3 5-.8 5.5 1.500l-2 2.500z" fill="currentColor"/>'),
+  y: SVG('<path d="M12 1.800l6.2 6.700L12 22.2 5.8 8.500z" fill="currentColor"/><path d="M5.8 8.500h12.400M12 1.800l-2.6 6.700L12 22.200l2.6-13.700z" stroke="#000a" stroke-width="1.1" fill="none"/>'),
+  z: SVG('<path d="M12 1.800l2.9 6.3 6.9.7-5.2 4.6 1.5 6.800L12 16.800l-6.1 3.4 1.5-6.800L2.2 8.800l6.9-.7z" fill="currentColor"/><circle cx="12" cy="11.2" r="1.8" fill="#000a"/>'),
+  j: SVG('<path d="M12 1.500l-3.6 7.500h7.200z" fill="currentColor"/><path d="M12 8v14" ' + STK + ' stroke-width="2.2"/><path d="M7.5 11.500h9" ' + STK + '/><path d="M12 12l6 2.5-6 2.500z" fill="currentColor" opacity=".85"/>'),
+  d: SVG('<path d="M6 21.500L15 6" ' + STK + ' stroke-width="2.6"/><path d="M13 3.500c4.5-1.3 8.5 1 8.5 5-3.2.4-5.8-.8-7.2-3.200z" fill="currentColor"/><path d="M3 10h4M2 13h5" stroke="currentColor" stroke-width="1.6"/>'),
+  v: SVG(PAWN + '<path d="M19 2.500v19" stroke="currentColor" stroke-width="1.7"/><path d="M19 1.200l-2 3.600h4z" fill="currentColor"/>'),
+  m: SVG(PAWN + '<path d="M2.2 13.500h3.300M18.5 13.500h3.3" stroke="currentColor" stroke-width="1.8"/><path d="M1.5 13.500l2-1.800v3.600zM22.5 13.500l-2-1.800v3.600z" fill="currentColor"/>'),
+  '#': SVG('<rect x="2.5" y="4.5" width="19" height="15" fill="currentColor" opacity=".75"/><path d="M2.5 9.500h19M2.5 14.500h19M8.5 4.500v5M15.5 9.500v5M8.5 14.500v5" stroke="#000a" stroke-width="1.3"/>')
+});
+const SVGF = inner => SVG(inner).replace('<svg ', '<svg style="filter:drop-shadow(0 0 1px #000)" ');
+const IMP_KQ = {   // Imperial Chess only: bolder King / Queen so they differ from the hollow Prince / Princess
+  k: SVGF('<path d="M12 8c-4.2 0-7 2.8-7 6.6 0 2.8 1.4 4.6 2.4 5.400h9.200c1-.8 2.4-2.6 2.4-5.400C19 10.8 16.2 8 12 8z" fill="currentColor"/><rect x="5" y="19.5" width="14" height="2.8" rx="1" fill="currentColor"/><path d="M12 1.200v7M8.8 4.200h6.4" stroke="currentColor" stroke-width="2.4"/><path d="M8 14h8" stroke="#000a" stroke-width="1.4"/>'),
+  q: SVGF('<path d="M4.5 20L3 8.500l5 3.800L12 5.500l4 6.8 5-3.800L19.5 20z" fill="currentColor"/><rect x="4.5" y="19.5" width="15" height="2.8" rx="1" fill="currentColor"/><circle cx="3" cy="7" r="1.7" fill="currentColor"/><circle cx="8" cy="4.2" r="1.7" fill="currentColor"/><circle cx="12" cy="3" r="1.8" fill="currentColor"/><circle cx="16" cy="4.2" r="1.7" fill="currentColor"/><circle cx="21" cy="7" r="1.7" fill="currentColor"/><path d="M8 15.500h8" stroke="#000a" stroke-width="1.4"/>')
+};
+Object.assign(FAIRY_SVG, {   // Prince / Princess: same build as King / Queen (body + base) but a different top and a slimmer shape
+  y: SVG('<path d="M12 9.500c-3.5 0-6 2.4-6 5.7 0 2.4 1.2 3.9 2.1 4.600h7.800c.9-.7 2.1-2.2 2.1-4.6 0-3.3-2.5-5.7-6-5.700z" fill="currentColor"/><rect x="5.5" y="19.5" width="13" height="2.6" rx="1" fill="currentColor"/><path d="M12 1.800l3 3.6-3 3.6-3-3.600z" fill="currentColor"/><path d="M12 12.500v4M10 14.500h4" stroke="#000a" stroke-width="1.3"/>'),
+  z: SVG('<path d="M5.5 20L5 10.500l4.3 3.200L12 7.500l2.7 6.200L19 10.5 18.5 20z" fill="currentColor"/><rect x="5" y="19.5" width="14" height="2.6" rx="1" fill="currentColor"/><circle cx="5" cy="9" r="1.5" fill="currentColor"/><circle cx="12" cy="5.8" r="1.7" fill="currentColor"/><circle cx="19" cy="9" r="1.5" fill="currentColor"/><path d="M12 14.200l1.2 1.4-1.2 1.4-1.2-1.400z" fill="#000a"/>')
+});
+const setGlyph = (el, t) => { if (game && game.imperial && IMP_KQ[t]) el.innerHTML = IMP_KQ[t]; else if (FAIRY_SVG[t]) el.innerHTML = FAIRY_SVG[t]; else el.textContent = GLYPH[t]; };
 const $ = id => document.getElementById(id);
 let mode = 'standard', game = null, peer, conn, myColor = 'w', isHost = false, sel = null, over = null;
 let overRes = null, M = null, pal = 'p', setupMsg = '', centered = false;   // M = Austang match state
@@ -273,12 +356,12 @@ const LET = 'abcdefghijklmnopqrstuvwxyz';
 const sqName = (x, y) => (x < 26 ? LET[x] : LET[Math.floor(x / 26) - 1] + LET[x % 26]) + (y + 1);
 let mySeat = 'r', conns = [], mstarted = false, lobbyBase = '', mseats = null, gs = { dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false };
 let nBusy = false, gtraits = null, draft = null, revealedAll = false;
-let mirageSeen = 0, mineSet = null, gclasses = null, abFrom = null, chargeSq = null, abMode = null, abSet = null, revealedCl = false, pendTraits = null, abSeenG = null, abSeen = 0;
+let foeSel = null, foeSet = null, rmarkSet = null, glitchSeen = 0, mirageSeen = 0, mineSet = null, gclasses = null, abFrom = null, chargeSq = null, abMode = null, abSet = null, revealedCl = false, pendTraits = null, abSeenG = null, abSeen = 0;
 let myToken = null, roomCode = null, spectateMode = false, spectating = false, specs = [], everJoined = false, peerToken = null;
 let resignLog = [], replay = null, retryTimer = null, retries = 0;
 let bots = {}, bots2p = null, lobbyBots = [], botTimer = null;
 let specChatOn = false, specChatAllowed = false;            // spectators may chat only if the host switches it on      // optional bot players (host only)   // multiplayer (3/4 players): host is the hub
-const ended = () => over || (game && (game.multi ? (!!game.winner() || game.drawn) : ['checkmate', 'stalemate', 'draw'].includes(game.status())));
+const ended = () => over || (game && (game.multi ? (!!game.winner() || game.drawn) : ['checkmate', 'stalemate', 'draw', 'bare'].includes(game.status())));
 const SPEC_OK = new Set(['move', 'resign', 'drawAccept', 'newgame', 'traits', 'mmove', 'nmove', 'mresign', 'mchat', 'schat', 'specChatSetting']);
 function sendSpecs(msg) {
   if (!isHost || !specs.length || !SPEC_OK.has(msg.type)) return;
@@ -293,7 +376,20 @@ Object.keys(MODES).forEach(k => {
 });
 
 // Kriegspiel referee: both browsers print the same public announcement after each move.
+function impAnnounce() {
+  const h = game.history(), e = h[h.length - 1]; if (!e) return;
+  const who = game.multi ? CN[e.c] : e.c === 'w' ? 'White' : 'Black', n = IMP_NAMES[e.by] || 'piece';
+  let t = '';
+  if (e.shoot && e.hits) t = who + ' ' + n + ' fired and destroyed ' + e.hits.length + ' piece' + (e.hits.length > 1 ? 's' : '') + ': ' + e.hits.map(x => IMP_NAMES[x.t] || x.t).join(', ') + '.';
+  else if (e.ep) t = who + ' captured en passant.';
+  else if (e.castle) t = who + ' ' + n + ' hopped over its partner.';
+  else if (e.swap) t = who + ' Heir swapped with a Knight.';
+  else if (e.wall) t = who + ' Sapper raised a wall at ' + sqName(e.tx, e.ty) + '.';
+  if (e.cap && e.cap !== '#' && 'EXH'.includes(e.cap)) t += ' ' + IMP_NAMES[e.cap] + ' destroyed!';
+  if (t) addChat('', t.trim(), true);
+}
 function announce() {
+  if (game && game.imperial) impAnnounce();
   if (!MODES[mode].v.hidden) return;
   const h = game.history(), m = h[h.length - 1];
   const parts = [(game.turn === 'w' ? 'Black' : 'White') + ' moved.'];
@@ -316,25 +412,28 @@ function send(msg) {
 
 function readGS() {
   return { dropZone: $('dropSel').value, fog: $('fogChk').checked, teams: $('teamsChk').checked, board: $('boardSel').value, height: +$('heightSel').value,
-    neutralSet: $('nsetSel').value, fallen: $('fallenChk').checked, traits: $('traitsChk').checked, offers: +$('offerSel').value,
-    c960: $('c960Chk').checked, back960: $('c960Chk').checked ? Engine.randomBack960() : null, cyl: $('cylChk').checked,
+    neutralSet: $('nsetSel').value, fallen: $('fallenChk').checked, neutralDrop: $('neutralDropChk').checked, impRoam: $('impRoamChk').checked, traits: $('traitsChk').checked, offers: +$('offerSel').value,
+    c960: $('c960Chk').checked, back960: $('c960Chk').checked ? Engine.randomBack960() : null,
     classes: $('classesChk').checked, clStart: +$('clStart').value || 0, clGain: +$('clGain').value || 0, clCap: +$('clCap').value || 8, clPer: +$('clPer').value || 0,
-    clSum: +$('clSum').value || 4, clUlt: $('clUlt').checked, clHide: $('clHide').checked, clFree: $('clFree').checked, clHideFx: $('clHideFx').checked };
+    clSum: +$('clSum').value || 4, clUlt: $('clUlt').checked, clHide: $('clHide').checked, clFree: $('clFree').checked, clHideFx: $('clHideFx').checked,
+    foeMoves: $('foesChk').checked, seed: Math.floor(Math.random() * 2147483646) + 1 };
 }
 const seatsFor = (m, n) => { const all = MODES[m].all; return n >= all.length ? all.slice() : n === 2 ? (all.length === 4 ? ['r', 'y'] : ['r', 'b']) : all.slice(0, n); };
 
-const GS_DEFAULTS = { dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false, traits: false, offers: 4, c960: false, back960: null, cyl: false,
-  classes: false, clStart: 2, clGain: 1, clCap: 8, clPer: 0, clSum: 4, clUlt: false, clHide: false, clFree: false, clHideFx: false };
+const FOES_MODES = ['standard', 'crazyhouse', 'marseillais', 'cylinder', 'infinite', 'fourplayer', 'fourmars', 'fourcrazy', 'fourcyl', 'fourneutral', 'fourinfinite', 'imperial', 'imperial4'];      // modes where clicking an enemy piece can show its moves
+const GS_DEFAULTS = { dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false, neutralDrop: false, impRoam: false, traits: false, offers: 4, c960: false, back960: null, cyl: false,
+  foeMoves: true, seed: 1, classes: false, clStart: 2, clGain: 1, clCap: 8, clPer: 0, clSum: 4, clUlt: false, clHide: false, clFree: false, clHideFx: false };
 // Builds an engine for a mode from plain settings, without touching any globals (also used to rebuild games for replay).
 function makeEngine(m, seatsIn, gsIn, traits, classes) {
   const g2 = Object.assign({}, GS_DEFAULTS, gsIn || {}), op = MODES[m].opts || [];
   g2.traits = !!g2.traits && op.includes('traits');
   g2.fog = !!g2.fog && op.includes('fog');
   g2.c960 = !!g2.c960 && op.includes('c960');
-  g2.cyl = !!g2.cyl && op.includes('cyl');
+  if (MODES[m].imperial && !MODES[m].multi) return { game: Imperial.create(), gs: g2, seats: null };
+  g2.cyl = !!MODES[m].cyl;                      // Cylinder is a mode, not an option
   g2.classes = !!g2.classes && op.includes('classes');
   const cl = g2.classes && classes ? classes : null, cpass = cl ? Engine.classPass(cl) : undefined;
-  const ccfg = { start: +g2.clStart, gain: +g2.clGain, cap: +g2.clCap, perTurn: +g2.clPer, ultRepeat: !!g2.clUlt, summonCap: +g2.clSum };
+  const ccfg = { seed: +g2.seed || 1, start: +g2.clStart, gain: +g2.clGain, cap: +g2.clCap, perTurn: +g2.clPer, ultRepeat: !!g2.clUlt, summonCap: +g2.clSum };
   const wrap = gm => (cl ? Engine.withClasses(gm, { classes: cl, cfg: ccfg }) : gm);
   if (g2.c960 && !g2.back960) g2.back960 = Engine.randomBack960();
   if (!g2.c960) g2.back960 = null;
@@ -345,10 +444,11 @@ function makeEngine(m, seatsIn, gsIn, traits, classes) {
     let teams = g2.teams && op.includes('teams') ? { r: 0, y: 0, b: 1, g: 1 } : null;
     if (teams && new Set(seats.map(c => teams[c])).size < 2) teams = null;
     g2.teams = !!teams;
+    if (MODES[m].imperial) return { game: Imperial.create({ four: true, seats, teams, wide: !!teams && g2.board === 'wide', height: +g2.height || 0 }), gs: g2, seats };
     const dead = all.filter(c => !seats.includes(c)), neu = !!MODES[m].v.neutral;
     const game = Engine.create(Object.assign({}, MODES[m].v, { seats, dead, dropZone: neu ? 'arm' : g2.dropZone, teams,
       board: MODES[m].v.board || (teams && g2.board === 'wide' && !neu && !MODES[m].v.alice ? 'wide' : undefined), height: +g2.height || 10,
-      neutralSet: g2.neutralSet, fallen: !!g2.fallen, traits, back960: g2.back960 || undefined, cylinder: g2.cyl, cpass }));
+      neutralSet: g2.neutralSet, fallen: !!g2.fallen, impRoam: !!g2.impRoam, drops: neu ? !!g2.neutralDrop : MODES[m].v.drops, traits, back960: g2.back960 || undefined, cylinder: g2.cyl, cpass }));
     return { game: wrap(game), gs: g2, seats };
   }
   return { game: wrap(Engine.create(Object.assign({}, MODES[m].v, { dropZone: g2.dropZone, traits, back960: g2.back960 || undefined, cyl: g2.cyl, cpass }))), gs: g2, seats: null };
@@ -359,9 +459,10 @@ function newGame(m, s, o) {
   mode = m; sel = null; over = null; overRes = null; setupMsg = ''; pal = 'p'; centered = false; cylShift = 0;
   gs = Object.assign({}, GS_DEFAULTS, o.gs || gs);
   gtraits = o.traits || null; draft = null; revealedAll = false; resignLog = [];
-  gclasses = o.classes || null; abMode = null; abFrom = null; mirageSeen = 0; abSet = null; revealedCl = false; pendTraits = null;
+  gclasses = o.classes || null; abMode = null; abFrom = null; mirageSeen = 0; foeSel = null; glitchSeen = 0; abSet = null; revealedCl = false; pendTraits = null;
   gs.traits = !!gs.traits && ((MODES[m].opts || []).includes('traits'));
   gs.classes = !!gs.classes && ((MODES[m].opts || []).includes('classes'));
+  gs.foeMoves = !!gs.foeMoves && FOES_MODES.includes(m) && !gs.fog;      // enemy-move preview: off in hidden-information modes
   if (MODES[m].match) {
     s = s || { start: 20, base: 8, step: 2, catchup: 3, cap: 24, rounds: 5 };
     M = { s, round: 1, scores: { w: 0, b: 0 }, pool: { w: s.start, b: s.start },
@@ -426,7 +527,7 @@ function handleMessage(msg) {
       announceTraitStart(); render(); break;
     case 'mwait': $('lobbyMsg').textContent = msg.text; break;
     case 'kicked': $('lobbyMsg').textContent = 'The host removed you from the room.'; $('lobby').classList.remove('hidden'); $('game').classList.add('hidden'); break;
-    case 'mmove': if (game && game.move(msg.m)) { sel = null; announceMulti(); render(); } break;
+    case 'mmove': if (game && game.move(msg.m)) { sel = game.imperial && game.pend && game.turn === mySeat ? { x: game.pend.x, y: game.pend.y } : null; announceMulti(); render(); } break;
     case 'mresign': if (game) { logResign(msg.seat); game.resign(msg.seat); announceMulti(); render(); } break;
     case 'mchat': addChat(CN[msg.from], String(msg.text).slice(0, 300)); break;
     case 'rematchReq': addChat('', 'Opponent wants a rematch.', true); break;
@@ -494,13 +595,13 @@ function join(code, asSpec) {
 }
 
 /* ============ GAME UI ============ */
-function play(m) { if (replay || spectating) return; if (game.multi) return playMulti(m); if (!game.move(m)) { sel = null; render(); return; } send({ type: 'move', m }); sel = null; announce(); render(); }
+function play(m) { if (replay || spectating) return; if (game.multi) return playMulti(m); if (!game.move(m)) { sel = null; render(); return; } send({ type: 'move', m }); sel = game.pend && game.turn === myColor ? { x: game.pend.x, y: game.pend.y } : null; announce(); render(); }
 
 function showPromo(cands) {
   const p = $('promo'); p.innerHTML = '';
   cands.forEach(m => {
     const b = document.createElement('button');
-    b.textContent = GLYPH[m.promo];
+    b.innerHTML = glyphHTML(m.promo);
     b.onclick = () => { p.classList.add('hidden'); play(m); };
     p.appendChild(b);
   });
@@ -511,6 +612,7 @@ function clickSq(x, y) {
   if (draft || replay || spectating) return;
   if (swapMode) return swapClick(x, y);
   if (abMode) return abClick(x, y);
+  if (foeClick(x, y)) return;
   $('promo').classList.add('hidden');
   if (ended() || game.turn !== myColor) return;
   if (sel) {
@@ -577,6 +679,7 @@ function multiStatus() {
   if (w) return 'Game over — ' + teamNames(w) + (sameSide(w, mySeat) ? ' (you) win!' : game.teams ? ' win.' : ' wins.');
   if (!game.alive(mySeat)) return 'You are eliminated — spectating. ' + CN[game.turn] + "'s turn.";
   const hidK = MODES[mode].v.hidden;
+  if (game.pend) return game.turn === mySeat ? 'Sapper: click it, then a highlighted square for a wall (or click the Sapper itself to skip).' : CN[game.turn] + ' is placing a wall…';
   if (game.neutralPending) return 'Neutral pieces are moving…';
   return (game.turn === mySeat ? 'Your turn' : CN[game.turn] + "'s turn") + ' (you are ' + CN[mySeat] + (game.teams ? ', partner: ' + (game.seats.filter(c => c !== mySeat && game.teams[c] === game.teams[mySeat]).map(c => CN[c]).join('') || 'none') : '') + ')' +
          (MODES[mode].v.movesPerTurn > 1 ? ' — ' + game.left + ' move' + (game.left > 1 ? 's' : '') + ' left' : '') +
@@ -589,6 +692,8 @@ function statusText() {
   if (over) return over;
   const s = game.status();
   if (s === 'checkmate') return 'Checkmate! ' + (game.turn === 'w' ? 'Black' : 'White') + ' wins.';
+  if (game.pend) return game.turn === myColor ? 'Sapper: click it, then a highlighted square for a wall (or click the Sapper itself to skip).' : 'Opponent is placing a wall…';
+  if (s === 'bare') return 'Only Imperials left — ' + (game.loser === 'w' ? 'Black' : 'White') + ' wins.';
   if (s === 'stalemate') return 'Stalemate — draw.';
   if (s === 'draw') return 'Draw — not enough material to checkmate.';
   return (M ? 'Round ' + M.round + '/' + M.s.rounds + ' · ' : '') + (game.turn === myColor ? 'Your turn' : "Opponent's turn") + ' (you are ' + (myColor === 'w' ? 'White' : 'Black') +
@@ -631,6 +736,16 @@ function initCylEvents() {
 }
 
 // ---- zoomable board (used by both Infinite boards) ----
+const boardPx = () => { const m = $('gameMain'), w = m ? m.clientWidth : 0; return w > 100 ? w : Math.min(innerWidth - 32, 480); };      // pixel width of the board column
+function layoutGame() {                         // tells CSS how tall the board is relative to its width, so it can fill the window height
+  const m = $('gameMain'); if (!m || !game) return;
+  let asp = 1;
+  if (!game.hex && game.w && game.h) asp = game.h / game.w;
+  const mm = MODES[mode] || {};
+  if (mm.bug || (mm.v && mm.v.alice)) asp *= 2;
+  if ($('boardWrap').classList.contains('zoomable') || (game.w === 32 && game.h === 32)) asp = 0.62;
+  m.style.setProperty('--asp', String(Math.max(0.4, asp)));
+}
 const view = { k: 1, x: 0, y: 0 };
 let dragMoved = false, focusPx = 400;
 function viewMetrics() { const wr = $('boardWrap'), el = $('board'); return { vw: wr.clientWidth, vh: wr.clientHeight, bw: el.offsetWidth, bh: el.offsetHeight }; }
@@ -653,7 +768,8 @@ function fitView(px) {
 function setupBigBoard(cellPx, focusCells) {
   const wr = $('boardWrap');
   wr.classList.add('zoomable'); $('zoomCtl').classList.remove('hidden');
-  wr.style.height = Math.round(Math.min(innerHeight * 0.68, 620)) + 'px';
+  wr.style.height = Math.round(Math.max(380, innerHeight - 190)) + 'px';
+  if (innerWidth > 900) document.body.classList.add('nopagescroll');      // the Infinite board fills the window: no page scrollbar
   focusPx = focusCells * cellPx;
   initZoomEvents();
   if (!centered) { fitView(focusPx); centered = true; } else applyView();
@@ -687,7 +803,8 @@ function initZoomEvents() {
   wr.addEventListener('wheel', e => {
     if (!wr.classList.contains('zoomable')) return;
     e.preventDefault(); const r = wr.getBoundingClientRect();
-    zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));
+    if (e.ctrlKey || $('wheelSel').value === 'zoom') zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));      // zoom around the cursor (Ctrl + wheel / trackpad pinch always zooms)
+    else { if (e.shiftKey) view.x -= (e.deltaX || e.deltaY); else { view.x -= e.deltaX; view.y -= e.deltaY; } applyView(); }      // wheel = up/down, Shift + wheel = sideways
   }, { passive: false });
   $('zIn').onclick = () => zoomAt(wr.clientWidth / 2, wr.clientHeight / 2, 1.35);
   $('zOut').onclick = () => zoomAt(wr.clientWidth / 2, wr.clientHeight / 2, 1 / 1.35);
@@ -920,12 +1037,53 @@ $('endRoundBtn').onclick = () => {                 // Austang: the host can call
 // ---- move list ----
 let ml = null;      // { src, g, applied, ri, items: [{ text, cls }], drawn }
 const mlLetter = t => ({ k: 'K', q: 'Q', r: 'R', b: 'B', n: 'N', p: '', c: 'C', i: 'I', w: 'W', o: 'O', a: 'A', l: 'L' }[t] || '');
+
+const PIECE_GUIDE = [
+  ['E', 'Emperor (Imperial)', 'Rook lines plus the squares beside the line; a piece on the line blocks the side squares at and beyond it. Reach 3 if the Empress dies. Immune to pawns and Rooks. Can castle over a Rook.'],
+  ['X', 'Empress (Imperial)', 'Diagonals plus the 4 orthogonal neighbours of each line square. Reach 3 if the Emperor dies. Immune to pawns and Bishops. Can castle over a Bishop.'],
+  ['H', 'Heir (Imperial)', 'Leaps to the 16 knight and camel squares (24 once Emperor and Empress are gone). Immune to pawns and Knights. Can swap with a friendly Knight.'],
+  ['k', 'King', 'One step any direction. Aura (5×5): friendly pawns may repeat their 2-step; Rooks, Bishops, Knights and Grands can’t be captured by pawns.'],
+  ['q', 'Queen', 'Moves like a standard queen. Aura (5×5): Pawns also capture straight; Archers, Guards, Chariots, Sappers, Catapults can’t be captured by pawns.'],
+  ['y', 'Prince', 'Captures on the 5×5 around it (no corners); also steps to the 4 corners and 3 squares straight. Blockable. One at a time, promotion only.'],
+  ['z', 'Princess', 'Steps 1 any direction; shoots the outer ring of the 5×5 and 3 straight without moving. Can’t be captured while the Prince is adjacent. One at a time, promotion only.'],
+  ['r', 'Rook', 'Slides along ranks and files.'], ['b', 'Bishop', 'Slides diagonally.'], ['n', 'Knight', 'Leaps in an L.'],
+  ['R', 'Grand Rook', 'Rook plus knight moves (moves only, can’t capture or check with them).'],
+  ['B', 'Grand Bishop', 'Bishop plus 1–2 squares straight.'],
+  ['N', 'Grand Knight', 'Leaps to any square on the outer ring of the 5×5.'],
+  ['g', 'Guard', 'King moves and captures; also steps 2 straight or onto empty squares around a nearby friend. Archers can’t hit it or its neighbours.'],
+  ['h', 'Chariot', 'Slides 2 straight plus the knight squares beside each lane (a blocker cuts them off).'],
+  ['u', 'Archer', 'Steps 1 straight. Shoots 16 squares around it without moving, can’t be blocked.'],
+  ['s', 'Sapper', 'Leaps 1 diagonal or 2 straight; never captures. After moving it may place a wall next to itself (once per 2 turns).'],
+  ['t', 'Catapult', 'Walks 1–2 straight. Fires on 7 squares ahead; hitting the middle of the far row splashes both sides. Reloads a turn after firing.'],
+  ['p', 'Pawn', 'Steps 1 (up to 3 on its first move), captures diagonally.'],
+  ['v', 'Pikeman', 'Pawn that also captures straight ahead. Promotes to a Lancer too.'],
+  ['m', 'Skirmisher', 'Pawn that can also step sideways. Promotes to a Raider too.'],
+  ['j', 'Lancer', 'Thrusts at 3 squares straight ahead without moving; slides to capture at 4–5; unblockable 3-wide front; moves only sideways.'],
+  ['d', 'Raider', 'Slides sideways up to 5 (captures within 3), 2 vertically, plus (±3,±1) leaps.'],
+  ['#', 'Wall', 'Blocks movement and lines. Capture it by moving onto it. Ranged shots pass over it.']
+];
+let pgDone = false;
+function fillPieceGuide() {
+  if (pgDone) return; pgDone = true;
+  $('pieceGuide').innerHTML = PIECE_GUIDE.map(([t, n, d]) => '<div class="pg"><span class="pgi">' + (IMP_KQ[t] || glyphHTML(t)) + '</span><div><b>' + n + '</b> — ' + d + '</div></div>').join('');
+}
+const IMP_NAMES = { p:'Pawn', v:'Pikeman', m:'Skirmisher', r:'Rook', b:'Bishop', n:'Knight', q:'Queen', k:'King', R:'Grand Rook', B:'Grand Bishop', N:'Grand Knight', E:'Emperor', X:'Empress', H:'Heir', g:'Guard', h:'Chariot', u:'Archer', s:'Sapper', t:'Catapult', y:'Prince', z:'Princess', j:'Lancer', d:'Raider', '#':'wall' };
+function impText(g, e) {
+  const A = sqName(e.fx, e.fy), Z = sqName(e.tx, e.ty), P = GLYPH[e.by] || '';
+  if (e.skip) return P + A + ' no wall';
+  if (e.wall) return P + ' wall ' + Z;
+  if (e.swap) return 'swap ' + A + '⇄' + Z;
+  if (e.castle) return P + A + ' hops→' + Z;
+  if (e.shoot) return P + A + '⌖' + Z + (e.hits && e.hits.length > 1 ? ' (+' + (e.hits.length - 1) + ')' : '');
+  return P + A + (e.cap ? 'x' : '–') + Z + (e.ep ? ' e.p.' : '') + (e.promo ? '=' + GLYPH[e.promo] : '');
+}
 function mlText(g, e) {
+  if (g.imperial) return impText(g, e);
   const sq = (x, y) => (g.hex ? (x - g.radius) + ',' + (y - g.radius) : sqName(x, y));
   if (e.swap) return 'swap ' + sq(e.fx, e.fy) + '⇄' + sq(e.tx, e.ty);
   if (e.drop) return mlLetter(e.drop) + '@' + sq(e.tx, e.ty);
   const at = (x, y) => (g.bug ? g.at(e.board, x, y) : g.layers ? g.at(x, y, e.fl) : g.at(x, y));
-  const p = at(e.fx, e.fy), t = p ? p.t : '', dest = at(e.tx, e.ty);
+  const p = at(e.fx, e.fy), t = p ? (p.fx && p.fx.msk && !maskSeen(p) ? p.fx.msk : p.t) : '', dest = at(e.tx, e.ty);
   if (t === 'k' && (e.castle || (e.ty === e.fy && Math.abs(e.tx - e.fx) === 2) || (dest && dest.t === 'r' && dest.c === p.c))) return 'castle';
   return mlLetter(t) + sq(e.fx, e.fy) + (e.cap ? 'x' : '–') + sq(e.tx, e.ty) + (e.promo ? '=' + mlLetter(e.promo) : '');
 }
@@ -984,7 +1142,7 @@ function botStep() {
   const sd = botSeatToMove();
   if (!sd) return;
   let m = null;
-  try { m = Engine.botChoose(game, sd, game.multi ? bots[sd] : bots2p); } catch (e) { m = null; }
+  try { m = game.imperial ? Imperial.botChoose(game, game.multi ? bots[sd] : bots2p) : Engine.botChoose(game, sd, game.multi ? bots[sd] : bots2p); } catch (e) { m = null; }
   if (!m) return;
   if (game.multi) { if (game.move(m)) { broadcast({ type: 'mmove', m }); announceMulti(); render(); } }
   else if (game.move(m)) { send({ type: 'move', m }); announce(); render(); }
@@ -1024,7 +1182,7 @@ const bcast = m => (game.multi ? broadcast(m) : send(m));
 const CLS = id => Engine.CLASSES[id];
 const DINFO = (kind, id) => (kind === 'class' ? CLS(id) : TRAIT(id));
 const eligibleTraits = () => Object.keys(Engine.TRAITS).filter(id => { const t = TRAIT(id); return !(t.multi && !game.multi) && !(t.fog && !gs.fog); });
-const eligibleFor = kind => (kind === 'class' ? Object.keys(Engine.CLASSES) : eligibleTraits());
+const eligibleFor = (kind, all) => (kind === 'class' ? Object.keys(Engine.CLASSES).filter(id => all || !Engine.CLASSES[id].secret) : eligibleTraits());      // all = include secret classes (host's secret picker)
 const needDraft = () => !!((gs.traits && !gtraits) || (gs.classes && !gclasses));
 function rollOffers(kind) {
   const pool = eligibleFor(kind);
@@ -1114,7 +1272,7 @@ function renderDraft() {
   if (isHost && draft.cheat) {
     const all = document.createElement('div');
     all.style.cssText = 'max-height:240px;overflow:auto;border-top:1px dashed #777;margin-top:6px;padding-top:4px';
-    eligibleFor(kind).forEach(id => {
+    eligibleFor(kind, true).forEach(id => {
       const b = document.createElement('button'); b.className = 'trait';
       b.innerHTML = btnHTML(id); b.onclick = () => choosePick(id);
       all.appendChild(b);
@@ -1130,10 +1288,25 @@ function renderDraft() {
 
 // ---- class abilities: points bar, targeting, announcements ----
 const fxSeen = by => !gs.clHideFx || spectating || replay || ended() || by === meId() || isMate(by);      // protection glows can be hidden from opponents (host option)
-const fxClass = p => (p.wall ? ' fx-wall' : '') + (p.fx ? (p.fx.frz ? ' fx-frz' : '') + (p.fx.dis ? ' fx-dis' : '') + (p.fx.jmp ? ' fx-jmp' : '') + (p.fx.shd && fxSeen(p.fx.shd) ? ' fx-shd' : '') + (p.fx.sct && fxSeen(p.fx.sct) ? ' fx-sct' : '') + (p.fx.phn ? ' fx-phn' : '') + (p.fx.dcy ? ' fx-dcy' : '') : '');
+const maskSeen = p => !(p.fx && p.fx.msk) || p.c === meId() || isMate(p.c) || ended();      // Missing Textures: only the owner's team (or everyone after the game) sees the real piece
+const shownType = p => (p.fx && p.fx.msk && !maskSeen(p) ? p.fx.msk : p.t);
+function foeClick(x, y) {                      // clicking an enemy piece (with nothing selected) previews where it can move
+  if (!gs.foeMoves || !game || !game.reach || sel) { if (foeSel) { foeSel = null; render(); } return false; }
+  const p = game.at(x, y);
+  if (p && !p.wall && p.c !== meId() && !isMate(p.c)) { foeSel = foeSel && foeSel.x === x && foeSel.y === y ? null : { x, y, h: game.history().length }; render(); return true; }
+  if (foeSel) { foeSel = null; render(); }
+  return false;
+}
+const fxClass = p => (p.fx && p.fx.msk && maskSeen(p) ? ' fx-msk' : '') + (p.wall ? ' fx-wall' : '') + (p.fx ? (p.fx.frz ? ' fx-frz' : '') + (p.fx.dis ? ' fx-dis' : '') + (p.fx.jmp ? ' fx-jmp' : '') + (p.fx.shd && fxSeen(p.fx.shd) ? ' fx-shd' : '') + (p.fx.sct && fxSeen(p.fx.sct) ? ' fx-sct' : '') + (p.fx.phn ? ' fx-phn' : '') + (p.fx.dcy ? ' fx-dcy' : '') : '');
 function abValidate() {                          // drops a stale ability selection and computes the highlighted target squares
   abSet = null;
-  mineSet = null;
+  mineSet = null; foeSet = null; rmarkSet = null;
+  if (game && game.markers) { const mk = game.markers(); if (mk.length) rmarkSet = new Set(mk.map(m => m.x + ',' + m.y)); }
+  if (foeSel && game && game.reach && gs.foeMoves) {
+    const fp = game.at(foeSel.x, foeSel.y);
+    if (!fp || foeSel.h !== game.history().length) foeSel = null;
+    else foeSet = new Set(game.reach(foeSel.x, foeSel.y, fp.fx && fp.fx.msk && !maskSeen(fp) ? fp.fx.msk : null).map(m => m.tx + ',' + m.ty));      // (a masked piece shows the moves of its fake icon)
+  } else foeSel = null;
   if (game && game.mines) { const all = spectating || replay || ended(), arr = game.mines(all ? null : meId()); if (arr.length) mineSet = new Set(arr.map(m => m.x + ',' + m.y)); }
   chargeSq = game && game.chargeOf && !spectating && !replay && !draft ? (game.chargeOf(meId()) || (game.overrunOf ? game.overrunOf(meId()) : null)) : null;
   if (!abMode) { abFrom = null; return; }
@@ -1184,6 +1357,7 @@ function renderClassBar() {
 }
 function announceAbilities() {
   if (!game || !game.abLog || replay) return;
+  if (game.glitches) { const gl = game.glitches(); if (abSeenG === game) while (glitchSeen < gl.length) { const e = gl[glitchSeen++]; addChat('', e.kind === 'dup' ? 'Glitch! ' + whoName(e.c) + ' has a duplicated pawn on ' + sqName(e.x, e.y) + '.' : 'Restore Point: ' + whoName(e.c) + '\'s captured piece is back on ' + sqName(e.x, e.y) + '.', true); } else glitchSeen = gl.length; }
   if (game.mirages) { const ml2 = game.mirages(); if (abSeenG === game) while (mirageSeen < ml2.length) { const e = ml2[mirageSeen++]; addChat('', 'Mirage! ' + whoName(e.c) + ' was about to be checkmated, but that king was a decoy: the real king appears on ' + sqName(e.tx, e.ty) + '.', true); } else mirageSeen = ml2.length; }
   const log = game.abLog();
   if (abSeenG !== game) { abSeenG = game; abSeen = log.length; return; }      // loading a game/record: don't re-announce the past
@@ -1203,7 +1377,7 @@ function specStatus() {
 function render() {
   renderCore();
   renderDraft();
-  renderClassBar(); announceAbilities();
+  renderClassBar(); announceAbilities(); tidyHost();
   notifyTurn();
   updateMoveList();
   scheduleBot();
@@ -1249,9 +1423,11 @@ function render() {
 }
 
 function renderCore() {
+  layoutGame();
+  $('rulesBox').classList.toggle('hidden', !MODES[mode].imperial); if (MODES[mode].imperial) fillPieceGuide();
   cylSetup(false);
   abValidate();
-  $('boardWrap').classList.remove('zoomable'); $('boardWrap').style.height = ''; $('zoomCtl').classList.add('hidden'); $('board').style.transform = '';
+  $('boardWrap').classList.remove('zoomable'); $('boardWrap').style.height = ''; document.body.classList.remove('nopagescroll'); $('zoomCtl').classList.add('hidden'); $('board').style.transform = '';
   $('board').classList.remove('hexb'); $('board').style.height = ''; $('board2').style.width = '';
   if (M && M.phase === 'play' && game && ended()) finishRound();
   updateAustUI();
@@ -1266,7 +1442,7 @@ function renderCore() {
   el.style.gridTemplateColumns = cylOn ? 'minmax(0,.5fr) minmax(0,.85fr) ' + 'minmax(0,1fr) '.repeat(W - 2) + 'minmax(0,.85fr) minmax(0,.5fr)' : 'repeat(' + W + ',minmax(0,1fr))';
   el.style.aspectRatio = cylOn ? (W + 0.7) + '/' + H : W + '/' + H;
   el.style.width = big ? (W * 34) + 'px' : '100%';
-  el.style.fontSize = big ? '24px' : (Math.min(innerWidth - 32, 480) / W * 0.7) + 'px';
+  el.style.fontSize = big ? '24px' : (boardPx() / W * 0.7) + 'px';
   $('board2Wrap').classList.add('hidden'); $('capA').classList.add('hidden');
   const hist = g.history(), last = hist[hist.length - 1];
   const hid = MODES[mode].v.hidden && !ended() && !replay && !spectating;
@@ -1281,18 +1457,22 @@ function renderCore() {
     const bx = myColor === 'w' ? cc : W - 1 - cc, x = cylOn ? cylMod(bx + cylShift, W) : bx, y = myColor === 'w' ? H - 1 - r : r;
     const p0 = g.at(x, y), fogged = !!seen && !seen.has(y * W + x), p = ((hid && p0 && p0.c !== myColor) || fogged) ? null : p0, d = document.createElement('div');
     d.className = 'sq ' + ((x + y) % 2 === 1 ? 'l' : 'd');
+    if (g.cut && g.cut(x, y)) { d.classList.add('cut'); el.appendChild(d); continue; }
     if (cylOn && (c === 0 || c === Wd - 1)) d.classList.add('ghost');
     if (sel && sel.x === x && sel.y === y) d.classList.add('sel');
+    if (last && last.hits && last.hits.some(q => q.x === x && q.y === y)) d.classList.add('splash');
     if (last && !hid && ((last.tx === x && last.ty === y) || (last.fx === x && last.fy === y))) d.classList.add('last');
     if (fogged) d.classList.add('fog');
     if (kingSq === x + ',' + y) d.classList.add('check');
     if (hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (p) d.classList.add('cap'); }
     if (abSet && abSet.has(x + ',' + y)) d.classList.add('hint');
     if (mineSet && mineSet.has(x + ',' + y)) d.classList.add('mine');
-    if ((abFrom && abFrom.x === x && abFrom.y === y) || (chargeSq && chargeSq.x === x && chargeSq.y === y)) d.classList.add('sel');
+    if (foeSet && foeSet.has(x + ',' + y)) d.classList.add('foe');
+    if (rmarkSet && rmarkSet.has(x + ',' + y)) d.classList.add('rmark');
+    if ((abFrom && abFrom.x === x && abFrom.y === y) || (chargeSq && chargeSq.x === x && chargeSq.y === y) || (foeSel && foeSel.x === x && foeSel.y === y)) d.classList.add('sel');
     if (p) {
       const s = document.createElement('span');
-      setGlyph(s, p.t);
+      setGlyph(s, shownType(p)); if (p.wall && g.wallLife) addWallNum(s, g.wallLife(x, y));
       s.className = (p.c === 'w' ? 'w-piece' : '') + (FAIRY.includes(p.t) ? ' fairy' : '') + (p.champ && p.c === myColor ? ' champ' : '') + fxClass(p);
       d.appendChild(s);
     }
@@ -1345,15 +1525,26 @@ function updateAustUI() {
   $('gsClasses').classList.toggle('hidden', !op.includes('classes'));
   $('classWrap').classList.toggle('hidden', !$('classesChk').checked);
   $('gsC960').classList.toggle('hidden', !op.includes('c960'));
-  $('gsCyl').classList.toggle('hidden', !(op.includes('cyl') && (!(MODES[v] && MODES[v].multi) || ($('teamsChk').checked && $('boardSel').value === 'wide'))));
   $('offerWrap').classList.toggle('hidden', !$('traitsChk').checked);
-  $('gsBoard').classList.toggle('hidden', !(op.includes('teams') && $('teamsChk').checked && !op.includes('neutral') && !(MODES[v].v.alice || MODES[v].v.board)));
+  const mv = (MODES[v] && MODES[v].v) || {}, fixedWide = mv.board === 'wide';
+  const teamBoard = op.includes('teams') && $('teamsChk').checked && !op.includes('neutral') && !(mv.alice || mv.board);
+  $('gsBoard').classList.toggle('hidden', !(teamBoard || fixedWide));
+  $('boardKindWrap').classList.toggle('hidden', fixedWide);
+  $('heightWrap').classList.toggle('hidden', !(fixedWide || $('boardSel').value === 'wide'));
+  $('gsFoes').classList.toggle('hidden', !FOES_MODES.includes(v) || $('fogChk').checked);
+  $('impRoamLbl').classList.toggle('hidden', $('nsetSel').value !== 'mixed');            // imps only exist in the Mixed set
+  $('specLinkBtn').classList.toggle('hidden', !!M); $('specChatLbl').classList.toggle('hidden', !!M);      // Austang has no spectators
   $('drawBtn').classList.toggle('hidden', !!(game && game.multi));
   const hostMulti = !!(game && game.multi && isHost);
   $('removeSel').classList.toggle('hidden', !hostMulti); $('removeBtn').classList.toggle('hidden', !hostMulti);
   if (game && game.multi) $('rematchBtn').classList.add('hidden');
   $('readyBtn').classList.toggle('hidden', !(M && M.phase === 'setup' && M.sentRound !== M.round));
   $('nextBtn').classList.toggle('hidden', !(M && M.phase === 'between' && M.round < M.s.rounds));
+  tidyHost();
+}
+function tidyHost() {                           // hide option groups / host rows that have nothing to show
+  document.querySelectorAll('#hostCtl .hrow').forEach(r => r.classList.toggle('hidden', ![...r.children].some(c => !c.classList.contains('hl') && !c.classList.contains('hidden'))));
+  document.querySelectorAll('#gsBox .optgrp').forEach(g2 => g2.classList.toggle('hidden', ![...g2.children].some(c => !c.classList.contains('gh') && !c.classList.contains('hidden'))));
 }
 
 function mineStats() {
@@ -1381,7 +1572,7 @@ function renderSetup() {
   const el = $('board'); el.innerHTML = '';
   el.style.gridTemplateColumns = 'repeat(8,minmax(0,1fr))'; el.style.aspectRatio = '1'; el.style.width = '100%';
   $('board2Wrap').classList.add('hidden'); $('capA').classList.add('hidden');
-  el.style.fontSize = (Math.min(innerWidth - 32, 480) / 8 * 0.7) + 'px';
+  el.style.fontSize = (boardPx() / 8 * 0.7) + 'px';
   const m = M.setups[myColor], locked = M.sentRound === M.round;
   for (let i = 0; i < 64; i++) {
     const r = Math.floor(i / 8), c = i % 8;
@@ -1442,7 +1633,7 @@ function startRound() {
 }
 
 function finishRound() {
-  const res = over ? overRes : (game.status() === 'checkmate' ? (game.turn === 'w' ? 'b' : 'w') : 'd');
+  const res = over ? overRes : (game.status() === 'checkmate' ? (game.turn === 'w' ? 'b' : 'w') : game.status() === 'bare' ? (game.loser === 'w' ? 'b' : 'w') : 'd');
   if (res === 'w' || res === 'b') M.scores[res] += 1; else { M.scores.w += 0.5; M.scores.b += 0.5; }
   const gain = M.s.base + M.s.step * (M.round - 1);
   M.pool.w += gain; M.pool.b += gain;
@@ -1467,6 +1658,9 @@ $('nextBtn').onclick = () => {
 $('modeSel').onchange = updateAustUI;
 $('traitsChk').onchange = updateAustUI;
 $('classesChk').onchange = updateAustUI;
+$('nsetSel').onchange = updateAustUI; $('fogChk').onchange = updateAustUI; $('boardSel').onchange = updateAustUI;
+try { $('wheelSel').value = localStorage.getItem('chessWheel') || 'zoom'; } catch (e) {}
+$('wheelSel').onchange = () => { try { localStorage.setItem('chessWheel', $('wheelSel').value); } catch (e) {} };
 $('boardSel').onchange = updateAustUI;
 $('teamsChk').onchange = () => { updateAustUI(); if (isHost && !mstarted) renderRoster(); };
 $('modeSel2').onchange = updateAustUI;
@@ -1621,7 +1815,9 @@ function hostRecv(c, msg) {
   }
 }
 
+const addWallNum = (sp, n) => { if (!n) return; sp.style.position = 'relative'; sp.insertAdjacentHTML('beforeend', '<b class="wl">' + n + '</b>'); };
 function announceMulti() {
+  if (game && game.imperial) impAnnounce();
   if (MODES[mode].v.hidden) {
     const h = game.history(), m = h[h.length - 1];
     if (m) {
@@ -1634,7 +1830,7 @@ function announceMulti() {
   game.drainEvents().forEach(e => {
     if (e.e === 'trait') return;      // traits stay hidden until the end of the game
     if (e.e === 'skip') { addChat('', CN[e.c] + ' has no legal move (stalemate) and is skipped.', true); return; }
-    const why = e.reason === 'checkmate' ? 'was checkmated' : e.reason === 'stalemate' ? 'was stalemated' : 'resigned';
+    const why = e.reason === 'checkmate' ? 'was checkmated' : e.reason === 'stalemate' ? 'was stalemated' : e.reason === 'bare' ? 'was left with only Imperials' : 'resigned';
     addChat('', CN[e.c] + ' ' + why + ' and is out. ' + (e.taken ? 'Their pieces now belong to ' + CN[e.taken] + '!' : e.fallen ? 'Their pieces are now neutral!' : 'Their pieces turn gray.'), true);
   });
   if (game.drawn) addChat('', 'Nobody left can move — the game is a draw.', true);
@@ -1690,6 +1886,7 @@ function playMulti(m) {
   if (isHost) {
     if (game.move(m)) { broadcast({ type: 'mmove', m }); announceMulti(); }
   } else send({ type: 'tryMove', m });
+  if (game.imperial && game.pend && game.turn === mySeat) sel = { x: game.pend.x, y: game.pend.y };
   render();
 }
 
@@ -1704,6 +1901,7 @@ function clickMulti(x, y) {
   if (draft || replay || spectating) return;
   if (swapMode) return swapClick(x, y);
   if (abMode) return abClick(x, y);
+  if (foeClick(x, y)) return;
   if (ended() || game.neutralPending || game.turn !== mySeat || !game.alive(mySeat)) return;
   const hid = MODES[mode].v.hidden;
   if (sel) {
@@ -1723,12 +1921,12 @@ function clickMulti(x, y) {
 function renderMultiHands() {
   const g = game, V = MODES[mode].v, top = $('handTop'), bot = $('handBot');
   top.innerHTML = ''; bot.innerHTML = ''; top.classList.remove('others');
-  if (!V.drops) return;
-  const txt = h => 'qrbnpciwoal'.split('').filter(t => h[t] > 0).map(t => glyphHTML(t) + '×' + h[t]).join(' ') || '—';
+  if (!(V.neutral ? gs.neutralDrop : V.drops)) return;
+  const txt = h => 'qrbnpciwoal'.split('').filter(t => h[t] > 0).map(t => GLYPH[t] + '×' + h[t]).join(' ') || '—';
   top.classList.add('others');
-  top.innerHTML = 'Hands: ' + g.seats.filter(c => c !== mySeat).map(c => CN[c] + ' ' + txt(g.hand(c))).join(' · ');
+  top.textContent = 'Hands: ' + g.seats.filter(c => c !== mySeat).map(c => CN[c] + ' ' + txt(g.hand(c))).join(' · ');
   const hand = g.hand(mySeat);
-  'qrbnpciwoal'.split('').forEach(t => {
+  'qrbnpciwo'.split('').forEach(t => {            // (the neutral fairy pieces c/i/w/o can be in your hand too)
     if (!(hand[t] > 0)) return;
     const b = document.createElement('button');
     b.innerHTML = glyphHTML(t) + '×' + hand[t];
@@ -1834,7 +2032,7 @@ function drawBugBoard(el, bd, color, interactive, cellPx) {
 
 function renderBug() {
   const g = game, [bd, col] = g.info[mySeat], ob = bd === 'A' ? 'B' : 'A', partner = g.partner[mySeat], pcol = g.info[partner][1];
-  const cell = Math.min(innerWidth - 32, 480) / 8, nm = c => (c === 'w' ? 'White' : 'Black');
+  const cell = boardPx() / 8, nm = c => (c === 'w' ? 'White' : 'Black');
   $('board').classList.remove('hexb'); $('board').style.width = '100%';
   drawBugBoard($('board'), bd, col, true, cell);
   $('board2Wrap').classList.remove('hidden'); $('capA').classList.remove('hidden');
@@ -1891,13 +2089,16 @@ function renderMulti() {
     if (last && !hid && last.fx !== undefined && ((last.fx === x && last.fy === y) || (last.tx === x && last.ty === y))) d.classList.add('last');
     if (last && !hid && last.drop && last.tx === x && last.ty === y) d.classList.add('last');
     if (kp && kp.x === x && kp.y === y) d.classList.add('check');
+    if (last && last.hits && last.hits.some(q => q.x === x && q.y === y)) d.classList.add('splash');
     if (hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (shown) d.classList.add('cap'); }
     if (abSet && abSet.has(x + ',' + y)) d.classList.add('hint');
     if (mineSet && mineSet.has(x + ',' + y)) d.classList.add('mine');
-    if ((abFrom && abFrom.x === x && abFrom.y === y) || (chargeSq && chargeSq.x === x && chargeSq.y === y)) d.classList.add('sel');
+    if (foeSet && foeSet.has(x + ',' + y)) d.classList.add('foe');
+    if (rmarkSet && rmarkSet.has(x + ',' + y)) d.classList.add('rmark');
+    if ((abFrom && abFrom.x === x && abFrom.y === y) || (chargeSq && chargeSq.x === x && chargeSq.y === y) || (foeSel && foeSel.x === x && foeSel.y === y)) d.classList.add('sel');
     if (shown) {
       const sp = document.createElement('span');
-      setGlyph(sp, p.t); sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (FAIRY.includes(p.t) ? ' fairy' : '') + (p.champ && sameSide(p.c, mySeat) ? ' champ' : '') + fxClass(p);
+      setGlyph(sp, shownType(p)); if (p.wall && g.wallLife) addWallNum(sp, g.wallLife(x, y)); sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (FAIRY.includes(p.t) ? ' fairy' : '') + (p.champ && sameSide(p.c, mySeat) ? ' champ' : '') + fxClass(p);
       if (p.c === 'n') d.classList.add('neu');
       d.appendChild(sp);
     }
@@ -1905,7 +2106,7 @@ function renderMulti() {
   };
 
   if (hex) {
-    const R = g.radius, s = Math.min(innerWidth - 32, 480) / (3 * R + 2), hh = Math.sqrt(3) * s;
+    const R = g.radius, s = boardPx() / (3 * R + 2), hh = Math.sqrt(3) * s;
     const W = s * (3 * R + 2), H = hh * (2 * R + 1);
     el.classList.add('hexb'); el.style.aspectRatio = 'auto'; el.style.width = W + 'px'; el.style.height = H + 'px';
     el.style.fontSize = (hh * 0.72) + 'px';
@@ -1919,7 +2120,7 @@ function renderMulti() {
       decorate(d, x, y); el.appendChild(d);
     }
   } else {
-    const W = g.w, H = g.h, inf = !g.wide && W === 32, cell = Math.min(innerWidth - 32, 480) / W, north = mySeat === 'b' || mySeat === 'g';
+    const W = g.w, H = g.h, inf = W >= 29, cell = boardPx() / W, north = mySeat === 'b' || mySeat === 'g';
     const cylOn = !!g.cyl, Wd = cylOn ? W + 2 : W;
     el.style.gridTemplateColumns = cylOn ? 'minmax(0,.5fr) minmax(0,.85fr) ' + 'minmax(0,1fr) '.repeat(W - 2) + 'minmax(0,.85fr) minmax(0,.5fr)' : 'repeat(' + W + ',minmax(0,1fr))';
     el.style.aspectRatio = cylOn ? (W + 0.7) + '/' + H : W + '/' + H;
@@ -1945,7 +2146,7 @@ function renderMulti() {
     if (prev) rs.value = prev;
   }
   $('history').textContent = 'Order: ' + g.seats.map(c => CN[c] + (g.alive(c) ? '' : ' ✖')).join(' → ') +
-    (g.neutral ? '   |   Neutral (purple, dashed ring): shield = commoner (1 step any way), horned face = imp (captures like a knight, but can also blink to any empty square within 3), ghost = wraith (up to 2 diagonally), bull = ox (up to 2 straight). They always capture when they can. Capture one to tame it — drop it on your own arm.' : '');
+    (g.neutral ? '   |   Neutral (purple, dashed ring): shield = commoner (1 step any way), horned face = imp (knight jump), ghost = wraith (up to 2 diagonally), bull = ox (up to 2 straight). They always capture when they can. Capture one to tame it — drop it on your own arm.' : '');
 }
 
 /* ============ CHAT ============ */

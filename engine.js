@@ -189,6 +189,7 @@ const Engine = (() => {
     l: { leap: KN8.concat(CAMEL, ZEBRA) }
   };
   const knightOffsets = () => STANDARD.pieces.n.leap;
+  const ROAM5 = []; for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) if (dx || dy) ROAM5.push([dx, dy]);      // every square of the 5x5 around a piece
   // class passives like "knights can also jump 2 straight": append leaps to whatever the piece's definition currently is
   const withAdd = (defs, add) => { const o = Object.assign({}, defs); for (const k in add) o[k] = Object.assign({}, o[k], { leap: ((o[k] && o[k].leap) || []).concat(add[k].leap) }); return o; };
   const TRAITS = {
@@ -226,7 +227,7 @@ const Engine = (() => {
     bodyguard:     { name: 'Bodyguard', desc: 'Your other pieces standing next to your king cannot be captured by pawns.' },
     boobyTrap:     { name: 'Booby Trap', desc: 'The first piece that gives check to your king is destroyed.' },
     swap:          { name: 'Swap', desc: 'Once per game, instead of moving, swap two of your pieces (not kings or pawns).' },
-    loneWolf:      { name: 'Lone Wolf', desc: 'Your king reaches every square in the full 5×5 around it: it jumps to the knight-shaped squares, and the other squares need the square between to be empty. While in check it can only move 1 square (but can still capture at full range). Your rooks move at most 3 squares and your bishops at most 4.', defs: () => ({ k: { slide: EDGE8, max: 2, leap: KN8 }, r: { slide: ROOK, max: 3 }, b: { slide: BISHOP, max: 4 } }) },
+    loneWolf:      { name: 'Lone Wolf', desc: 'Your king reaches every square in the full 5×5 around it: it jumps to the knight-shaped squares, and the other squares need the square between to be empty. Your rooks move at most 3 squares and your bishops at most 4.', defs: () => ({ k: { slide: EDGE8, max: 2, leap: KN8 }, r: { slide: ROOK, max: 3 }, b: { slide: BISHOP, max: 4 } }) },
     glassCannon:   { name: 'Glass Cannon', desc: 'Your queen can also jump like a knight, but you start without one knight.', setup: back => { const i = back.indexOf('n'); if (i >= 0) back[i] = '.'; }, defs: () => ({ q: { slide: EDGE8, leap: knightOffsets() } }) },
     overlord:      { name: 'Overlord', desc: 'You start with a second queen in place of an edge pawn, but your pawns move 1 square at a time and can never capture.', setup: (back, pawns) => { pawns[0] = 'q'; }, pawn: { nocap: true, single: true } },
     friendlyFire:  { name: 'Friendly Fire', desc: 'Your pieces can capture your own pieces (never your king). Click the target twice to confirm.' },
@@ -290,7 +291,7 @@ const Engine = (() => {
     const teamOf = c => (v.teams ? v.teams[c] : c);
     // Neutral-piece fairy types: c commoner (king step), i imp (knight leap), w wraith (<=2 diagonal), o ox (<=2 straight).
     const baseDefs = Object.assign({}, STANDARD.pieces, {
-      c: { leap: STANDARD.pieces.k.leap }, i: { leap: STANDARD.pieces.n.leap },
+      c: { leap: STANDARD.pieces.k.leap }, i: v.impRoam ? { leap: STANDARD.pieces.n.leap, leapNC: ROAM5 } : { leap: STANDARD.pieces.n.leap },
       w: { slide: BISHOP, max: 2 }, o: { slide: ROOK, max: 2 }
     }, EXTRA_PIECES);
     const TR = v.traits || {}, traitOf = c => TRAITS[TR[c]] || null, rev = new Set(), dcache = {}, trapUsed = new Set(), swapUsed = new Set();
@@ -301,6 +302,15 @@ const Engine = (() => {
       let d = t && t.defs ? Object.assign({}, baseDefs, t.defs(FWD[c])) : baseDefs;
       if (cp && cp.add) d = withAdd(d, cp.add);
       return t || (cp && cp.add) ? (dcache[c] = d) : d;
+    };
+    const HAUNT = !!(v.cpass && Object.keys(v.cpass).some(k => v.cpass[k] && v.cpass[k].haunt));
+    const hauntMax = (B, x, y, p, max) => {          // Spook: an enemy slider next to one of an Illusioner's ghosts moves at most 2 squares
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        if ((!dx && !dy) || !valid(x + dx, y + dy)) continue;
+        const q = B[idx(x + dx, y + dy)], o = q && q.fx && (q.fx.dcy || q.fx.phn);
+        if (o && o !== p.c && v.cpass[o] && v.cpass[o].haunt && teamOf(o) !== teamOf(p.c)) return max ? Math.min(max, 2) : 2;
+      }
+      return max;
     };
     let rescueFn = null;                                // class layer hook: may save a player who is about to be checkmated
     const CPm = c => (v.cpass && v.cpass[c]) || null;
@@ -360,6 +370,7 @@ const Engine = (() => {
       const p = B[idx(x, y)], out = [], def = (atk && p.t === 'k') ? baseDefs.k : D(p.c, nt)[p.t];
       if (p.dead) return out;
       if (p.fx && p.fx.frz) return out;                 // frozen (class ability): can't move or attack
+      const mx = HAUNT ? hauntMax(B, x, y, p, def.max) : def.max;
       const add = (tx, ty, e) => { if (cyl) tx = ((tx % BW) + BW) % BW; if (!out.some(o => o.tx === tx && o.ty === ty && (o.promo || null) === ((e && e.promo) || null))) out.push(Object.assign({ fx: x, fy: y, tx, ty }, e)); };
       // Gray (eliminated/inactive) pieces, kings too, can be captured by anyone; partners never.
       // Shield Wall (knights can't take pawns) and Bodyguard (pawns can't take pieces next to the king) are checked here.
@@ -461,7 +472,7 @@ const Engine = (() => {
       }
       for (const [sx, sy] of def.slide || []) {
         let tx = x + sx, ty = y + sy, n = 1;
-        while (valid(tx, ty) && (!def.max || n <= def.max) && (!cyl || n < BW)) {
+        while (valid(tx, ty) && (!mx || n <= mx) && (!cyl || n < BW)) {
           const t = B[idx(tx, ty)];
           if (!t) add(tx, ty); else { if (can(t, tx, ty)) add(tx, ty); if (!(p.fx && p.fx.jmp)) break; }
           tx += sx; ty += sy; n++;
@@ -540,10 +551,7 @@ const Engine = (() => {
     function legalAt(x, y) {
       const p = b[idx(x, y)];
       if (!p || p.dead || !alive[p.c]) return [];
-      let ms = pseudo(b, x, y);
-      // A king in check can only step 1 square (it may still capture at full range).
-      if (p.t === 'k' && ms.some(m => Math.max(dX(m.tx, x), Math.abs(m.ty - y)) > 1) && kingAttacked(b, p.c))
-        ms = ms.filter(m => Math.max(dX(m.tx, x), Math.abs(m.ty - y)) <= 1 || (b[idx(m.tx, m.ty)] && !m.castle));
+      const ms = pseudo(b, x, y);       // (an extended-reach king in check may use its full reach: the 'must not end attacked' test below is enough)
       return ms.filter(m => !kingAttacked(sim(m, p), p.c));
     }
     // Crazyhouse-style drops. dropZone 'own' = your own arm + the centre (cross) / your own half (wide).
@@ -664,6 +672,7 @@ const Engine = (() => {
       valid, kingPos,
       at: (x, y) => b[idx(x, y)],
       moves: (x, y) => { const p = b[idx(x, y)]; return p && p.c === S.turn ? legalAt(x, y) : []; },
+      reach: (x, y, asType) => { const p = b[idx(x, y)]; if (!p) return []; if (!asType || asType === p.t) return pseudo(b, x, y, false); const B = b.slice(); B[idx(x, y)] = Object.assign({}, p, { t: asType }); return pseudo(B, x, y, false); },
       hand: c => Object.assign({}, hands[c]),
       drops: () => legalDrops(S.turn),
       alive: c => !!alive[c],
@@ -741,7 +750,7 @@ const Engine = (() => {
         remove: (x, y) => { b[idx(x, y)] = null; },
         take: (x, y, by) => {
           const vic = b[idx(x, y)];
-          if (v.drops && vic && vic.t !== 'k' && (!NEU || vic.c === 'n')) { const k = vic.pr ? 'p' : vic.t; hands[by][k] = (hands[by][k] || 0) + 1; }
+          if (v.drops && vic && vic.t !== 'k' && (!NEU || vic.c === 'n')) { const k = vic.pr ? 'p' : ((vic.fx && vic.fx.xt) || vic.t); hands[by][k] = (hands[by][k] || 0) + 1; }
           b[idx(x, y)] = null;
         },
         clearEp: () => {},
@@ -783,7 +792,7 @@ const Engine = (() => {
             const baseMs = pseudo(b, ok.fx, ok.fy, false, true);
             if (!baseMs.some(l => l.tx === ok.tx && l.ty === ok.ty && (l.promo || null) === (ok.promo || null))) { rev.add(c); events.push({ e: 'trait', c, id: TR[c] }); }
           }
-          if (v.drops && vic && vic.t !== 'k' && (!NEU || vic.c === 'n')) hands[c][vic.pr ? 'p' : vic.t] = (hands[c][vic.pr ? 'p' : vic.t] || 0) + 1;
+          if (v.drops && vic && vic.t !== 'k' && (!NEU || vic.c === 'n')) hands[c][vic.pr ? 'p' : ((vic.fx && vic.fx.xt) || vic.t)] = (hands[c][vic.pr ? 'p' : ((vic.fx && vic.fx.xt) || vic.t)] || 0) + 1;
           if (ok.c960) {
             b[idx(ok.fx, ok.fy)] = null; b[idx(ok.rx, ok.ry)] = null;
             b[idx(ok.kx, ok.ky)] = { t: 'k', c, m: true }; b[idx(ok.rtx, ok.rty)] = { t: 'r', c, m: true };
@@ -1244,6 +1253,15 @@ const Engine = (() => {
       if (cp && cp.add) d = withAdd(d, cp.add);
       return t || (cp && cp.add) ? (dcache[c] = d) : d;
     };
+    const HAUNT = !!(v.cpass && Object.keys(v.cpass).some(k => v.cpass[k] && v.cpass[k].haunt));
+    const hauntMax = (B, x, y, p, max) => {          // Spook: an enemy slider next to one of an Illusioner's ghosts moves at most 2 squares
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        if ((!dx && !dy) || x + dx < 0 || x + dx >= w || y + dy < 0 || y + dy >= h) continue;
+        const q = B[(y + dy) * w + x + dx], o = q && q.fx && (q.fx.dcy || q.fx.phn);
+        if (o && o !== p.c && v.cpass[o] && v.cpass[o].haunt) return max ? Math.min(max, 2) : 2;
+      }
+      return max;
+    };
     let curB = null;                                   // the board pseudo() is currently looking at
     const guardedFrom = (p, t) => {                    // class effects that stop a capture: Shield (any capturer), Sanctuary / Cleric king guard (pawns only)
       if (t.fx && (t.fx.shd || t.fx.phn)) return true;
@@ -1289,6 +1307,7 @@ const Engine = (() => {
       const p = S.b[idx(x, y)], out = [], def = (attackOnly && p.t === 'k') ? v.pieces.k : D2(p.c, nt)[p.t];
       curB = S.b;
       if (p.fx && p.fx.frz) return out;                 // frozen (class ability): can't move or attack
+      const mx = HAUNT ? hauntMax(S.b, x, y, p, def.max) : def.max;
       const add = (tx, ty, extra) => { if (cyl) tx = ((tx % w) + w) % w; if (!out.some(o => o.tx === tx && o.ty === ty && (o.promo || null) === ((extra && extra.promo) || null))) out.push(Object.assign({ fx: x, fy: y, tx, ty }, extra)); };
       if (p.t === 'p') {
         const d = p.c === 'w' ? 1 : -1, F = pf2(p.c, nt);
@@ -1366,7 +1385,7 @@ const Engine = (() => {
       }
       for (const [dx, dy] of def.slide || []) {
         let tx = x + dx, ty = y + dy, n = 1;
-        while (inB(tx, ty) && (!def.max || n <= def.max) && (!cyl || n < w)) {
+        while (inB(tx, ty) && (!mx || n <= mx) && (!cyl || n < w)) {
           const t = S.b[idx(tx, ty)];
           if (!t) add(tx, ty);
           else { if (foe(p, t, attackOnly) && !blocked2(S, p, t, tx, ty)) add(tx, ty); if (!(p.fx && p.fx.jmp)) break; }      // jumping pieces slide through blockers
@@ -1517,11 +1536,7 @@ const Engine = (() => {
     }
 
     const legal = (S, x, y) => {
-      let ms = pseudo(S, x, y);
-      const p = S.b[idx(x, y)];
-      // A king in check can only step 1 square (it may still capture at full range).
-      if (p && p.t === 'k' && ms.some(m => Math.max(distX(m.tx, x), Math.abs(m.ty - y)) > 1) && inCheck(S, p.c))
-        ms = ms.filter(m => Math.max(distX(m.tx, x), Math.abs(m.ty - y)) <= 1 || (S.b[idx(m.tx, m.ty)] && !m.castle));
+      const ms = pseudo(S, x, y);       // (an extended-reach king in check may use its full reach: the 'must not end attacked' test below is enough)
       return ms.filter(m => !inCheck(apply(S, m), S.turn));
     };
 
@@ -1548,6 +1563,7 @@ const Engine = (() => {
       get left() { return S.left; },
       at: (x, y) => S.b[idx(x, y)],
       moves: (x, y) => { const p = S.b[idx(x, y)]; return p && p.c === S.turn ? legal(S, x, y) : []; },
+      reach: (x, y, asType) => { const p = S.b[idx(x, y)]; if (!p) return []; if (!asType || asType === p.t) return pseudo(S, x, y, false); const nb = S.b.slice(); nb[idx(x, y)] = Object.assign({}, p, { t: asType }); return pseudo(Object.assign({}, S, { b: nb }), x, y, false); },
       // Fog of war: your own pieces plus every square they could move to or attack.
       sees(c) {
         const set = new Set();
@@ -1666,7 +1682,7 @@ const Engine = (() => {
         take: (x, y, by) => {                       // remove a captured piece; Crazyhouse: it goes to the capturer's hand
           const vic = S.b[idx(x, y)], nb = S.b.slice(); nb[idx(x, y)] = null;
           let hands = S.hands;
-          if (v.drops && !v.bugBoard && vic) { hands = { w: Object.assign({}, hands.w), b: Object.assign({}, hands.b) }; const k = vic.pr ? 'p' : vic.t; hands[by][k] = (hands[by][k] || 0) + 1; }
+          if (v.drops && !v.bugBoard && vic) { hands = { w: Object.assign({}, hands.w), b: Object.assign({}, hands.b) }; const k = vic.pr ? 'p' : ((vic.fx && vic.fx.xt) || vic.t); hands[by][k] = (hands[by][k] || 0) + 1; }
           S = Object.assign({}, S, { b: nb, hands });
         },
         clearEp: () => { S = Object.assign({}, S, { ep: null }); },
@@ -1735,15 +1751,27 @@ const Engine = (() => {
         { id: 'fortress', name: 'Fortress', cost: 8, ult: true, kind: 'fortress', desc: 'Ultimate: walls on every empty square around your king for 3 turns (knights and adjacent pawns can still reach it).' }
       ]
     },
+    glitch: {
+      name: 'Glitch', secret: true,
+      desc: 'SECRET CLASS (unbalanced on purpose): a video-game-bug class that breaks the normal rules. (Clipping is not built yet.)',
+      passive: { desc: 'Duplication Bug: at the start of each of your turns there is a 12% chance that a random pawn of yours with an empty square in front is copied onto that square (max 3 per game).', glitchDup: true },
+      abilities: [
+        { id: 'wires', name: 'Crossed Wires', cost: 4, kind: 'wires', desc: 'Pick two of your pieces (not kings) of different types: for 2 turns they swap movement types. It ends early if either is captured or destroyed, or if a swapped pawn promotes.' },
+        { id: 'restore', name: 'Restore Point', cost: 3, kind: 'restore', desc: 'Cast right after one of your pieces was captured: mark that square. At the start of your turn, if the square is empty, the captured piece is revived there.' },
+        { id: 'masks', name: 'Missing Textures', cost: 6, ult: true, kind: 'masks', desc: 'Ultimate: for 4 turns every piece of yours shows a fake icon to the other players. (Selecting it shows the moves of the icon, not the real piece.)' },
+        { id: 'corrupt', name: 'Corrupted Save', cost: 8, ult: true, kind: 'corrupt', desc: 'Ultimate: every enemy piece (not kings) is shuffled onto its own side of the board (or within 1 square if it is on the far side). No king may end up in check; if no valid shuffle is found nothing happens and the points are refunded.' }
+      ]
+    },
     illusioner: {
       name: 'Illusioner',
       desc: 'Fools the enemy with ghosts and decoys.',
-      passive: { desc: 'Mirage: the first time you would be checkmated, that king was a decoy: it vanishes and your real king appears on an empty square of your first two ranks (once per game).', mirage: true },
+      passive: { desc: 'Mirage: the first time you would be checkmated, that king was a decoy: it vanishes and your real king appears on an empty square of your first two ranks (once per game). Spook: enemy sliders standing next to one of your ghosts can move at most 2 squares.', mirage: true, haunt: true },
       abilities: [
         { id: 'decoyP', name: 'Decoy Pawn', cost: 2, kind: 'decoy', piece: 'p', desc: 'A ghost pawn appears on an empty square in your half for 3 turns. It can be captured and never gives check.' },
         { id: 'decoyN', name: 'Decoy Knight', cost: 2, kind: 'decoy', piece: 'n', desc: 'A ghost knight appears on an empty square in your half for 3 turns. It can be captured and never gives check.' },
         { id: 'phantom', name: 'Phantom', cost: 4, kind: 'phantom', desc: 'One of your pieces (not the king) becomes a ghost for 2 turns: it can\'t be captured, but it can\'t capture or give check either.' },
         { id: 'mirror', name: 'Mirror', cost: 3, kind: 'mirror', desc: 'Swap places between one of your ghosts and another of your pieces (not the king).' },
+        { id: 'haunt', name: 'Haunt', cost: 3, kind: 'haunt', desc: 'One of your ghosts haunts its neighbours: every enemy piece (not a king) next to it is frozen until your next turn.' },
         { id: 'hall', name: 'Hall of Mirrors', cost: 8, ult: true, kind: 'hall', desc: 'Ultimate: every ghost of yours is duplicated once onto an adjacent empty square (the copies are temporary decoys).' }
       ]
     },
@@ -1779,12 +1807,17 @@ const Engine = (() => {
     let lastTurn = game.turn;
     const grave = {}, g = Object.create(game);
     ids.forEach(c => { grave[c] = []; });
+    const recent = {}, markers = [], maskTurns = {}, glitchLog = [], dupUsed = {}, ultSeen = {};
+    const DUP_CHANCE = 0.12, DUP_CAP = 3, MASK_TURNS = 4, CORRUPT_TRIES = 300, MARKER_TURNS = 3;      // MARKER_TURNS: how many of the Glitch player's turns a Restore Point lasts
+    let seedState = (+cfg.seed || 1) >>> 0;       // one seedable RNG for everything random (mulberry32), so replays/reconnects match exactly
+    const rnd = () => { seedState = (seedState + 0x6D2B79F5) >>> 0; let t = seedState; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; };
     let chg = null;                                // Charge in progress: {c, x, y, stage:1|2}
     let ovr = null;                                // Overrun: {c, x, y, n, locked} while chain-capturing, {resume, c, responder} while the checked player answers
     const mirageUsed = {}, mirageLog = [];
     let mines = [];                                // secret mines {x, y, c, ttl} (kept off the board; the UI shows them only to the owner's team)
     const stepsOf = (c, a) => { const st = KINDS[a.kind].steps; return typeof st === 'function' ? st(c, a) : st; };
-    const noteCapture = t => { if (t && !t.dead && t.t !== 'k' && grave[t.c]) grave[t.c].push({ t: t.pr ? 'p' : t.t }); };
+    const noteCapture = (t, x, y) => { if (t && !t.dead && t.t !== 'k' && grave[t.c]) { const ty = t.pr ? 'p' : ((t.fx && t.fx.xt) || t.t); grave[t.c].push({ t: ty }); if (cls[t.c] === 'glitch' && x != null) recent[t.c] = { x, y, t: ty }; } };
     // NOTE: stored history entries lose flags like `castle` / `ep`, so these are detected from the board only (live play and replay must agree)
     const isCastle = m => { const p = m && !m.drop && game.at(m.fx, m.fy), t = p && game.at(m.tx, m.ty); return !!(p && p.t === 'k' && (Math.abs(m.tx - m.fx) >= 2 || (t && t.c === p.c))); };
     const isEp = m => { const p = m && !m.drop && game.at(m.fx, m.fy); if (!p || p.t !== 'p' || p.champ || m.tx === m.fx || game.at(m.tx, m.ty)) return false; const v = game.at(m.tx, m.fy); return !!(v && v.t === 'p' && v.c !== p.c); };
@@ -1908,6 +1941,66 @@ const Engine = (() => {
         },
         run: (c, a, fx, fy, tx, ty) => { const p1 = at(fx, fy), p2 = at(tx, ty); raw.put(fx, fy, Object.assign({}, p2, { m: true })); raw.put(tx, ty, Object.assign({}, p1, { m: true })); }
       },
+      haunt: {
+        steps: 1,
+        first: (c, a) => oneClick(ghostsOf(c).filter(({ x, y }) => around(x, y, 1).some(([qx, qy]) => { const t = at(qx, qy); return t && raw.foe(c, t) && t.t !== 'k'; })), c, a),
+        run: (c, a, fx, fy, tx, ty) => { around(tx, ty, 1).forEach(([qx, qy]) => { const t = at(qx, qy); if (t && raw.foe(c, t) && t.t !== 'k') raw.put(qx, qy, withFx(t, 'frz', c)); }); }
+      },
+      wires: {
+        steps: 2,
+        first: (c, a) => mine(c, p => !(p.fx && p.fx.xw)).filter(({ x, y }) => KINDS.wires.second(c, a, sq(x, y)).length).map(q => sq(q.x, q.y)),
+        second: (c, a, from) => {
+          const p1 = at(from.x, from.y), okType = (t, x, y) => t !== 'p' || raw.rank(c, x, y) < raw.promo(c);      // (a pawn-type piece just may not sit on the promotion rank)
+          return mine(c, (p, x, y) => (x !== from.x || y !== from.y) && !(p.fx && p.fx.xw) && p.t !== p1.t && okType(p.t, from.x, from.y) && okType(p1.t, x, y))
+            .filter(q => legalCast(c, a, from.x, from.y, q.x, q.y)).map(q => sq(q.x, q.y));
+        },
+        run: (c, a, fx, fy, tx, ty) => {
+          const p1 = at(fx, fy), p2 = at(tx, ty), id = 'w' + log.length + '_' + game.history().length;
+          raw.put(fx, fy, Object.assign({}, p1, { t: p2.t, fx: Object.assign({}, p1.fx, { xw: id, xt: p1.t, xn: p2.t, xg: 2, xc: c }) }));
+          raw.put(tx, ty, Object.assign({}, p2, { t: p1.t, fx: Object.assign({}, p2.fx, { xw: id, xt: p2.t, xn: p1.t, xg: 2, xc: c }) }));
+        }
+      },
+      restore: {
+        steps: 0,
+        first: (c, a) => (recent[c] && legalCast(c, a, 0, 0, 0, 0) ? [sq(0, 0)] : []),
+        run: (c, a, fx, fy, tx, ty, dry) => { if (!dry && recent[c]) { markers.push({ x: recent[c].x, y: recent[c].y, c, t: recent[c].t, ttl: MARKER_TURNS }); recent[c] = null; } }
+      },
+      masks: {
+        steps: 0,
+        first: (c, a) => (raw.scan().some(({ p }) => p.c === c && !p.dead && !p.wall) && legalCast(c, a, 0, 0, 0, 0) ? [sq(0, 0)] : []),
+        run: (c, a, fx, fy, tx, ty, dry) => {
+          if (dry) return;
+          const own = raw.scan().filter(({ p }) => p.c === c && !p.dead && !p.wall), types = shuffle(own.map(({ p }) => p.t));
+          own.forEach(({ p }, i) => { for (let j = 0; j < own.length && types[i] === p.t; j++) { const k = (i + 1 + j) % own.length; if (types[k] !== p.t && types[i] !== own[k].p.t) { const tt = types[i]; types[i] = types[k]; types[k] = tt; } } });
+          own.forEach(({ x, y, p }, i) => raw.put(x, y, Object.assign({}, p, { fx: Object.assign({}, p.fx, { msk: types[i] }) })));
+          maskTurns[c] = MASK_TURNS;
+        }
+      },
+      corrupt: {
+        steps: 0,
+        first: (c, a) => (foes(c, () => true).length && !raw.check(c) ? [sq(0, 0)] : []),
+        run: (c, a, fx, fy, tx, ty, dry) => {
+          if (dry) return true;
+          const enemies = foes(c, () => true), s0 = raw.snap(), half = Math.floor(raw.depth / 2), [W, H] = raw.size;
+          for (let tries = 0; tries < CORRUPT_TRIES; tries++) {
+            raw.restore(s0);
+            enemies.forEach(({ x, y }) => raw.remove(x, y));
+            const taken = new Set(raw.scan().map(({ x, y }) => x + ',' + y));
+            let ok = true;
+            for (const { x, y, p } of shuffle(enemies.slice())) {
+              let cand = [];
+              if (raw.rank(p.c, x, y) < half) { for (let qx = 0; qx < W; qx++) for (let qy = 0; qy < H; qy++) if (raw.valid(qx, qy) && raw.rank(p.c, qx, qy) < half && !taken.has(qx + ',' + qy)) cand.push([qx, qy]); }
+              else cand = around(x, y, 1).concat([[x, y]]).filter(([qx, qy]) => !taken.has(qx + ',' + qy));
+              if (p.t === 'p') cand = cand.filter(([qx, qy]) => raw.rank(p.c, qx, qy) >= 1 && raw.rank(p.c, qx, qy) < raw.promo(p.c));
+              if (!cand.length) { ok = false; break; }
+              const [qx, qy] = cand[Math.floor(rnd() * cand.length)];
+              taken.add(qx + ',' + qy); raw.put(qx, qy, Object.assign({}, p, { m: true }));
+            }
+            if (ok && ids.every(sc => !raw.check(sc))) { raw.clearEp(); return true; }
+          }
+          raw.restore(s0); return false;
+        }
+      },
       decoy: {
         steps: 1,
         first: (c, a) => cheap(empties().filter(q => raw.rank(c, q.x, q.y) < Math.floor(raw.depth / 2)), c, a),
@@ -2028,7 +2121,7 @@ const Engine = (() => {
         second: (c, a, from) => around(from.x, from.y, 1).filter(([x, y]) => { const t = at(x, y); return t && raw.foe(c, t) && t.t !== 'k' && legalCast(c, a, from.x, from.y, x, y); }).map(([x, y]) => sq(x, y)),
         run: (c, a, fx, fy, tx, ty, dry) => {
           const p = at(fx, fy);
-          if (dry) raw.remove(tx, ty); else { noteCapture(at(tx, ty)); raw.take(tx, ty, c); }
+          if (dry) raw.remove(tx, ty); else { noteCapture(at(tx, ty), tx, ty); raw.take(tx, ty, c); }
           raw.remove(fx, fy);
           const np = Object.assign({}, p, { m: true });
           if (p.t === 'p' && raw.rank(c, tx, ty) >= raw.promo(c)) { np.t = 'q'; np.pr = true; np.champ = undefined; }
@@ -2037,6 +2130,44 @@ const Engine = (() => {
       }
     };
     const find = (c, id) => { const k = CLASSES[cls[c]]; return k ? k.abilities.find(a => a.id === id) || null : null; };
+    const wireGroups = () => { const gr = {}; raw.scan().forEach(({ x, y, p }) => { if (p.fx && p.fx.xw) (gr[p.fx.xw] = gr[p.fx.xw] || []).push({ x, y, p }); }); return gr; };
+    const unwire = (x, y, p, revert) => {          // end Crossed Wires on a piece (optionally giving back its real type; a pawn left on the promotion rank becomes a queen)
+      const f = Object.assign({}, p.fx); ['xw', 'xt', 'xn', 'xg', 'xc'].forEach(k => { delete f[k]; });
+      const np = Object.assign({}, p, { fx: Object.keys(f).length ? f : undefined });
+      if (revert) { np.t = p.fx.xt; if (np.t === 'p' && raw.rank(p.c, x, y) >= raw.promo(p.c)) { np.t = 'q'; np.pr = true; } }
+      raw.put(x, y, np);
+    };
+    function checkWires(strict) {                  // Crossed Wires ends when a partner is gone or a swapped pawn promoted
+      const grs = wireGroups();                    // (strict = after a normal move: the revert waits if it would let the side to move capture a king)
+      Object.keys(grs).forEach(id => {
+        const gr = grs[id], s0 = raw.snap();
+        if (gr.length < 2) gr.forEach(({ x, y, p }) => unwire(x, y, p, true));
+        else if (gr.some(({ p }) => p.t !== p.fx.xn)) gr.forEach(({ x, y, p }) => unwire(x, y, p, p.t === p.fx.xn));
+        else return;
+        if (strict && raw.foeCheck(game.turn)) raw.restore(s0);
+      });
+    }
+    function glitchStart(c) {                      // Glitch turn start: Restore Points trigger, then the Duplication Bug may strike. Returns true if the board changed
+      let changed = false;
+      for (let i = markers.length - 1; i >= 0; i--) {
+        const m = markers[i];
+        if (m.c !== c) continue;
+        if (at(m.x, m.y)) { if (--m.ttl <= 0) markers.splice(i, 1); continue; }      // an occupied square makes the marker wait, but it only lasts MARKER_TURNS of your turns
+        raw.put(m.x, m.y, { t: m.t, c, m: true }); markers.splice(i, 1); changed = true;
+        glitchLog.push({ at: game.history().length, c, kind: 'revive', x: m.x, y: m.y, t: m.t });
+      }
+      dupUsed[c] = dupUsed[c] || 0;
+      if (dupUsed[c] < DUP_CAP && rnd() < DUP_CHANCE) {
+        const [dx, dy] = raw.fwd(c);
+        const cands = raw.scan().filter(({ x, y, p }) => p.c === c && p.t === 'p' && !p.dead && !(p.fx && p.fx.xw) && raw.valid(x + dx, y + dy) && !at(x + dx, y + dy) && raw.rank(c, x + dx, y + dy) < raw.promo(c));
+        if (cands.length) {
+          const q = cands[Math.floor(rnd() * cands.length)];
+          raw.put(q.x + dx, q.y + dy, { t: 'p', c, m: false }); dupUsed[c]++; changed = true;
+          glitchLog.push({ at: game.history().length, c, kind: 'dup', x: q.x + dx, y: q.y + dy, t: 'p' });
+        }
+      }
+      return changed;
+    }
     const TIMED = { frz: 1, dis: 1, jmp: 1, shd: 1, sct: 1 };
     function expire() {                            // status effects end when their caster's next turn begins (or the caster is out)
       raw.scan().forEach(({ x, y, p }) => {
@@ -2064,6 +2195,19 @@ const Engine = (() => {
         if (p.fx.dec) raw.remove(x, y); else { const f = Object.assign({}, p.fx); delete f.phn; delete f.gt; raw.put(x, y, Object.assign({}, p, { fx: Object.keys(f).length ? f : undefined })); }
         if (raw.foeCheck(game.turn)) { raw.restore(s0); raw.put(x, y, Object.assign({}, p, { fx: Object.assign({}, p.fx, { gt: 0 }) })); }
       });
+      const wg = wireGroups();                      // Crossed Wires: 2 turns of the caster, postponed if undoing it would leave an enemy king attacked
+      Object.keys(wg).forEach(id => {
+        const gr = wg[id], by = gr[0].p.fx.xc, gone = game.alive && !game.alive(by);
+        if (by !== game.turn && !gone) return;
+        const left = gone ? 0 : gr[0].p.fx.xg - 1;
+        if (left > 0) { gr.forEach(({ x, y, p }) => raw.put(x, y, Object.assign({}, p, { fx: Object.assign({}, p.fx, { xg: left }) }))); return; }
+        const s0 = raw.snap(); gr.forEach(({ x, y, p }) => unwire(x, y, p, true));
+        if (raw.foeCheck(game.turn)) { raw.restore(s0); gr.forEach(({ x, y, p }) => raw.put(x, y, Object.assign({}, p, { fx: Object.assign({}, p.fx, { xg: 0 }) }))); }
+      });
+      if (maskTurns[game.turn] && --maskTurns[game.turn] <= 0) {      // Missing Textures wears off
+        delete maskTurns[game.turn];
+        raw.scan().forEach(({ x, y, p }) => { if (p.c === game.turn && p.fx && p.fx.msk) { const f = Object.assign({}, p.fx); delete f.msk; raw.put(x, y, Object.assign({}, p, { fx: Object.keys(f).length ? f : undefined })); } });
+      }
       mines = mines.filter(m => !(game.alive && !game.alive(m.c)) && !(m.c === game.turn && --m.ttl <= 0));
     }
     function turnChanged() {                       // a new turn starts: that player earns points
@@ -2071,6 +2215,7 @@ const Engine = (() => {
       lastTurn = game.turn;
       expire();
       if (pts[lastTurn] != null) { pts[lastTurn] = Math.max(pts[lastTurn], Math.min(+cfg.cap, pts[lastTurn] + +cfg.gain)); casts[lastTurn] = 0; }
+      if (cls[lastTurn] === 'glitch' && raw.ok(lastTurn) && glitchStart(lastTurn) && raw.foeCheck(lastTurn)) { raw.pass(); turnChanged(); }      // a revival/duplicate that gives check ends the turn
     }
     const base = (c, a) => {                       // reasons an ability can't be cast right now (not counting targets)
       if (game.turn !== c) return 'Not your turn';
@@ -2079,7 +2224,7 @@ const Engine = (() => {
       if (ovr && ovr.locked && ovr.c === c) return 'Finish your Overrun first';
       if ((a.kind === 'charge' || a.kind === 'overrun') && game.perTurn > 1) return 'Not available with 2 moves per turn';
       if (pts[c] < a.cost) return 'Needs ' + a.cost + ' points';
-      if (a.ult && ults[c] && !cfg.ultRepeat) return 'Ultimate already used';
+      if (a.ult && ultSeen[c + a.id] && !cfg.ultRepeat) return 'Ultimate already used';
       if (+cfg.perTurn && casts[c] >= +cfg.perTurn) return 'Ability limit reached this turn';
       if (a.kind === 'summon' && summoned[c] >= +cfg.summonCap) return 'Summon limit reached';
       return '';
@@ -2099,14 +2244,14 @@ const Engine = (() => {
         if (!K.first(c, a).some(q => q.x === m.fx && q.y === m.fy) || !K.second(c, a, sq(m.fx, m.fy)).some(q => q.x === m.tx && q.y === m.ty)) return false;
       } else if (st === 1) { if (!K.first(c, a).some(q => q.x === m.tx && q.y === m.ty)) return false; }
       else if (!K.first(c, a).length) return false;
-      K.run(c, a, m.fx, m.fy, m.tx, m.ty, false);
+      const failed = K.run(c, a, m.fx, m.fy, m.tx, m.ty, false) === false;      // (Corrupted Save can fail: then nothing is charged)
       if (a.kind === 'summon') summoned[c]++;
-      pts[c] -= a.cost; casts[c]++; if (a.ult) ults[c]++;
+      if (!failed) { pts[c] -= a.cost; casts[c]++; if (a.ult) ultSeen[c + a.id] = 1; }
       const e = { at: game.history().length, ab: a.id, c };
       if (st >= 1) { e.tx = m.tx; e.ty = m.ty; }
       if (st === 2) { e.fx = m.fx; e.fy = m.fy; }
       log.push(e);
-      triggerMines();
+      triggerMines(); checkWires();
       if (raw.foeCheck(c)) raw.pass();                // giving check ends your turn
       else if (a.replace) raw.spend();                // a replacing ability uses up one move (the whole turn unless you have 2 moves per turn)
       if (game.turn !== c) chg = null;
@@ -2121,10 +2266,10 @@ const Engine = (() => {
       const chain = ovr && ovr.locked && ovr.c === mover;
       if (chain && (m.drop || m.fx !== ovr.x || m.fy !== ovr.y || !isCap(m))) return false;      // an Overrun chain only continues with captures by the chosen piece
       const resume = ovr && ovr.resume && ovr.responder === mover;
-      const vic = victimOf(m), castled = isCastle(m), stage = chg && chg.c === mover ? chg.stage : 0;
+      const vic = victimOf(m), vsq = isEp(m) ? [m.tx, m.fy] : [m.tx, m.ty], castled = isCastle(m), stage = chg && chg.c === mover ? chg.stage : 0;
       if (!game.move(m)) return false;
-      noteCapture(vic);
-      triggerMines();
+      recent[mover] = null; noteCapture(vic, vsq[0], vsq[1]);
+      triggerMines(); checkWires(true);
       if (chain) {
         ovr.n++;
         if (!raw.ok(mover) || game.turn === mover) ovr = null;
@@ -2160,6 +2305,8 @@ const Engine = (() => {
     if (game.drops) g.drops = (...r) => ((chg && chg.c === game.turn) || (ovr && ovr.locked && ovr.c === game.turn) ? [] : game.drops(...r));
     g.overrunOf = c => (ovr && ovr.locked && ovr.c === c ? { x: ovr.x, y: ovr.y, n: ovr.n } : null);
     g.mirages = () => mirageLog.slice();
+    g.markers = () => markers.map(m => ({ x: m.x, y: m.y, c: m.c, t: m.t, ttl: m.ttl }));      // Restore Point markers (visible to everyone)
+    g.glitches = () => glitchLog.slice();
     g.mines = c => mines.filter(m => c == null || m.c === c || raw.ally(c, { c: m.c })).map(m => ({ x: m.x, y: m.y, c: m.c, ttl: m.ttl }));   // c = viewer (their team's mines); null = all
     g.chargeOf = c => (chg && chg.c === c ? { x: chg.x, y: chg.y, stage: chg.stage } : null);
     if (game.resign) g.resign = c => { game.resign(c); turnChanged(); };
