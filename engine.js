@@ -140,6 +140,7 @@ const Engine = (() => {
   const BOT_VAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0, c: 2, i: 3, w: 3, o: 3, a: 6, l: 6 };
   const bv = t => BOT_VAL[t] || 0;
   function botChoose(game, seat, level) {
+    if (game.cls && CLASSES[game.cls[seat]] && CLASSES[game.cls[seat]].secret) return null;      // bots never play a secret class (Glitch)
     const rand = a => a[Math.floor(Math.random() * a.length)];
     let cands;
     if (game.evalMoves) cands = game.evalMoves(seat);
@@ -188,6 +189,37 @@ const Engine = (() => {
     a: { slide: BISHOP, leap: KN8.concat(HOP8) },
     l: { leap: KN8.concat(CAMEL, ZEBRA) }
   };
+  // ---- Austang Grand (10x10 fairy army). Own piece codes (Greek letters: they keep upper/lower case for the two colours and can't clash with the class/Imperial letters) ----
+  const GRAND_PIECES = {
+    '\u03b1': { slide: BISHOP, leap: KN8 },        // Cardinal: bishop + knight
+    '\u03c7': { slide: ROOK, leap: KN8 },          // Marshal: rook + knight (captures with both)
+    '\u03c9': { slide: EDGE8, leap: KN8 },         // Amazon: queen + knight
+    '\u03bd': { slide: KN8 },                      // Nightrider: repeats the knight jump along a line (stops at the first piece on it)
+    '\u03b3': { leap: CAMEL },                     // Camel: (3,1) leaper
+    '\u03b6': { leap: ZEBRA },                     // Zebra: (3,2) leaper
+    '\u03b4': { slide: ROOK, leap: BISHOP },       // Dragon King: rook + one diagonal step
+    '\u03b7': { slide: BISHOP, leap: ROOK },       // Dragon Horse: bishop + one orthogonal step
+    '\u03ba': { leap: EDGE8.concat(KN8) },         // Centaur: king + knight
+    '\u03b2': { leap: CAMEL.concat(ZEBRA) },       // Bison: camel + zebra leaps
+    '\u03c0': { slideNC: ROOK, hop: ROOK },        // Cannon: slides like a rook without capturing; captures by hopping exactly one piece
+    '\u03b8': { grass: EDGE8 },                    // Grasshopper: along a queen line, hops over the first piece and lands right behind it
+    '\u03c6': { leap: BISHOP },                    // Ferz: one step diagonally
+    '\u03c8': { leap: ROOK },                      // Wazir: one step orthogonally
+    '\u03be': { leap: [[2, 2], [2, -2], [-2, 2], [-2, -2]] },   // Alfil: leaps exactly 2 diagonally
+    '\u03c4': { leap: HOP4 },                      // Dabbaba: leaps exactly 2 orthogonally
+    '\u03c1': {},                                  // Berolina pawn (own rule in the move generator: steps diagonally, captures straight ahead)
+    '\u03bc': { leap: EDGE8 },                     // Sacrificer: king-step walker; instead of moving it can turn itself into one of your captured pieces (own rule)
+    '\u03b9': { leap: EDGE8 },                     // Reviver: king-step walker; can place a captured piece on an empty square next to it, then recharges (own rule)
+    '\u03b5': { leap: EDGE8 }                      // Herald: king-step walker; pawns near it can't capture/attack but may take free steps (own rule)
+  };
+  const GRAND_RULES = { sac: '\u03bc', rev: '\u03b9', her: '\u03b5', revCd: 4, herR: 2, herN: 5 };   // revCd = own turns a Reviver must wait after reviving; herR = Herald radius (2 = a 5x5 area); herN = free pawn steps per turn (total, any pawns)
+  const AUSTANG_GRAND = Object.assign({}, STANDARD, {
+    w: 10, h: 10,
+    pieces: Object.assign({}, STANDARD.pieces, GRAND_PIECES),
+    setup: ['rnb\u03b1qk\u03c7bnr', 'pppppppppp', '..........', '..........', '..........', '..........', '..........', '..........', 'PPPPPPPPPP', 'RNB\u0391QK\u03a7BNR'],
+    promoteTo: ['q', 'r', 'b', 'n', '\u03b1', '\u03c7', '\u03bd'],
+    castling: true
+  });
   const knightOffsets = () => STANDARD.pieces.n.leap;
   const ROAM5 = []; for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) if (dx || dy) ROAM5.push([dx, dy]);      // every square of the 5x5 around a piece
   // class passives like "knights can also jump 2 straight": append leaps to whatever the piece's definition currently is
@@ -256,24 +288,27 @@ const Engine = (() => {
   // Geometry shared by the 4-seat engines. 'wide' = 16 x height team board, 'infinite' = the 14x14 cross sitting in
   // the middle of an open 32x32 board (corners are no longer cut off), otherwise the plain cross board.
   function multiGeom(v) {
+    const aus = v.board === 'austang';                    // Austang 4-player: 20x20 cross, 5x5 corners cut = 10x10 centre + four 10x5 arms
     const wide = v.board === 'wide', inf = v.board === 'infinite';
-    const BW = wide ? 16 : inf ? 32 : 14, BH = wide ? (v.height || 10) : inf ? 32 : 14, SZ = BW * BH, O = inf ? 9 : 0;
+    const BW = aus ? 20 : wide ? (v.width || 16) : inf ? 32 : 14, BH = aus ? 20 : wide ? (v.height || 10) : inf ? 32 : 14, SZ = BW * BH, O = inf ? 9 : 0;
+    const CUT = aus ? 5 : 3, LAST = aus ? 19 : 13;       // corner size / last file of the cross
     const cyl = wide && !!v.cylinder;                     // cylinder chess: the left and right edges of the wide board touch
     const idx = (x, y) => y * BW + (cyl ? ((x % BW) + BW) % BW : x);
-    const valid = (x, y) => y >= 0 && y < BH && (cyl || (x >= 0 && x < BW)) && (wide || inf || !((x < 3 || x > 10) && (y < 3 || y > 10)));
+    const valid = (x, y) => y >= 0 && y < BH && (cyl || (x >= 0 && x < BW)) && (wide || inf || !((x < CUT || x > LAST - CUT) && (y < CUT || y > LAST - CUT)));
     const FWD = wide ? { r: [0, 1], y: [0, 1], b: [0, -1], g: [0, -1] } : { r: [0, 1], b: [1, 0], y: [0, -1], g: [-1, 0] };
     const rankOf = wide
       ? (c, x, y) => (c === 'r' || c === 'y' ? y : BH - 1 - y)
-      : (c, x, y) => { x -= O; y -= O; return c === 'r' ? y : c === 'b' ? x : c === 'y' ? 13 - y : 13 - x; };
-    const promoRank = wide ? BH - 1 : 10;
-    // place(c, u, r): own-frame file u (0..7 along the back rank) and rank r -> board square
+      : (c, x, y) => { x -= O; y -= O; return c === 'r' ? y : c === 'b' ? x : c === 'y' ? LAST - y : LAST - x; };
+    const promoRank = wide ? BH - 1 : LAST - CUT;
+    // place(c, u, r): own-frame file u (0..7 along the back rank; 0..9 on the Austang boards) and rank r -> board square
+    const HALF = BW / 2;
     const place = wide
-      ? (c, u, r) => (c === 'r' ? [u, r] : c === 'y' ? [8 + u, r] : c === 'b' ? [15 - u, BH - 1 - r] : [7 - u, BH - 1 - r])
+      ? (c, u, r) => (c === 'r' ? [u, r] : c === 'y' ? [HALF + u, r] : c === 'b' ? [BW - 1 - u, BH - 1 - r] : [HALF - 1 - u, BH - 1 - r])
       : (c, u, r) => {
-        const q = ({ r: (x, y) => [x, y], b: (x, y) => [y, 13 - x], y: (x, y) => [13 - x, 13 - y], g: (x, y) => [13 - y, x] })[c](3 + u, r);
+        const q = ({ r: (x, y) => [x, y], b: (x, y) => [y, LAST - x], y: (x, y) => [LAST - x, LAST - y], g: (x, y) => [LAST - y, x] })[c](CUT + u, r);
         return [q[0] + O, q[1] + O];
       };
-    const isCenter = (x, y) => x - O >= 3 && x - O <= 10 && y - O >= 3 && y - O <= 10;
+    const isCenter = (x, y) => x - O >= CUT && x - O <= LAST - CUT && y - O >= CUT && y - O <= LAST - CUT;
     return { wide, inf, cyl, BW, BH, SZ, idx, valid, FWD, rankOf, promoRank, place, isCenter };
   }
 
@@ -293,7 +328,7 @@ const Engine = (() => {
     const baseDefs = Object.assign({}, STANDARD.pieces, {
       c: { leap: STANDARD.pieces.k.leap }, i: v.impRoam ? { leap: STANDARD.pieces.n.leap, leapNC: ROAM5 } : { leap: STANDARD.pieces.n.leap },
       w: { slide: BISHOP, max: 2 }, o: { slide: ROOK, max: 2 }
-    }, EXTRA_PIECES);
+    }, EXTRA_PIECES, v.austang ? GRAND_PIECES : {});
     const TR = v.traits || {}, traitOf = c => TRAITS[TR[c]] || null, rev = new Set(), dcache = {}, trapUsed = new Set(), swapUsed = new Set();
     const D = (c, nt) => {
       if (nt) return baseDefs;
@@ -333,6 +368,10 @@ const Engine = (() => {
       hands[c] = {};
       if (!seats.includes(c) && !(v.dead || []).includes(c)) return;
       alive[c] = seats.includes(c);
+      if (v.armies) {                                  // Austang: every player's army is given square by square in the player's own frame ({u: file, r: rank, t: piece})
+        (v.armies[c] || []).forEach(a => { const [ax, ay] = place(c, a.u, a.r); b[idx(ax, ay)] = { t: a.t, c, dead: !alive[c] }; });
+        return;
+      }
       const LY = layoutFor(TR[c], v.back960);
       for (let k = 0; k < 8; k++) {
         const [bx, by] = place(c, k, 0), [px, py] = place(c, k, 1);
@@ -348,7 +387,20 @@ const Engine = (() => {
       const kinds = v.neutralSet === 'mixed' ? ['w', 'i'] : v.neutralSet === 'oxen' ? ['o', 'c'] : ['c', 'c'];
       orbits.forEach((orb, k) => orb.forEach(([x, y]) => { b[idx(x, y)] = { t: kinds[k], c: 'n', id: ++nid }; }));
     }
-    const S = { turn: seats[0], left: v.firstSingle ? 1 : per(), drawn: false, moved: new Set(), nmoved: new Set(), pending: false, needSettle: false };
+    const S = { turn: (v.first && seats.includes(v.first)) ? v.first : seats[0], left: v.firstSingle ? 1 : per(), drawn: false, moved: new Set(), nmoved: new Set(), pending: false, needSettle: false, fr: null, fn: 0 };
+    // ---- Austang pieces (v.austang): captured-piece lists (Sacrificer / Reviver), Herald aura and free steps. Same rules as the 2-player engine, with every seat's own "forward".
+    const yard = { r: [], b: [], y: [], g: [] };
+    const PAWNLIKE = t => t === 'p' || t === '\u03c1', HERALD = !!v.austang, promoList = v.promoteTo || STANDARD.promoteTo;
+    const aura = (B, x, y, c) => {                     // a friendly Herald within herR squares quiets this pawn
+      for (let dx = -GRAND_RULES.herR; dx <= GRAND_RULES.herR; dx++) for (let dy = -GRAND_RULES.herR; dy <= GRAND_RULES.herR; dy++) {
+        if (!valid(x + dx, y + dy)) continue;
+        const q = B[idx(x + dx, y + dy)];
+        if (q && q.c === c && q.t === GRAND_RULES.her && !q.dead) return true;
+      }
+      return false;
+    };
+    const hushedAt = (B, x, y, c) => aura(B, x, y, c) || !!(S.fr && c === S.turn && S.fr.includes(idx(x, y)));      // (a pawn that took a free step this turn stays "enlisted")
+    const tick = (c, skip) => { for (let i = 0; i < SZ; i++) { const q = b[i]; if (q && q.c === c && q.rc > 0 && i !== skip) b[i] = Object.assign({}, q, { rc: q.rc - 1 }); } };      // Reviver recharge counts the owner's own turns
     const activeCount = () => seats.filter(c => alive[c]).length;
     const liveTeams = () => new Set(seats.filter(c => alive[c]).map(teamOf)).size;
     function nextActive(c) {
@@ -357,6 +409,7 @@ const Engine = (() => {
       return c;
     }
     const pass = c => {
+      S.fr = null; S.fn = 0;
       S.turn = nextActive(c); S.left = per();
       if (NEU) {
         S.moved.add(c);
@@ -366,12 +419,19 @@ const Engine = (() => {
     const over = () => S.drawn || liveTeams() <= 1;
 
     function pseudo(B, x, y, atk, nt) {
+      const r = pseudoRaw(B, x, y, atk, nt);
+      if (!HERALD) return r;
+      const p = B[idx(x, y)];
+      if (!p || !PAWNLIKE(p.t) || !hushedAt(B, x, y, p.c)) return r;      // Herald: quieted pawns can neither capture nor attack
+      return atk ? [] : r.filter(m => !B[idx(m.tx, m.ty)]);
+    }
+    function pseudoRaw(B, x, y, atk, nt) {
       // Kings never give check beyond their normal 3x3 (so extended-reach kings can't check or box in other kings).
       const p = B[idx(x, y)], out = [], def = (atk && p.t === 'k') ? baseDefs.k : D(p.c, nt)[p.t];
       if (p.dead) return out;
       if (p.fx && p.fx.frz) return out;                 // frozen (class ability): can't move or attack
       const mx = HAUNT ? hauntMax(B, x, y, p, def.max) : def.max;
-      const add = (tx, ty, e) => { if (cyl) tx = ((tx % BW) + BW) % BW; if (!out.some(o => o.tx === tx && o.ty === ty && (o.promo || null) === ((e && e.promo) || null))) out.push(Object.assign({ fx: x, fy: y, tx, ty }, e)); };
+      const add = (tx, ty, e) => { if (cyl) tx = ((tx % BW) + BW) % BW; if (!out.some(o => o.tx === tx && o.ty === ty && (o.promo || null) === ((e && e.promo) || null) && (o.rev || null) === ((e && e.rev) || null))) out.push(Object.assign({ fx: x, fy: y, tx, ty }, e)); };
       // Gray (eliminated/inactive) pieces, kings too, can be captured by anyone; partners never.
       // Shield Wall (knights can't take pawns) and Bodyguard (pawns can't take pieces next to the king) are checked here.
       const blocked = (t, tx, ty) => {
@@ -384,10 +444,24 @@ const Engine = (() => {
       };
       const can = (t, tx, ty) => !t.wall && !(p.fx && (p.fx.dis || p.fx.phn)) && !(!atk && guarded(B, p, t, tx, ty)) && (t.dead || (teamOf(t.c) !== teamOf(p.c) && (atk || t.t !== 'k') && !blocked(t, tx, ty)) ||
         (!atk && !nt && t.c === p.c && t.t !== 'k' && TR[p.c] === 'friendlyFire'));      // Friendly Fire trait (a disarmed piece can't capture)
+      if (p.t === '\u03c1') {                              // Berolina pawn: steps diagonally forward (2 diagonal squares from its own 2nd rank), captures straight ahead, promotes on the promotion rank
+        const [dx, dy] = FWD[p.c], pp = dx === 0 ? [1, 0] : [0, 1];
+        const push = (tx, ty) => (rankOf(p.c, tx, ty) === promoRank ? promoList.forEach(t => add(tx, ty, { promo: t })) : add(tx, ty));
+        if (atk) { if (valid(x + dx, y + dy)) add(x + dx, y + dy); return out; }
+        for (const sd of [-1, 1]) {
+          const tx = x + dx + pp[0] * sd, ty = y + dy + pp[1] * sd;
+          if (!valid(tx, ty) || B[idx(tx, ty)]) continue;
+          push(tx, ty);
+          const t2x = x + 2 * (dx + pp[0] * sd), t2y = y + 2 * (dy + pp[1] * sd);
+          if (rankOf(p.c, x, y) === 1 && valid(t2x, t2y) && !B[idx(t2x, t2y)]) add(t2x, t2y);
+        }
+        if (valid(x + dx, y + dy)) { const t = B[idx(x + dx, y + dy)]; if (t && can(t, x + dx, y + dy)) push(x + dx, y + dy); }
+        return out;
+      }
       if (p.t === 'p') {
         const oc = p.c === 'n' ? (p.o || 'r') : p.c, F = pflags(p.c, nt);
         const [dx, dy] = FWD[oc], pp = dx === 0 ? [1, 0] : [0, 1], promoAt = promoRank + (F.promoShift || 0);
-        const push0 = (tx, ty) => (!atk && rankOf(oc, tx, ty) === promoAt ? (p.c === 'n' ? ['q'] : STANDARD.promoteTo).forEach(t => add(tx, ty, { promo: t })) : add(tx, ty));
+        const push0 = (tx, ty) => (!atk && rankOf(oc, tx, ty) === promoAt ? (p.c === 'n' ? ['q'] : promoList).forEach(t => add(tx, ty, { promo: t })) : add(tx, ty));
         const push = (F.nopromo && !p.champ) ? ((tx, ty) => add(tx, ty)) : push0;     // Champion Pawns: the other pawns can't promote
         if (p.champ) {                                     // a Champion: king-step moves and captures, plus 2-square straight jumps (moves only)
           for (const [cx2, cy2] of EDGE8) {
@@ -478,6 +552,39 @@ const Engine = (() => {
           tx += sx; ty += sy; n++;
         }
       }
+      if (!atk) for (const [sx, sy] of def.slideNC || []) {           // Cannon: slides over empty squares, never captures
+        let tx = x + sx, ty = y + sy;
+        while (valid(tx, ty) && !B[idx(tx, ty)]) { add(tx, ty); tx += sx; ty += sy; }
+      }
+      for (const [sx, sy] of def.hop || []) {                         // Cannon capture: jump exactly one piece, take the first piece behind it
+        let tx = x + sx, ty = y + sy;
+        while (valid(tx, ty) && !B[idx(tx, ty)]) { tx += sx; ty += sy; }
+        if (!valid(tx, ty)) continue;
+        tx += sx; ty += sy;
+        while (valid(tx, ty) && !B[idx(tx, ty)]) { tx += sx; ty += sy; }
+        if (valid(tx, ty)) { const t = B[idx(tx, ty)]; if (t && can(t, tx, ty)) add(tx, ty); }
+      }
+      for (const [sx, sy] of def.grass || []) {                       // Grasshopper: lands right behind the first piece on a queen line (empty = move, enemy = capture)
+        let tx = x + sx, ty = y + sy;
+        while (valid(tx, ty) && !B[idx(tx, ty)]) { tx += sx; ty += sy; }
+        if (!valid(tx, ty)) continue;
+        tx += sx; ty += sy;
+        if (!valid(tx, ty)) continue;
+        const t = B[idx(tx, ty)];
+        if (!t) { if (!atk) add(tx, ty); } else if (can(t, tx, ty)) add(tx, ty);
+      }
+      if (!atk && v.austang && p.t === GRAND_RULES.her) {             // Herald: also 2 squares straight forward (both empty, no capture)
+        const [dx, dy] = FWD[p.c];
+        if (valid(x + dx, y + dy) && !B[idx(x + dx, y + dy)] && valid(x + 2 * dx, y + 2 * dy) && !B[idx(x + 2 * dx, y + 2 * dy)]) add(x + 2 * dx, y + 2 * dy);
+      }
+      if (!atk && v.austang && yard[p.c] && (p.t === GRAND_RULES.sac || (p.t === GRAND_RULES.rev && !(p.rc > 0)))) {      // Sacrificer / Reviver: bring back one of your captured pieces
+        const kinds = [...new Set(yard[p.c])], okAt = (t, tx, ty) => !(PAWNLIKE(t) && (rankOf(p.c, tx, ty) === 0 || rankOf(p.c, tx, ty) >= promoRank));
+        if (p.t === GRAND_RULES.sac) kinds.forEach(t => { if (okAt(t, x, y)) add(x, y, { rev: t }); });
+        else for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+          const tx = x + dx, ty = y + dy;
+          if ((dx || dy) && valid(tx, ty) && !B[idx(tx, ty)]) kinds.forEach(t => { if (okAt(t, tx, ty)) add(tx, ty, { rev: t }); });
+        }
+      }
       if (p.t === 'k' && v.castling && !p.m && !atk && v.back960 && !sqAttacked(B, x, y, p.c)) {
         // Chess960 castling: the king ends on the c/g file and the rook on d/f of its own back rank (own-frame files 2/6 and 3/5).
         let uk = -1;
@@ -524,11 +631,19 @@ const Engine = (() => {
       for (let i = 0; i < SZ; i++) { const p = b[i]; if (p && p.t === 'k' && p.c === c && !p.dead) return { x: i % BW, y: Math.floor(i / BW) }; }
       return null;
     }
+    let xHook = null;                               // class layer: stacked (Clipping) pieces (see the 2-player engine)
     function sqAttacked(B, kx, ky, c) {
+      let X = null;
+      if (xHook) { X = xHook(B, idx); if (X) { B = B.slice(); X.put.forEach(([i, p]) => { B[i] = p; }); } }
       for (let i = 0; i < SZ; i++) {
         const p = B[i];
         if (!p || p.dead || teamOf(p.c) === teamOf(c) || !alive[p.c] || (p.fx && (p.fx.dis || p.fx.frz || p.fx.phn || p.fx.dcy))) continue;
         if (pseudo(B, i % BW, Math.floor(i / BW), true).some(m => m.tx === kx && m.ty === ky)) return true;
+      }
+      if (X) for (const [i, q] of X.extra) {
+        if (q.dead || teamOf(q.c) === teamOf(c) || !alive[q.c] || (q.fx && (q.fx.dis || q.fx.frz || q.fx.phn || q.fx.dcy))) continue;
+        const B2 = B.slice(); B2[i] = q;
+        if (pseudo(B2, i % BW, Math.floor(i / BW), true).some(m => m.tx === kx && m.ty === ky)) return true;
       }
       return false;
     }
@@ -548,11 +663,27 @@ const Engine = (() => {
       if (m.castle) { B[idx(m.rx, m.ry)] = null; B[idx(m.rtx, m.rty)] = { t: 'r', c: p.c, m: true }; }
       return B;
     }
-    function legalAt(x, y) {
+    function freeSteps(x, y) {                         // Herald: free single steps for quieted pawns (moves only, no promotion, may not give check; herN steps per turn in total)
+      const p = b[idx(x, y)];
+      if (!HERALD || !p || p.dead || !alive[p.c] || p.c !== S.turn || !PAWNLIKE(p.t) || (S.fn || 0) >= GRAND_RULES.herN || !hushedAt(b, x, y, p.c)) return [];
+      const [dx, dy] = FWD[p.c], pp = dx === 0 ? [1, 0] : [0, 1], out = [];
+      const tos = p.t === 'p' ? [[x + dx, y + dy]] : [-1, 1].map(sd => [x + dx + pp[0] * sd, y + dy + pp[1] * sd]);
+      for (const [tx, ty] of tos) {
+        if (!valid(tx, ty) || b[idx(tx, ty)] || rankOf(p.c, tx, ty) >= promoRank) continue;
+        const B2 = b.slice(), from = idx(x, y), to = idx(tx, ty); B2[to] = Object.assign({}, p, { m: true }); B2[from] = null;
+        const saved = S.fr; S.fr = (saved || []).filter(i => i !== from).concat(to);      // (the stepping pawn counts as enlisted while we test it)
+        const bad = kingAttacked(B2, p.c) || seats.some(s2 => alive[s2] && teamOf(s2) !== teamOf(p.c) && kingAttacked(B2, s2));
+        S.fr = saved;
+        if (!bad) out.push({ fx: x, fy: y, tx, ty, free: true });
+      }
+      return out;
+    }
+    function legalAt(x, y, withFree) {
       const p = b[idx(x, y)];
       if (!p || p.dead || !alive[p.c]) return [];
       const ms = pseudo(b, x, y);       // (an extended-reach king in check may use its full reach: the 'must not end attacked' test below is enough)
-      return ms.filter(m => !kingAttacked(sim(m, p), p.c));
+      const out = ms.filter(m => !kingAttacked(sim(m, p), p.c));
+      return withFree ? out.concat(freeSteps(x, y)) : out;      // (free Herald steps never count as "having a move")
     }
     // Crazyhouse-style drops. dropZone 'own' = your own arm + the centre (cross) / your own half (wide).
     const inOwnZone = (c, x, y) => (wide ? rankOf(c, x, y) < BH / 2 : rankOf(c, x, y) < 3 || isCenter(x, y));
@@ -581,6 +712,12 @@ const Engine = (() => {
       for (let i = 0; i < SZ; i++) { const p = b[i]; if (p && p.t === 'k' && p.c === c && !p.dead) { kx = i % BW; ky = Math.floor(i / BW); break; } }
       const out = new Set();
       if (kx < 0) return [];
+      const X = xHook ? xHook(b, idx) : null;
+      if (X) for (const [i, q] of X.extra) {
+        if (q.dead || teamOf(q.c) === teamOf(c) || !alive[q.c]) continue;
+        const B2 = b.slice(); B2[i] = q;
+        if (pseudo(B2, i % BW, Math.floor(i / BW), true).some(m => m.tx === kx && m.ty === ky)) out.add(q.c);
+      }
       for (let i = 0; i < SZ; i++) {
         const p = b[i];
         if (!p || p.dead || teamOf(p.c) === teamOf(c) || !alive[p.c]) continue;
@@ -602,8 +739,11 @@ const Engine = (() => {
     }
     // Checkmate eliminates a player. Being stalemated does NOT: the turn is simply skipped.
     // If every remaining player is stalemated in a row, nobody can ever move and the game is drawn.
+    // Nobody can ever checkmate anybody when every living side is down to its bare king (gray / fallen pieces are inert; active neutral pieces still count): draw.
+    const bareKingsOnly = () => { for (let i = 0; i < SZ; i++) { const p = b[i]; if (p && !p.dead && p.t !== 'k' && (alive[p.c] || p.c === 'n')) return false; } return true; };
     function settle() {
       let guard = 0, skipped = 0;
+      if (liveTeams() > 1 && bareKingsOnly()) { S.drawn = true; return; }
       while (liveTeams() > 1 && guard++ < 30) {
         if (!alive[S.turn]) { pass(S.turn); continue; }
         if (hasMove(S.turn)) return;
@@ -671,7 +811,9 @@ const Engine = (() => {
       neutralNext: nextNeutral, neutralApply,
       valid, kingPos,
       at: (x, y) => b[idx(x, y)],
-      moves: (x, y) => { const p = b[idx(x, y)]; return p && p.c === S.turn ? legalAt(x, y) : []; },
+      moves: (x, y) => { const p = b[idx(x, y)]; return p && p.c === S.turn ? legalAt(x, y, true) : []; },
+      yard: c => (yard[c] || []).slice(),
+      freeLeft: () => (HERALD ? Math.max(0, GRAND_RULES.herN - (S.fn || 0)) : 0),
       reach: (x, y, asType) => { const p = b[idx(x, y)]; if (!p) return []; if (!asType || asType === p.t) return pseudo(b, x, y, false); const B = b.slice(); B[idx(x, y)] = Object.assign({}, p, { t: asType }); return pseudo(B, x, y, false); },
       hand: c => Object.assign({}, hands[c]),
       drops: () => legalDrops(S.turn),
@@ -754,7 +896,7 @@ const Engine = (() => {
           b[idx(x, y)] = null;
         },
         clearEp: () => {},
-        setRescue: f => { rescueFn = f; },
+        setRescue: f => { rescueFn = f; }, setStacks: f => { xHook = f; },
         fwd: c => FWD[c],
         setTurn: c => { S.turn = c; S.left = per(); },
         spend: () => { const c0 = S.turn; S.left--; if (S.left > 0 && alive[c0] && hasMove(c0)) return; pass(c0); if (NEU && S.pending) S.needSettle = true; else settle(); },
@@ -785,9 +927,25 @@ const Engine = (() => {
           if (!valid(m.fx, m.fy)) return false;
           const p = b[idx(m.fx, m.fy)];
           if (!p || p.c !== c) return false;
-          const ok = legalAt(m.fx, m.fy).find(l => l.tx === m.tx && l.ty === m.ty && (l.promo || null) === (m.promo || null));
+          const ok = legalAt(m.fx, m.fy, true).find(l => l.tx === m.tx && l.ty === m.ty && (l.promo || null) === (m.promo || null) && (l.rev || null) === (m.rev || null) && !!l.free === !!m.free);
           if (!ok) return false;
+          if (ok.free) {                                // Herald free step: the turn does not pass
+            const from = idx(ok.fx, ok.fy), to = idx(ok.tx, ok.ty);
+            b[to] = Object.assign({}, p, { m: true }); b[from] = null;
+            S.fr = (S.fr || []).filter(i => i !== from).concat(to); S.fn = (S.fn || 0) + 1;
+            hist.push({ c, fx: ok.fx, fy: ok.fy, tx: ok.tx, ty: ok.ty, free: true, cap: null });
+            return true;
+          }
+          if (ok.rev) {                                 // Sacrificer (target = own square) / Reviver (empty neighbouring square, then it recharges)
+            const yl = yard[c], k = yl.indexOf(ok.rev); if (k >= 0) yl.splice(k, 1);
+            const self = ok.fx === ok.tx && ok.fy === ok.ty;
+            b[idx(ok.tx, ok.ty)] = { t: ok.rev, c, m: true };
+            if (!self) b[idx(ok.fx, ok.fy)] = Object.assign({}, p, { rc: GRAND_RULES.revCd });
+            tick(c, self ? -1 : idx(ok.fx, ok.fy));
+            hist.push({ c, fx: ok.fx, fy: ok.fy, tx: ok.tx, ty: ok.ty, rev: ok.rev, cap: null });
+          } else {
           const vic = ok.c960 ? null : b[idx(ok.tx, ok.ty)];
+          if (vic && vic.t !== 'k' && v.austang && yard[vic.c]) yard[vic.c].push(vic.pr ? (vic.pt || 'p') : vic.t);
           if (traitOf(c) && !rev.has(c) && !traitOf(c).setup) {     // first move that only the trait allows reveals it
             const baseMs = pseudo(b, ok.fx, ok.fy, false, true);
             if (!baseMs.some(l => l.tx === ok.tx && l.ty === ok.ty && (l.promo || null) === (ok.promo || null))) { rev.add(c); events.push({ e: 'trait', c, id: TR[c] }); }
@@ -796,12 +954,14 @@ const Engine = (() => {
           if (ok.c960) {
             b[idx(ok.fx, ok.fy)] = null; b[idx(ok.rx, ok.ry)] = null;
             b[idx(ok.kx, ok.ky)] = { t: 'k', c, m: true }; b[idx(ok.rtx, ok.rty)] = { t: 'r', c, m: true };
-          } else { b[idx(ok.tx, ok.ty)] = { t: ok.promo || p.t, c, m: true, pr: !!ok.promo || undefined, champ: ok.promo ? undefined : p.champ, fx: p.fx }; b[idx(ok.fx, ok.fy)] = null; }
+          } else { b[idx(ok.tx, ok.ty)] = { t: ok.promo || p.t, c, m: true, pr: !!ok.promo || undefined, pt: ok.promo ? p.t : p.pt, rc: p.rc, champ: ok.promo ? undefined : p.champ, fx: p.fx }; b[idx(ok.fx, ok.fy)] = null; }
           if (vic && vic.t === 'q' && !vic.dead && TR[vic.c] === 'martyr' && p.t !== 'k') {
             b[idx(ok.tx, ok.ty)] = null; rev.add(vic.c); events.push({ e: 'trait', c: vic.c, id: 'martyr' });
           }
           if (ok.castle && !ok.c960) { b[idx(ok.rx, ok.ry)] = null; b[idx(ok.rtx, ok.rty)] = { t: 'r', c, m: true }; }
           hist.push({ c, fx: ok.fx, fy: ok.fy, tx: ok.tx, ty: ok.ty, promo: ok.promo || null, cap: vic ? vic.t : null, castle: !!ok.castle });
+          if (v.austang) tick(c, -1);
+          }
         }
         trapCheck();
         S.left--;
@@ -927,8 +1087,10 @@ const Engine = (() => {
       for (let l = 0; l < 2; l++) for (let i = 0; i < SZ; i++) if (L[l][i] && L[l][i].c === c) L[l][i] = Object.assign({}, L[l][i], { dead: true });
       events.push({ e: 'elim', c, reason });
     }
+    const bareKingsOnly = () => { for (let l = 0; l < 2; l++) for (let i = 0; i < SZ; i++) { const p = L[l][i]; if (p && !p.dead && p.t !== 'k' && alive[p.c]) return false; } return true; };
     function settle() {
       let guard = 0, skipped = 0;
+      if (liveTeams() > 1 && bareKingsOnly()) { S.drawn = true; return; }
       while (liveTeams() > 1 && guard++ < 30) {
         if (!alive[S.turn]) { pass(S.turn); continue; }
         if (hasMove(S.turn)) return;
@@ -1098,8 +1260,10 @@ const Engine = (() => {
       for (let i = 0; i < N * N; i++) if (b[i] && b[i].c === c) b[i] = Object.assign({}, b[i], { dead: true });
       events.push({ e: 'elim', c, reason });
     }
+    const bareKingsOnly = () => { for (let i = 0; i < N * N; i++) { const p = b[i]; if (p && !p.dead && p.t !== 'k' && alive[p.c]) return false; } return true; };
     function settle() {
       let guard = 0, skipped = 0;
+      if (activeCount() > 1 && bareKingsOnly()) { S.drawn = true; return; }
       while (activeCount() > 1 && guard++ < 30) {
         if (!alive[S.turn]) { S.turn = nextActive(S.turn); continue; }
         if (hasMove(S.turn)) return;
@@ -1299,16 +1463,46 @@ const Engine = (() => {
         b0[idx(x, yp)] = pawns[x] === '.' ? null : pawns[x] === 'h' ? Object.assign({ c, m: false }, b0[idx(x, yp)], { t: 'p', champ: true }) : Object.assign({ c, m: false }, b0[idx(x, yp)], { t: pawns[x] });
       }
     });
-    let S = { b: b0, turn: v.first || 'w', ep: null, hands: { w: {}, b: {} }, left: v.firstSingle ? 1 : (v.movesPerTurn || 1) };
+    let S = { b: b0, turn: v.first || 'w', ep: null, hands: { w: {}, b: {} }, left: v.firstSingle ? 1 : (v.movesPerTurn || 1), yard: { w: [], b: [] }, fr: null, fn: 0 };
     const hist = [], stCache = new WeakMap();
 
+    const HERALD = !!(v.pieces && v.pieces[GRAND_RULES.her]), PAWNLIKE = t => t === 'p' || t === '\u03c1';
+    const hushed = (B, x, y, c) => {                 // Herald: friendly pawns within herR squares of a Herald can't capture or attack
+      for (let dx = -GRAND_RULES.herR; dx <= GRAND_RULES.herR; dx++) for (let dy = -GRAND_RULES.herR; dy <= GRAND_RULES.herR; dy++) {
+        if (!inB(x + dx, y + dy)) continue;
+        const q = B[idx(x + dx, y + dy)];
+        if (q && q.c === c && q.t === GRAND_RULES.her) return true;
+      }
+      return false;
+    };
+    const hushedS = (S, x, y, c) => hushed(S.b, x, y, c) || !!(S.fr && c === S.turn && S.fr.includes(idx(x, y)));      // (a pawn that took a free step this turn stays "enlisted": still quieted after leaving the aura)
     function pseudo(S, x, y, attackOnly, nt) {
+      const r = pseudoRaw(S, x, y, attackOnly, nt);
+      if (!HERALD) return r;
+      const p = S.b[idx(x, y)];
+      if (!p || !PAWNLIKE(p.t) || !hushedS(S, x, y, p.c)) return r;
+      return attackOnly ? [] : r.filter(m => !S.b[idx(m.tx, m.ty)] && !m.ep);
+    }
+    function pseudoRaw(S, x, y, attackOnly, nt) {
       // Kings never give check beyond their normal 3x3 (so extended-reach kings can't check or box in other kings).
       const p = S.b[idx(x, y)], out = [], def = (attackOnly && p.t === 'k') ? v.pieces.k : D2(p.c, nt)[p.t];
       curB = S.b;
       if (p.fx && p.fx.frz) return out;                 // frozen (class ability): can't move or attack
       const mx = HAUNT ? hauntMax(S.b, x, y, p, def.max) : def.max;
-      const add = (tx, ty, extra) => { if (cyl) tx = ((tx % w) + w) % w; if (!out.some(o => o.tx === tx && o.ty === ty && (o.promo || null) === ((extra && extra.promo) || null))) out.push(Object.assign({ fx: x, fy: y, tx, ty }, extra)); };
+      const add = (tx, ty, extra) => { if (cyl) tx = ((tx % w) + w) % w; if (!out.some(o => o.tx === tx && o.ty === ty && (o.promo || null) === ((extra && extra.promo) || null) && (o.rev || null) === ((extra && extra.rev) || null))) out.push(Object.assign({ fx: x, fy: y, tx, ty }, extra)); };
+      if (p.t === '\u03c1') {                             // Berolina pawn (Austang Grand): moves 1 step diagonally forward (2 from its own 2nd rank), captures straight ahead; promotes on the last rank; no en passant
+        const d = p.c === 'w' ? 1 : -1, last = p.c === 'w' ? h - 1 : 0, start = p.c === 'w' ? 1 : h - 2;
+        const push = (tx, ty) => (ty === last ? v.promoteTo.forEach(t => add(tx, ty, { promo: t })) : add(tx, ty));
+        if (attackOnly) { if (inB(x, y + d)) add(x, y + d); return out; }
+        for (const dx of [-1, 1]) {
+          const tx = x + dx, ty = y + d;
+          if (!inB(tx, ty) || S.b[idx(tx, ty)]) continue;
+          push(tx, ty);
+          if (y === start && inB(x + 2 * dx, y + 2 * d) && !S.b[idx(x + 2 * dx, y + 2 * d)]) add(x + 2 * dx, y + 2 * d);
+        }
+        if (inB(x, y + d)) { const t = S.b[idx(x, y + d)]; if (t && foe(p, t, attackOnly) && !blocked2(S, p, t, x, y + d)) push(x, y + d); }
+        return out;
+      }
       if (p.t === 'p') {
         const d = p.c === 'w' ? 1 : -1, F = pf2(p.c, nt);
         const last = (v.promoRank ? v.promoRank[p.c] : (p.c === 'w' ? h - 1 : 0)) + (F.promoShift ? F.promoShift * d : 0);
@@ -1392,6 +1586,41 @@ const Engine = (() => {
           tx += dx; ty += dy; n++;
         }
       }
+      // Cannon / Grasshopper (Austang Grand): a hurdle is the first piece of either colour on the line
+      const ok = (t, tx, ty) => foe(p, t, attackOnly) && !blocked2(S, p, t, tx, ty);
+      if (!attackOnly) for (const [dx, dy] of def.slideNC || []) {      // moves only: slides over empty squares, never captures
+        let tx = x + dx, ty = y + dy;
+        while (inB(tx, ty) && !S.b[idx(tx, ty)]) { add(tx, ty); tx += dx; ty += dy; }
+      }
+      for (const [dx, dy] of def.hop || []) {                           // Cannon capture: jump exactly one piece, take the first piece behind it
+        let tx = x + dx, ty = y + dy;
+        while (inB(tx, ty) && !S.b[idx(tx, ty)]) { tx += dx; ty += dy; }
+        if (!inB(tx, ty)) continue;
+        tx += dx; ty += dy;
+        while (inB(tx, ty) && !S.b[idx(tx, ty)]) { tx += dx; ty += dy; }
+        if (inB(tx, ty) && ok(S.b[idx(tx, ty)], tx, ty)) add(tx, ty);
+      }
+      for (const [dx, dy] of def.grass || []) {                         // Grasshopper: lands right behind the first piece on the line (empty = move, enemy = capture)
+        let tx = x + dx, ty = y + dy;
+        while (inB(tx, ty) && !S.b[idx(tx, ty)]) { tx += dx; ty += dy; }
+        if (!inB(tx, ty)) continue;
+        tx += dx; ty += dy;
+        if (!inB(tx, ty)) continue;
+        const t = S.b[idx(tx, ty)];
+        if (!t) { if (!attackOnly) add(tx, ty); } else if (ok(t, tx, ty)) add(tx, ty);
+      }
+      if (!attackOnly && p.t === GRAND_RULES.her) {                    // Herald: also moves 2 squares straight forward (like a pawn's double step, but from any square; both squares must be empty, no capture)
+        const d = p.c === 'w' ? 1 : -1;
+        if (inB(x, y + d) && !S.b[idx(x, y + d)] && inB(x, y + 2 * d) && !S.b[idx(x, y + 2 * d)]) add(x, y + 2 * d);
+      }
+      if (!attackOnly && S.yard && (p.t === GRAND_RULES.sac || (p.t === GRAND_RULES.rev && !(p.rc > 0)))) {      // Sacrificer / Reviver: bring back one of your captured pieces
+        const kinds = [...new Set(S.yard[p.c])], okAt = (t, ty) => !(PAWNLIKE(t) && (ty === 0 || ty === h - 1));
+        if (p.t === GRAND_RULES.sac) kinds.forEach(t => { if (okAt(t, y)) add(x, y, { rev: t }); });          // turns itself into the piece (target = its own square)
+        else for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+          const tx = x + dx, ty = y + dy;
+          if ((dx || dy) && inB(tx, ty) && !S.b[idx(tx, ty)]) kinds.forEach(t => { if (okAt(t, ty)) add(tx, ty, { rev: t }); });
+        }
+      }
       if (p.t === 'k' && v.castling && !p.m && !attackOnly && v.back960 && !attacked(S, x, y, opp(p.c))) {
         // Chess960: king ends on c/g, rook on d/f; click target = your own rook
         for (const d of [1, -1]) {
@@ -1422,20 +1651,34 @@ const Engine = (() => {
       return out;
     }
 
+    let xHook = null;                               // class layer: stacked (Clipping) pieces. xHook(b, idx) -> null | { put: [[i, piece]] (revealed on vacated squares), extra: [[i, piece]] (overlapping attackers) }
+    function hits(S, i, p, x, y, by) {              // does piece p (standing on square i of S) attack (x, y)?
+      if (p.fx && (p.fx.dis || p.fx.frz || p.fx.phn || p.fx.dcy)) return false;      // disarmed/frozen pieces give no check
+      const px = i % w, py = (i - px) / w;
+      if (p.t === 'p') {
+        if (HERALD && hushedS(S, px, py, p.c)) return false;
+        const Fp = pf2(by), dir = by === 'w' ? 1 : -1;
+        if (p.champ) return Math.max(distX(px, x), Math.abs(py - y)) === 1;
+        if (Fp.nocap) return false;
+        if (py + dir === y && (distX(px, x) === 1 || (px === x && Fp.brawl))) return true;
+        if (py === y && distX(px, x) === 1 && Fp.sidecap) return true;
+        if (Fp.backcap && py - dir === y && distX(px, x) === 1) return true;
+        if (Fp.sling && px === x && py + 2 * dir === y) return true;
+        return false;
+      }
+      return pseudo(S, px, py, true).some(m => m.tx === x && m.ty === y);
+    }
     function attacked(S, x, y, by) {
+      let X = null;
+      if (xHook) { X = xHook(S.b, idx); if (X) { const nb = S.b.slice(); X.put.forEach(([i, p]) => { nb[i] = p; }); S = Object.assign({}, S, { b: nb }); } }
       for (let i = 0; i < w * h; i++) {
         const p = S.b[i];
-        if (!p || p.c !== by || (p.fx && (p.fx.dis || p.fx.frz || p.fx.phn || p.fx.dcy))) continue;      // disarmed/frozen pieces give no check
-        const px = i % w, py = (i - px) / w;
-        if (p.t === 'p') {
-          const Fp = pf2(by), dir = by === 'w' ? 1 : -1;
-          if (p.champ) { if (Math.max(distX(px, x), Math.abs(py - y)) === 1) return true; continue; }
-          if (Fp.nocap) continue;
-          if (py + dir === y && (distX(px, x) === 1 || (px === x && Fp.brawl))) return true;
-          if (py === y && distX(px, x) === 1 && Fp.sidecap) return true;
-          if (Fp.backcap && py - dir === y && distX(px, x) === 1) return true;
-          if (Fp.sling && px === x && py + 2 * dir === y) return true;
-        } else if (pseudo(S, px, py, true).some(m => m.tx === x && m.ty === y)) return true;
+        if (p && p.c === by && hits(S, i, p, x, y, by)) return true;
+      }
+      if (X) for (const [i, q] of X.extra) {          // pieces overlapping with another piece on the same square attack from there
+        if (q.c !== by) continue;
+        const nb = S.b.slice(); nb[i] = q;
+        if (hits(Object.assign({}, S, { b: nb }), i, q, x, y, by)) return true;
       }
       return false;
     }
@@ -1487,20 +1730,35 @@ const Engine = (() => {
         b[idx(m.kx2, m.fy)] = { t: 'k', c: p.c, m: true }; b[idx(m.rtx, m.fy)] = { t: 'r', c: p.c, m: true };
         return next(S, b, null, hands);
       }
+      if (m.free) {                                    // Herald free step: the turn does not pass
+        b[idx(m.fx, m.fy)] = null; b[idx(m.tx, m.ty)] = Object.assign({}, p, { m: true });
+        const from = idx(m.fx, m.fy), fr = (S.fr || []).filter(i => i !== from).concat(idx(m.tx, m.ty));      // the marching pawn stays enlisted on its new square
+        return { b, turn: c, ep: S.ep, hands, left: S.left, yard: S.yard, fr, fn: (S.fn || 0) + 1 };
+      }
+      if (m.rev) {                                     // Sacrificer (target = own square: it becomes the piece) / Reviver (piece appears on an empty adjacent square, Reviver recharges)
+        const yard = { w: S.yard.w.slice(), b: S.yard.b.slice() }, k = yard[c].indexOf(m.rev); if (k >= 0) yard[c].splice(k, 1);
+        const self = m.fx === m.tx && m.fy === m.ty;
+        b[idx(m.tx, m.ty)] = { t: m.rev, c, m: true };
+        if (!self) b[idx(m.fx, m.fy)] = Object.assign({}, p, { rc: GRAND_RULES.revCd });
+        return next(S, b, null, hands, { yard, skip: self ? -1 : idx(m.fx, m.fy) });
+      }
       const vx = m.ep ? idx(m.tx, m.fy) : idx(m.tx, m.ty), victim = b[vx];
+      let yard = S.yard;
+      if (victim && victim.t !== 'k' && !victim.wall) { yard = { w: S.yard.w.slice(), b: S.yard.b.slice() }; yard[victim.c].push(victim.pr ? (victim.pt || 'p') : victim.t); }
       if (v.drops && !v.bugBoard && victim) { copyHands(); const k = victim.pr ? 'p' : victim.t; hands[c][k] = (hands[c][k] || 0) + 1; }
       b[idx(m.fx, m.fy)] = null;
       if (m.ep) b[vx] = null;
-      b[idx(m.tx, m.ty)] = { t: m.promo || p.t, c: p.c, m: true, pr: !!m.promo || !!p.pr, champ: m.promo ? undefined : p.champ, fx: p.fx };
+      b[idx(m.tx, m.ty)] = { t: m.promo || p.t, c: p.c, m: true, pr: !!m.promo || !!p.pr, pt: m.promo ? p.t : p.pt, rc: p.rc, champ: m.promo ? undefined : p.champ, fx: p.fx };
       if (victim && victim.t === 'q' && TR[victim.c] === 'martyr' && p.t !== 'k') b[idx(m.tx, m.ty)] = null;
       if (m.castle) { b[idx(m.rx, m.fy)] = null; b[idx(m.rtx, m.fy)] = { t: 'r', c: p.c, m: true }; }
-      return next(S, b, m.dbl ? { x: m.tx, y: (m.fy + m.ty) / 2, c: p.c } : null, hands);
+      return next(S, b, m.dbl ? { x: m.tx, y: (m.fy + m.ty) / 2, c: p.c } : null, hands, { yard });
     }
 
     // Decides whose turn it is after a move. Marseillais: giving check, or having no
     // legal second move, ends the turn early.
-    function next(S, b, ep, hands) {
-      const c = S.turn, N = { b, turn: c, ep, hands, left: S.left - 1 };
+    function next(S, b, ep, hands, extra) {
+      const c = S.turn, N = { b, turn: c, ep, hands, left: S.left - 1, yard: (extra && extra.yard) || S.yard, fr: null, fn: 0 };
+      for (let i = 0; i < b.length; i++) { const q = b[i]; if (q && q.c === c && q.rc > 0 && !(extra && extra.skip === i)) b[i] = Object.assign({}, q, { rc: q.rc - 1 }); }      // Reviver recharge: counts the owner's own turns
       if (N.left > 0 && inCheck(N, opp(c))) N.left = 0;
       if (N.left > 0 && all(N).length === 0) N.left = 0;
       if (N.left <= 0) { N.turn = opp(c); N.left = v.movesPerTurn || 1; }
@@ -1535,16 +1793,26 @@ const Engine = (() => {
       return out.filter(m => !inCheck(apply(S, m), S.turn));
     }
 
+    function freeSteps(S, x, y) {                    // Herald: a pawn near a friendly Herald (or one already marching this turn) may take a free single step (moves only, no promotion); at most herN steps per turn in total, and a step may not give check
+      const p = S.b[idx(x, y)];
+      if (!HERALD || !p || !PAWNLIKE(p.t) || p.c !== S.turn || (S.fn || 0) >= GRAND_RULES.herN || !hushedS(S, x, y, p.c)) return [];
+      const d = p.c === 'w' ? 1 : -1, last = p.c === 'w' ? h - 1 : 0, out = [];
+      for (const dx of p.t === 'p' ? [0] : [-1, 1]) {
+        const tx = x + dx, ty = y + d;
+        if (inB(tx, ty) && ty !== last && !S.b[idx(tx, ty)]) out.push({ fx: x, fy: y, tx, ty, free: true });
+      }
+      return out.filter(m => { const N = apply(S, m); return !inCheck(N, S.turn) && !inCheck(N, opp(S.turn)); });
+    }
     const legal = (S, x, y) => {
       const ms = pseudo(S, x, y);       // (an extended-reach king in check may use its full reach: the 'must not end attacked' test below is enough)
-      return ms.filter(m => !inCheck(apply(S, m), S.turn));
+      return ms.filter(m => !inCheck(apply(S, m), S.turn)).concat(freeSteps(S, x, y));
     };
 
     function all(S) {
       const out = [];
       for (let i = 0; i < w * h; i++) {
         const p = S.b[i];
-        if (p && p.c === S.turn) { const x = i % w; out.push(...legal(S, x, (i - x) / w)); }
+        if (p && p.c === S.turn) { const x = i % w; out.push(...legal(S, x, (i - x) / w).filter(m => !m.free)); }      // (free Herald steps never count as "having a move")
       }
       if (v.drops) out.push(...drops(S));
       return out;
@@ -1561,6 +1829,8 @@ const Engine = (() => {
       w, h, cyl,
       get turn() { return S.turn; },
       get left() { return S.left; },
+      yard: c => (S.yard ? S.yard[c].slice() : []),                         // captured pieces that a Sacrificer / Reviver could bring back
+      freeLeft: () => (HERALD ? Math.max(0, GRAND_RULES.herN - (S.fn || 0)) : 0),
       at: (x, y) => S.b[idx(x, y)],
       moves: (x, y) => { const p = S.b[idx(x, y)]; return p && p.c === S.turn ? legal(S, x, y) : []; },
       reach: (x, y, asType) => { const p = S.b[idx(x, y)]; if (!p) return []; if (!asType || asType === p.t) return pseudo(S, x, y, false); const nb = S.b.slice(); nb[idx(x, y)] = Object.assign({}, p, { t: asType }); return pseudo(Object.assign({}, S, { b: nb }), x, y, false); },
@@ -1584,7 +1854,7 @@ const Engine = (() => {
       // For the bots: every legal move with what it captures and the most the opponent could take back afterwards.
       evalMoves() {
         const c = S.turn, o = opp(c), out = [], cands = [], cx = (w - 1) / 2, cy = (h - 1) / 2;
-        for (let i = 0; i < w * h; i++) { const q = S.b[i]; if (q && q.c === c) { const x = i % w; legal(S, x, (i - x) / w).forEach(m => cands.push(m)); } }
+        for (let i = 0; i < w * h; i++) { const q = S.b[i]; if (q && q.c === c) { const x = i % w; legal(S, x, (i - x) / w).filter(m => !m.free).forEach(m => cands.push(m)); } }
         if (v.drops) drops(S).forEach(m => cands.push(m));
         for (const m of cands) {
           const S2 = apply(S, m), src = m.drop ? null : S.b[idx(m.fx, m.fy)];
@@ -1640,7 +1910,7 @@ const Engine = (() => {
         }
         const src = inB(m.fx, m.fy) && S.b[idx(m.fx, m.fy)];
         if (!src || src.c !== S.turn) return false;
-        const ok = legal(S, m.fx, m.fy).find(l => l.tx === m.tx && l.ty === m.ty && (l.promo || null) === (m.promo || null));
+        const ok = legal(S, m.fx, m.fy).find(l => l.tx === m.tx && l.ty === m.ty && (l.promo || null) === (m.promo || null) && (l.rev || null) === (m.rev || null) && !!l.free === !!m.free);
         if (!ok) return false;
         const vic = ok.c960 ? null : (S.b[idx(ok.tx, ok.ty)] || (ok.ep ? S.b[idx(ok.tx, ok.fy)] : null));
         const mover = S.turn;
@@ -1649,14 +1919,14 @@ const Engine = (() => {
           if (!baseMs.some(l => l.tx === ok.tx && l.ty === ok.ty && (l.promo || null) === (ok.promo || null))) { rev.add(mover); events.push({ e: 'trait', c: mover, id: TR[mover] }); }
         }
         if (vic && vic.t === 'q' && TR[vic.c] === 'martyr' && src.t !== 'k') { rev.add(vic.c); events.push({ e: 'trait', c: vic.c, id: 'martyr' }); }
-        S = apply(S, ok); hist.push({ fx: m.fx, fy: m.fy, tx: m.tx, ty: m.ty, promo: m.promo || null, cap: vic ? vic.t : null, capPr: !!(vic && vic.pr) });
+        S = apply(S, ok); hist.push({ fx: m.fx, fy: m.fy, tx: m.tx, ty: m.ty, promo: m.promo || null, rev: ok.rev || null, free: !!ok.free, cap: vic ? vic.t : null, capPr: !!(vic && vic.pr) });
         trapCheck2();
         return true;
       },
       inCheck: () => inCheck(S, S.turn),
       status() {
         if (stCache.has(S)) return stCache.get(S);
-        if (!v.drops && deadPosition(S)) { stCache.set(S, 'draw'); return 'draw'; }
+        if (!v.drops && !(xHook && xHook(S.b, idx)) && deadPosition(S)) { stCache.set(S, 'draw'); return 'draw'; }      // (a stack hides pieces: no insufficient-material draw while one exists)
         const none = all(S).length === 0, c = inCheck(S, S.turn);
         const r = none ? (c ? 'checkmate' : 'stalemate') : (c ? 'check' : 'playing');
         stCache.set(S, r); return r;
@@ -1666,7 +1936,7 @@ const Engine = (() => {
       perft: d => perft(S, d),
       // Low-level hooks used by the class layer (withClasses). Not for normal play.
       raw: {
-        snap: () => S, restore: s0 => { S = s0; },
+        snap: () => S, restore: s0 => { S = s0; }, setStacks: f => { xHook = f; },
         put: (x, y, p) => { const nb = S.b.slice(); nb[idx(x, y)] = p; S = Object.assign({}, S, { b: nb }); },
         pass: () => { S = Object.assign({}, S, { turn: opp(S.turn), left: v.movesPerTurn || 1, ep: null }); },
         check: c => inCheck(S, c),
@@ -1753,11 +2023,12 @@ const Engine = (() => {
     },
     glitch: {
       name: 'Glitch', secret: true,
-      desc: 'SECRET CLASS (unbalanced on purpose): a video-game-bug class that breaks the normal rules. (Clipping is not built yet.)',
+      desc: 'SECRET CLASS (unbalanced on purpose): a video-game-bug class that breaks the normal rules.',
       passive: { desc: 'Duplication Bug: at the start of each of your turns there is a 12% chance that a random pawn of yours with an empty square in front is copied onto that square (max 3 per game).', glitchDup: true },
       abilities: [
         { id: 'wires', name: 'Crossed Wires', cost: 4, kind: 'wires', desc: 'Pick two of your pieces (not kings) of different types: for 2 turns they swap movement types. It ends early if either is captured or destroyed, or if a swapped pawn promotes.' },
         { id: 'restore', name: 'Restore Point', cost: 3, kind: 'restore', desc: 'Cast right after one of your pieces was captured: mark that square. At the start of your turn, if the square is empty, the captured piece is revived there.' },
+        { id: 'clip', name: 'Clipping', cost: 4, kind: 'clip', desc: 'Pick a square (empty, or holding one of your pieces, not a king). For 3 of your turns your pieces (not kings) may also move ONTO that square even if one of your pieces is already there: they overlap as a stack. Click a stack to choose which piece to move; one piece steps out, the others stay (and still attack from there). A stack is captured as a whole. While pieces overlap the square stays clipped; with no overlap it expires after 3 of your turns.' },
         { id: 'masks', name: 'Missing Textures', cost: 6, ult: true, kind: 'masks', desc: 'Ultimate: for 4 turns every piece of yours shows a fake icon to the other players. (Selecting it shows the moves of the icon, not the real piece.)' },
         { id: 'corrupt', name: 'Corrupted Save', cost: 8, ult: true, kind: 'corrupt', desc: 'Ultimate: every enemy piece (not kings) is shuffled onto its own side of the board (or within 1 square if it is on the far side). No king may end up in check; if no valid shuffle is found nothing happens and the points are refunded.' }
       ]
@@ -1807,8 +2078,8 @@ const Engine = (() => {
     let lastTurn = game.turn;
     const grave = {}, g = Object.create(game);
     ids.forEach(c => { grave[c] = []; });
-    const recent = {}, markers = [], maskTurns = {}, glitchLog = [], dupUsed = {}, ultSeen = {};
-    const DUP_CHANCE = 0.12, DUP_CAP = 3, MASK_TURNS = 4, CORRUPT_TRIES = 300, MARKER_TURNS = 3;      // MARKER_TURNS: how many of the Glitch player's turns a Restore Point lasts
+    const recent = {}, markers = [], clips = [], stacks = {}, maskTurns = {}, glitchLog = [], dupUsed = {}, ultSeen = {};
+    const DUP_CHANCE = 0.12, DUP_CAP = 3, MASK_TURNS = 4, CORRUPT_TRIES = 300, MARKER_TURNS = 3, CLIP_TURNS = 3;      // MARKER_TURNS: how many of the Glitch player's turns a Restore Point lasts
     let seedState = (+cfg.seed || 1) >>> 0;       // one seedable RNG for everything random (mulberry32), so replays/reconnects match exactly
     const rnd = () => { seedState = (seedState + 0x6D2B79F5) >>> 0; let t = seedState; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
     const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; };
@@ -1817,7 +2088,15 @@ const Engine = (() => {
     const mirageUsed = {}, mirageLog = [];
     let mines = [];                                // secret mines {x, y, c, ttl} (kept off the board; the UI shows them only to the owner's team)
     const stepsOf = (c, a) => { const st = KINDS[a.kind].steps; return typeof st === 'function' ? st(c, a) : st; };
-    const noteCapture = (t, x, y) => { if (t && !t.dead && t.t !== 'k' && grave[t.c]) { const ty = t.pr ? 'p' : ((t.fx && t.fx.xt) || t.t); grave[t.c].push({ t: ty }); if (cls[t.c] === 'glitch' && x != null) recent[t.c] = { x, y, t: ty }; } };
+    const tyOf = q => (q.pr ? 'p' : ((q.fx && q.fx.xt) || q.t));
+    const noteCapture = (t, x, y) => {
+      if (t && !t.dead && t.t !== 'k' && grave[t.c]) {
+        const ty = tyOf(t); grave[t.c].push({ t: ty });
+        const st = x != null ? stacks[x + ',' + y] : null, pass = st && st.c === t.c ? st.pass.filter(q => q && q.t !== 'k' && !q.dead) : [];      // a captured stack: the pieces overlapping with it were captured too
+        pass.forEach(q => { if (grave[q.c]) grave[q.c].push({ t: tyOf(q) }); });
+        if (cls[t.c] === 'glitch' && x != null) recent[t.c] = { x, y, t: ty, stk: pass.map(tyOf) };
+      }
+    };
     // NOTE: stored history entries lose flags like `castle` / `ep`, so these are detected from the board only (live play and replay must agree)
     const isCastle = m => { const p = m && !m.drop && game.at(m.fx, m.fy), t = p && game.at(m.tx, m.ty); return !!(p && p.t === 'k' && (Math.abs(m.tx - m.fx) >= 2 || (t && t.c === p.c))); };
     const isEp = m => { const p = m && !m.drop && game.at(m.fx, m.fy); if (!p || p.t !== 'p' || p.champ || m.tx === m.fx || game.at(m.tx, m.ty)) return false; const v = game.at(m.tx, m.fy); return !!(v && v.t === 'p' && v.c !== p.c); };
@@ -1963,7 +2242,12 @@ const Engine = (() => {
       restore: {
         steps: 0,
         first: (c, a) => (recent[c] && legalCast(c, a, 0, 0, 0, 0) ? [sq(0, 0)] : []),
-        run: (c, a, fx, fy, tx, ty, dry) => { if (!dry && recent[c]) { markers.push({ x: recent[c].x, y: recent[c].y, c, t: recent[c].t, ttl: MARKER_TURNS }); recent[c] = null; } }
+        run: (c, a, fx, fy, tx, ty, dry) => { if (!dry && recent[c]) { markers.push({ x: recent[c].x, y: recent[c].y, c, t: recent[c].t, stk: recent[c].stk || [], ttl: MARKER_TURNS }); recent[c] = null; } }
+      },
+      clip: {
+        steps: 1,
+        first: (c, a) => empties().map(q => sq(q.x, q.y)).concat(mine(c, p => !(p.fx && p.fx.xw)).map(q => sq(q.x, q.y))).filter(q => !clips.some(z => z.x === q.x && z.y === q.y)),
+        run: (c, a, fx, fy, tx, ty, dry) => { if (!dry) clips.push({ x: tx, y: ty, c, ttl: CLIP_TURNS }); }      // (a clip never changes the board, so it can't endanger a king)
       },
       masks: {
         steps: 0,
@@ -2129,6 +2413,72 @@ const Engine = (() => {
         }
       }
     };
+    // ---- Clipping: a clipped square lets its owner's pieces overlap. The piece on the board is the 'primary'; the others (passengers) wait in stacks[key].pass ----
+    const kk = (x, y) => x + ',' + y;
+    const stackOk = p => !!p && !p.wall && !p.dead && p.t !== 'k' && !(p.fx && p.fx.xw);
+    function swapIn(x, y, i) {                     // exchange the board piece with passenger i-1 (so that passenger is the one that moves)
+      const st = stacks[kk(x, y)], p = at(x, y);
+      if (!st || !p || p.c !== st.c || !st.pass[i - 1]) return false;
+      const q = st.pass[i - 1]; st.pass[i - 1] = p; raw.put(x, y, q); return true;
+    }
+    function doPick(x, y, i, c) {                  // choose a stack member for the next move (logged, so replays and reconnects match)
+      const p = at(x, y);
+      if (!(i > 0) || !p || p.c !== c || !swapIn(x, y, i)) return false;
+      log.push({ at: game.history().length, ab: 'pick', c, tx: x, ty: y, i });
+      return true;
+    }
+    function withMember(x, y, i, fn) {             // run fn() with passenger i on the board (swapped in), then swap back
+      if (!i) return fn();
+      if (!swapIn(x, y, i)) return [];
+      try { return fn(); } finally { swapIn(x, y, i); }
+    }
+    function joinMoves(x, y, i) {                  // moves of a member that end on one of the owner's clipped squares holding an own piece (overlap)
+      if (!clips.length) return [];
+      const p = i ? (stacks[kk(x, y)] || { pass: [] }).pass[i - 1] : at(x, y);
+      if (!stackOk(p) || game.turn !== p.c) return [];
+      const out = [];
+      clips.forEach(z => {
+        if (z.c !== p.c || (z.x === x && z.y === y)) return;
+        const t = at(z.x, z.y);
+        if (!stackOk(t) || t.c !== p.c) return;
+        if (p.t === 'p') { const r = raw.rank(p.c, z.x, z.y); if (r < 1 || r >= raw.promo(p.c)) return; }
+        const s0 = raw.snap();
+        try {
+          if (i) swapIn(x, y, i);
+          raw.remove(z.x, z.y);
+          game.moves(x, y).forEach(m => { if (m.tx === z.x && m.ty === z.y && !m.castle && !m.ep && !m.promo) out.push(Object.assign({}, m, { join: true })); });
+        } finally { if (i) swapIn(x, y, i); raw.restore(s0); }
+      });
+      return out;
+    }
+    // engine hook: stacked pieces attack too. A passenger attacks from the square it shares (as if it stood there); if the top piece left a square (a move being tried), the next passenger is revealed there
+    const stkHook = (b, idx) => {
+      const keys = Object.keys(stacks);
+      if (!keys.length) return null;
+      const put = [], extra = [];
+      keys.forEach(k => {
+        const st = stacks[k]; if (!st.pass.length) return;
+        const xy = k.split(',').map(Number), i = idx(xy[0], xy[1]), o = b[i];
+        if (!o) { put.push([i, st.pass[st.pass.length - 1]]); st.pass.slice(0, -1).forEach(q => extra.push([i, q])); }
+        else if (o.c === st.c && !o.wall && !o.dead && o.t !== 'k') st.pass.forEach(q => extra.push([i, q]));
+      });
+      return put.length || extra.length ? { put, extra } : null;
+    };
+    if (raw.setStacks) raw.setStacks(stkHook);
+    function syncStacks() {                        // keep stacks/clips consistent with the board (after moves, abilities, expiry)
+      Object.keys(stacks).forEach(k => {
+        const st = stacks[k], xy = k.split(',').map(Number), p = at(xy[0], xy[1]);
+        if (p && !p.wall && !p.dead && p.c === st.c && p.t !== 'k') { if (!st.pass.length) delete stacks[k]; return; }
+        if (!p && st.pass.length) raw.put(xy[0], xy[1], st.pass.pop());      // the primary left: the next piece is revealed on the square
+        else if (p) st.pass.length = 0;                                      // captured / destroyed / converted: the whole stack is gone
+        if (!st.pass.length) delete stacks[k];
+      });
+      for (let i = clips.length - 1; i >= 0; i--) {
+        const z = clips[i], p = at(z.x, z.y), st = stacks[kk(z.x, z.y)];
+        if (p && !p.wall && p.c !== z.c) { clips.splice(i, 1); continue; }   // somebody else holds the square now
+        if (st && st.pass.length) z.ttl = CLIP_TURNS;                        // overlapping pieces keep the clip alive (the timer restarts when they separate)
+      }
+    }
     const find = (c, id) => { const k = CLASSES[cls[c]]; return k ? k.abilities.find(a => a.id === id) || null : null; };
     const wireGroups = () => { const gr = {}; raw.scan().forEach(({ x, y, p }) => { if (p.fx && p.fx.xw) (gr[p.fx.xw] = gr[p.fx.xw] || []).push({ x, y, p }); }); return gr; };
     const unwire = (x, y, p, revert) => {          // end Crossed Wires on a piece (optionally giving back its real type; a pawn left on the promotion rank becomes a queen)
@@ -2154,6 +2504,11 @@ const Engine = (() => {
         if (m.c !== c) continue;
         if (at(m.x, m.y)) { if (--m.ttl <= 0) markers.splice(i, 1); continue; }      // an occupied square makes the marker wait, but it only lasts MARKER_TURNS of your turns
         raw.put(m.x, m.y, { t: m.t, c, m: true }); markers.splice(i, 1); changed = true;
+        if (m.stk && m.stk.length) {                                              // a whole stack comes back
+          stacks[kk(m.x, m.y)] = { c, pass: m.stk.map(t => ({ t, c, m: true })) };
+          const z = clips.find(q => q.x === m.x && q.y === m.y);
+          if (z) { z.c = c; z.ttl = CLIP_TURNS; } else clips.push({ x: m.x, y: m.y, c, ttl: CLIP_TURNS });
+        }
         glitchLog.push({ at: game.history().length, c, kind: 'revive', x: m.x, y: m.y, t: m.t });
       }
       dupUsed[c] = dupUsed[c] || 0;
@@ -2208,12 +2563,17 @@ const Engine = (() => {
         delete maskTurns[game.turn];
         raw.scan().forEach(({ x, y, p }) => { if (p.c === game.turn && p.fx && p.fx.msk) { const f = Object.assign({}, p.fx); delete f.msk; raw.put(x, y, Object.assign({}, p, { fx: Object.keys(f).length ? f : undefined })); } });
       }
+      clips.splice(0, clips.length, ...clips.filter(z => {      // Clipping: lasts while pieces overlap; otherwise it expires after CLIP_TURNS of the caster's turns
+        if (game.alive && !game.alive(z.c)) return false;
+        const st = stacks[kk(z.x, z.y)];
+        return (st && st.pass.length) || z.c !== game.turn || --z.ttl > 0;
+      }));
       mines = mines.filter(m => !(game.alive && !game.alive(m.c)) && !(m.c === game.turn && --m.ttl <= 0));
     }
     function turnChanged() {                       // a new turn starts: that player earns points
       if (game.turn === lastTurn) return;
       lastTurn = game.turn;
-      expire();
+      expire(); syncStacks();
       if (pts[lastTurn] != null) { pts[lastTurn] = Math.max(pts[lastTurn], Math.min(+cfg.cap, pts[lastTurn] + +cfg.gain)); casts[lastTurn] = 0; }
       if (cls[lastTurn] === 'glitch' && raw.ok(lastTurn) && glitchStart(lastTurn) && raw.foeCheck(lastTurn)) { raw.pass(); turnChanged(); }      // a revival/duplicate that gives check ends the turn
     }
@@ -2237,6 +2597,7 @@ const Engine = (() => {
         if (!(ovr && ovr.locked && ovr.c === c && ovr.n > 0)) return false;
         log.push({ at: game.history().length, ab: 'stop', c }); ovr = null; raw.pass(); afterAction(); turnChanged(); return true;
       }
+      if (m.ab === 'pick') return doPick(m.tx, m.ty, m.i, c);      // choosing a stack member (written by move() itself, replayed from the log)
       const a = find(c, m.ab);
       if (!a || why(c, a)) return false;
       const K = KINDS[a.kind], st = stepsOf(c, a);
@@ -2251,7 +2612,7 @@ const Engine = (() => {
       if (st >= 1) { e.tx = m.tx; e.ty = m.ty; }
       if (st === 2) { e.fx = m.fx; e.fy = m.fy; }
       log.push(e);
-      triggerMines(); checkWires();
+      triggerMines(); checkWires(); syncStacks();
       if (raw.foeCheck(c)) raw.pass();                // giving check ends your turn
       else if (a.replace) raw.spend();                // a replacing ability uses up one move (the whole turn unless you have 2 moves per turn)
       if (game.turn !== c) chg = null;
@@ -2261,15 +2622,28 @@ const Engine = (() => {
     }
     g.move = m => {
       if (m && m.ab) return cast(m);
+      let picked = false;
+      if (m && m.ck > 0 && !m.drop) { if (!doPick(m.fx, m.fy, m.ck, game.turn)) return false; picked = true; }      // m.ck = which member of a stack moves (0/absent = the top piece)
+      const ok = moveCore(m);
+      if (!ok && picked) { swapIn(m.fx, m.fy, m.ck); log.pop(); }
+      return ok;
+    };
+    const moveCore = m => {
       const mover = game.turn;
       if (chg && chg.c === mover && (m.drop || m.fx !== chg.x || m.fy !== chg.y)) return false;     // a Charge must be finished with the chosen piece
+      const jp = !m.drop && at(m.fx, m.fy), jt = jp && at(m.tx, m.ty);      // overlap move: onto an own piece standing on one of the player's clipped squares
+      const isJoin = !!(jp && jt && jt !== jp && stackOk(jp) && stackOk(jt) && jp.c === jt.c && clips.some(z => z.x === m.tx && z.y === m.ty && z.c === jp.c));
+      if (isJoin && !joinMoves(m.fx, m.fy, 0).some(q => q.tx === m.tx && q.ty === m.ty)) return false;
       const chain = ovr && ovr.locked && ovr.c === mover;
-      if (chain && (m.drop || m.fx !== ovr.x || m.fy !== ovr.y || !isCap(m))) return false;      // an Overrun chain only continues with captures by the chosen piece
+      if (chain && (m.drop || isJoin || m.fx !== ovr.x || m.fy !== ovr.y || !isCap(m))) return false;      // an Overrun chain only continues with captures by the chosen piece
       const resume = ovr && ovr.resume && ovr.responder === mover;
-      const vic = victimOf(m), vsq = isEp(m) ? [m.tx, m.fy] : [m.tx, m.ty], castled = isCastle(m), stage = chg && chg.c === mover ? chg.stage : 0;
-      if (!game.move(m)) return false;
+      const vic = isJoin ? null : victimOf(m), vsq = isEp(m) ? [m.tx, m.fy] : [m.tx, m.ty], castled = isCastle(m), stage = chg && chg.c === mover ? chg.stage : 0;
+      const lifted = isJoin ? jt : null;
+      const jk = kk(m.tx, m.ty), prevStack = stacks[jk];
+      if (lifted) { raw.remove(m.tx, m.ty); stacks[jk] = { c: lifted.c, pass: [lifted].concat(prevStack ? prevStack.pass : []) }; }      // (the engine moves onto what looks like an empty square; the piece that was there joins the stack)
+      if (!game.move(m)) { if (lifted) { raw.put(m.tx, m.ty, lifted); if (prevStack) stacks[jk] = prevStack; else delete stacks[jk]; } return false; }
       recent[mover] = null; noteCapture(vic, vsq[0], vsq[1]);
-      triggerMines(); checkWires(true);
+      triggerMines(); checkWires(true); syncStacks();
       if (chain) {
         ovr.n++;
         if (!raw.ok(mover) || game.turn === mover) ovr = null;
@@ -2300,12 +2674,20 @@ const Engine = (() => {
     g.moves = (x, y, ...r) => {
       if (chg && chg.c === game.turn && (x !== chg.x || y !== chg.y)) return [];
       if (ovr && ovr.locked && ovr.c === game.turn) return x === ovr.x && y === ovr.y ? game.moves(x, y, ...r).filter(isCap) : [];
-      return game.moves(x, y, ...r);
+      const ms = game.moves(x, y, ...r);
+      return clips.length ? ms.concat(joinMoves(x, y, 0)) : ms;
     };
+    g.memberMoves = (x, y, i) => {                 // moves of member i of a stack (0 = the piece on top)
+      if (!i) return g.moves(x, y);
+      if ((chg && chg.c === game.turn) || (ovr && ovr.locked && ovr.c === game.turn)) return [];
+      return withMember(x, y, i, () => game.moves(x, y)).concat(joinMoves(x, y, i));
+    };
+    g.stackAt = (x, y) => { const st = stacks[kk(x, y)], p = at(x, y); return st && st.pass.length && p && p.c === st.c ? [p].concat(st.pass) : null; };      // [top piece, ...passengers] or null
+    g.clips = () => clips.map(z => ({ x: z.x, y: z.y, c: z.c, ttl: z.ttl, n: (stacks[kk(z.x, z.y)] || { pass: [] }).pass.length }));
     if (game.drops) g.drops = (...r) => ((chg && chg.c === game.turn) || (ovr && ovr.locked && ovr.c === game.turn) ? [] : game.drops(...r));
     g.overrunOf = c => (ovr && ovr.locked && ovr.c === c ? { x: ovr.x, y: ovr.y, n: ovr.n } : null);
     g.mirages = () => mirageLog.slice();
-    g.markers = () => markers.map(m => ({ x: m.x, y: m.y, c: m.c, t: m.t, ttl: m.ttl }));      // Restore Point markers (visible to everyone)
+    g.markers = () => markers.map(m => ({ x: m.x, y: m.y, c: m.c, t: m.t, n: (m.stk || []).length, ttl: m.ttl }));      // Restore Point markers (visible to everyone)
     g.glitches = () => glitchLog.slice();
     g.mines = c => mines.filter(m => c == null || m.c === c || raw.ally(c, { c: m.c })).map(m => ({ x: m.x, y: m.y, c: m.c, ttl: m.ttl }));   // c = viewer (their team's mines); null = all
     g.chargeOf = c => (chg && chg.c === c ? { x: chg.x, y: chg.y, stage: chg.stage } : null);
@@ -2346,8 +2728,11 @@ const Engine = (() => {
   const BUGHOUSE = { bug: true, multi: true };
   const FOUR = { multi: true, seats: ['r', 'b', 'y', 'g'], dead: [], castling: true };
   const THREE = { multi: true, hex: true, seats: ['r', 'b', 'y'], dead: [] };
+  // Austang 4-player (armies are filled in by the match layer through `armies`): 'austang' = 20x20 cross free-for-all, wide = 20 x 14 (use with teams {r:0,y:0,b:1,g:1})
+  const AUSTANG4 = Object.assign({}, FOUR, { castling: false, austang: true, board: 'austang', promoteTo: AUSTANG_GRAND.promoteTo });
+  const AUSTANG4_WIDE = Object.assign({}, FOUR, { castling: false, austang: true, board: 'wide', width: 20, height: 14, promoteTo: AUSTANG_GRAND.promoteTo });
 
-  return { create, STANDARD, CRAZYHOUSE, MARSEILLAIS, INFINITE, ALICE, FOUR, THREE, BUGHOUSE, TRAITS, randomBack960, botChoose, CLASSES, CLASS_DEFAULTS, withClasses, classPass, ROOK, BISHOP, ALL, KNIGHT };
+  return { create, STANDARD, AUSTANG_GRAND, AUSTANG4, AUSTANG4_WIDE, GRAND_PIECES, CRAZYHOUSE, MARSEILLAIS, INFINITE, ALICE, FOUR, THREE, BUGHOUSE, TRAITS, randomBack960, botChoose, CLASSES, CLASS_DEFAULTS, withClasses, classPass, ROOK, BISHOP, ALL, KNIGHT };
 })();
 
 if (typeof module !== 'undefined') module.exports = Engine;

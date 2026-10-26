@@ -28,7 +28,7 @@
   h1 { font-size:1.3rem; margin:0 0 12px; }
   #lobby { width:100%; max-width:480px; }
   /* in a game: big board on the left (as large as the window height allows), panel on the right */
-  #game { width:100%; max-width:1320px; display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,390px); gap:18px; align-items:start; }
+  #game { width:100%; max-width:1560px; display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,390px); gap:18px; align-items:start; }
   #game.hidden { display:none; }
   #gameMain { width:100%; max-width:calc((100vh - 190px) / var(--asp, 1)); min-width:300px; margin:0 auto; }
   #gameSide { min-width:0; }
@@ -65,7 +65,10 @@
   .sq.hint.cap::after { width:90%; height:90%; background:none; border:4px solid var(--move); }
   .pc-r,.pc-b,.pc-y,.pc-g,.pc-dead { text-shadow:0 0 2px #000,0 0 2px #000,0 0 2px #000; }
   .pc-r { color:#ff5a5a; } .pc-b { color:#5aa0ff; } .pc-y { color:#ffd84d; } .pc-g { color:#5fd16a; }
+  body.teamsOn .pc-y { color:#ff9a3c; } body.teamsOn .pc-g { color:#3fd6cf; }      /* 2v2: Red + Orange against Blue + Teal */
   .pc-dead { color:#8a8a8a; opacity:.85; }
+  .pc-r, .pc-b, .pc-y, .pc-g, .pc-dead { --det: rgba(0,0,0,.55); }     /* bright seat colours: dark icon details, dark outline */
+  .pc-r.fairy svg, .pc-b.fairy svg, .pc-y.fairy svg, .pc-g.fairy svg, .pc-dead.fairy svg { filter:drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000); }
   .pc-n { color:#c79bff; text-shadow:0 0 3px #000,0 0 8px #a45cff,0 0 2px #000; }
   .sq.neu::before { content:''; position:absolute; inset:7%; border:2px dashed #b57bff; border-radius:50%; pointer-events:none; }
   .fairy { font-weight:bold; }
@@ -108,10 +111,38 @@
   .fx-jmp { filter:drop-shadow(0 0 3px #f5b800) drop-shadow(0 0 6px #ffd84d); }
   .fx-shd { filter:drop-shadow(0 0 3px #1fa84f) drop-shadow(0 0 6px #6fe39a); }
   .fx-sct { filter:drop-shadow(0 0 3px #a14fd6) drop-shadow(0 0 6px #d9a8f5); }
-  .fx-wall { color:#8b5a2b !important; text-shadow:none !important; }
+  .fx-wall { opacity:.92; }
+  .fx-wall svg { filter:drop-shadow(0 0 1.5px #4a2f12) drop-shadow(0 0 1px #4a2f12); }      /* a wall takes its builder's colour, with a brown edge so it still reads as a wall */
   .fx-msk { filter:drop-shadow(0 0 3px #ff4fa8) drop-shadow(0 0 6px #ffb3d9); }
   .sq.foe { box-shadow:inset 0 0 0 3px rgba(230,126,34,.9); }
   .sq.rmark { box-shadow:inset 0 0 0 3px rgba(0,190,230,.9); }
+  .sq.promoz { background-image:linear-gradient(rgba(255,205,40,.20),rgba(255,205,40,.20)); }      /* Imperial: your promotion zone */
+  .sq.clip { outline:3px dashed rgba(160,90,230,.95); outline-offset:-3px; }
+  .sq .stk { position:absolute; left:2px; top:1px; font-size:.34em; line-height:1; padding:.15em .3em; border-radius:3px; background:#6a2fb0e6; color:#fff; font-family:sans-serif; font-weight:bold; pointer-events:none; }
+  #austLimits { display:flex; flex-wrap:wrap; gap:6px 12px; margin-top:4px; }
+  #austLimits input { width:3.4em; }
+  .hand button svg, #stackPick button svg { width:1em; height:1em; display:inline-block; vertical-align:-.12em; }
+  .dgbtn { margin:2px 0; padding:1px 8px; font-size:.85em; }
+  .dgwrap { margin:4px 0 8px; } .dgstate { display:inline-block; vertical-align:top; margin:0 12px 8px 0; max-width:270px; width:100%; } .dgcap { font-size:.82em; opacity:.85; margin:0 0 3px; min-height:1.2em; }
+  .dg { container-type:inline-size; display:grid; grid-template-columns:repeat(var(--n),1fr); width:100%; border:2px solid #000; box-sizing:border-box; }
+  .dgc { aspect-ratio:1; position:relative; display:flex; align-items:center; justify-content:center; line-height:1; }
+  .dgc.l { background:var(--light); } .dgc.d { background:var(--dark); } .dgc.cut { background:#1b1a18; } .dgc.me { background:var(--sel); }
+  .dgp { font-size:calc(100cqw / var(--n) * .82); color:#fff; text-shadow:0 0 2px #000,0 0 2px #000,0 0 2px #000; } .dgp svg { width:1em; height:1em; display:block; filter:drop-shadow(0 0 1px #000); }
+  .dgx { opacity:.9; } .dgx.xb { color:#161616; text-shadow:0 0 2px #fff,0 0 2px #fff; } .dgx.xb svg { filter:drop-shadow(0 0 1px #fff); }
+  .mk { display:block; box-sizing:border-box; border-radius:50%; width:34%; height:34%; background:#1fae45; box-shadow:0 0 0 1px #07531e; }
+  .mk.c { width:80%; height:80%; background:transparent; border:3px solid #e03030; box-shadow:none; }
+  .mk.b { width:80%; height:80%; border:3px solid #e03030; background:radial-gradient(circle,#1fae45 0 21%,transparent 23%); box-shadow:none; }
+  .mk.s { width:74%; height:74%; background:linear-gradient(#e07a00,#e07a00) center/2px 100% no-repeat,linear-gradient(#e07a00,#e07a00) center/100% 2px no-repeat; border:2px solid #e07a00; box-shadow:none; }
+  .dgl { display:flex; flex-wrap:wrap; gap:3px 12px; font-size:.78em; margin-top:4px; opacity:.9; } .dgl span { display:inline-flex; align-items:center; gap:4px; } .dgl .mk { width:1em; height:1em; flex:none; }
+  .dgl .mk.m { width:.6em; height:.6em; margin:0 .2em; } .dgl .mk.b { background:radial-gradient(circle,#1fae45 0 21%,transparent 23%); }
+  #pieceDemo { display:flex; flex-wrap:wrap; gap:6px 14px; margin:8px 0; padding:8px; border-radius:8px; background:#2c2926; align-items:flex-start; }
+  #pieceDemo .pdtxt { flex:1 1 180px; min-width:150px; } #pieceDemo .pdtxt b { font-size:1.05em; }
+  #teamCols { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:6px 0; }
+  .tcol { border-radius:8px; padding:6px 8px; background:#2c2926; } .tcol.t0 { border-left:5px solid #ff7a4a; } .tcol.t1 { border-left:5px solid #4aa8ff; }
+  .thead { font-weight:bold; margin-bottom:4px; } .rrow { margin:3px 0; } .rdot { display:inline-block; width:.85em; height:.85em; border-radius:50%; margin-right:.4em; vertical-align:-1px; }
+  #stackPick { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-bottom:8px; }
+  #stackPick button { background:#3a3733; font-size:1.5rem; padding:2px 12px; }
+  #stackPick button.on { outline:2px solid #a05ae6; }
   .fx-phn { opacity:.55; filter:drop-shadow(0 0 4px #29b6c9) drop-shadow(0 0 8px #8fe3ee); }
   .fx-dcy { opacity:.6; filter:drop-shadow(0 0 3px #b07be0) drop-shadow(0 0 7px #dcc2f5); }
   .sq.mine { box-shadow:inset 0 0 0 3px rgba(192,57,43,.8); }
@@ -130,7 +161,9 @@
   #roster button { padding:2px 10px; font-size:.85rem; background:#8b3a3a; }
   #gsBox { max-width:480px; margin-top:12px; font-size:.9rem; }
   .hand.others { font-size:.85rem; opacity:.85; min-height:0; }
-  .hidden { display:none; }
+  :root { --det: rgba(255,255,255,.8); } .w-piece { --det: rgba(0,0,0,.5); }
+  .fairy:not(.w-piece) svg { filter:drop-shadow(0 0 1px rgba(255,255,255,.6)); }
+  .hidden, #zoomCtl.hidden, #cylCtl.hidden { display:none; }
 </style>
 </head>
 <body>
@@ -167,6 +200,7 @@
   <label id="gsFog"><input type="checkbox" id="fogChk"> Fog of war: you only see squares your pieces can reach</label>
     <label id="gsFoes"><input type="checkbox" id="foesChk" checked> Click an enemy piece to see where it can move</label>
   <label id="gsTeams"><input type="checkbox" id="teamsChk"> 2v2 teams: partners can't capture or check each other</label>
+  <div id="wideNote" class="hidden dim">This mode has only one board shape, so 2v2 teams play on it as it is (a wide board exists only for the standard-board modes and Imperial).</div>
   <div id="gsBoard"><span id="boardKindWrap">Team board: <select id="boardSel"><option value="cross">Cross board (partners sit opposite)</option><option value="wide">Wide board (teams face each other)</option></select></span>
     <span id="heightWrap">Height: <select id="heightSel"><option>8</option><option selected>10</option><option>12</option><option>16</option></select></span>
   </div>
@@ -203,12 +237,14 @@
  <div id="gameMain">
   <div id="status"></div>
   <div id="promo" class="hidden"></div>
+  <div id="stackPick" class="hidden"></div>
   <div id="handTop" class="hand"></div>
   <div id="capA" class="lbl hidden">Board A</div>
   <div id="boardWrap"><div id="zoomCtl" class="hidden"><button id="zIn" title="Zoom in">+</button><button id="zOut" title="Zoom out">−</button><button id="zFit" title="Show the whole board">Fit all</button><button id="zMid" title="Back to the starting area">Centre</button></div><div id="cylCtl" class="hidden"><button id="cylL" title="Spin the cylinder left">◀ Spin</button><button id="cylR" title="Spin the cylinder right">Spin ▶</button><button id="cylReset" title="Back to the normal view">Reset</button></div><div id="board"></div></div>
   <div id="cylNote" class="hidden">Cylinder chess: the a-file and the last file touch, so rooks, bishops, knights, kings and pawns can all wrap around the sides. The faded strips show the files just beyond each edge. Drag the board, or use Spin, to turn the cylinder.</div>
   <div id="board2Wrap" class="hidden"><div class="lbl">Board B</div><div id="board2"></div></div>
   <div id="handBot" class="hand"></div>
+  <div id="pieceDemo" class="hidden"></div>
  </div>
  <div id="gameSide">
   <div id="draftBox" class="hidden"></div>
@@ -219,16 +255,19 @@
     <button id="acceptDraw">Accept</button><button id="declineDraw">Decline</button>
   </div>
   <details id="moveBox" class="hidden" open><summary>Moves <span id="moveCount"></span></summary><div id="moveList"></div></details>
+  <details id="grandBox" class="hidden"><summary>Austang Grand pieces</summary><div id="grandBody">
+<ul><li>10×10 board. Each player builds on their own 5 ranks with points, exactly like Austang. Castling and the pawn's 2-step from its 2nd rank work as usual; pawns promote to Queen, Rook, Bishop, Knight, Cardinal, Marshal or Nightrider (never an Amazon).</li></ul>
+<div id="grandGuide"></div></div></details>
   <details id="rulesBox" class="hidden"><summary>Imperial Chess rules</summary><div id="rulesBody">
 <h4>Goal</h4><ul><li>Destroy the enemy army. The <b>Imperials</b> (Emperor Ⓔ, Empress Ⓧ, Heir Ⓗ) are special: with 2 or more alive there is <b>no check</b>. When exactly one is left it is the check target (normal check/checkmate).</li><li>You <b>lose immediately</b> if only Imperials remain (no other pieces). Stalemate is a draw. Losing the King or Queen is never a loss.</li></ul>
-<h4>Board</h4><ul><li>17×16. The corner squares of each army's 3 ranks are cut away: nothing lands there or slides through. Pawns promote on the first full-width rank in front of the enemy (and deeper) — promotion is compulsory.</li></ul>
+<h4>Board</h4><ul><li>17×16. The corner squares of each army's 3 ranks are cut away: nothing lands there or slides through. Pawns promote on the first full-width rank in front of the enemy (and deeper) — promotion is compulsory. <b>Select an original Rook, Bishop or Knight and the zone where it would be promoted is tinted gold.</b> One that reaches it is promoted automatically into its Grand version (Grand Rook / Bishop / Knight, which glow gold on the board and in the chat); pawns get a choice of pieces.</li></ul>
 <h4>Imperials</h4><ul><li>Immune to pawn-family captures (Pawn, Pikeman, Skirmisher). Emperor also immune to Rooks, Empress to Bishops, Heir to Knights (Grand pieces ignore this).</li><li><b>Emperor</b>: rook lines plus the squares beside the line. <b>Empress</b>: diagonals plus the 4 orthogonal neighbours of each line square. A piece on the line cuts off the side squares at and beyond it. Lose your Empress → the Emperor reaches only 3 squares and loses Rook immunity (and vice-versa). <b>Heir</b>: 16 knight + camel leaps; when both Emperor and Empress are gone he also gets (±2,±4),(±4,±2) and loses Knight immunity.</li><li><b>Castle</b>: Emperor hops a friendly Rook/Grand Rook, Empress a friendly Bishop/Grand Bishop, landing on an empty square beyond it (max 6 away, cooldown 3 of your turns, not while in check). <b>Swap</b>: the Heir may swap with a friendly Knight/Grand Knight in his reach.</li></ul>
-<h4>King &amp; Queen auras (5×5)</h4><ul><li>King: friendly pawn-family may repeat their 2-step; Rooks, Bishops, Knights and Grands can't be captured by pawn-family pieces.</li><li>Queen: ordinary Pawns also capture straight ahead; Archers, Guards, Chariots, Sappers, Catapults can't be captured by pawn-family pieces.</li></ul>
+<h4>King &amp; Queen auras</h4><ul><li>King (aura 7×7): friendly pawn-family walk one step further (2 on the 2-player and wide boards, 3 on the 4-player cross board); a pawn that leaves the aura by its own move keeps that bonus for its next turn only; Rooks, Bishops, Knights and Grands can't be captured by pawn-family pieces. The King can also move or capture onto any square beside a friendly piece within 2 squares of him (a bigger Guard hop).</li><li>Queen (aura 5×5): ordinary Pawns also capture straight ahead; Archers, Guards, Chariots, Sappers, Catapults can't be captured by pawn-family pieces.</li></ul>
 <h4>Royals</h4><ul><li><b>Prince</b> / <b>Princess</b> (promotion only, one each): Prince captures on the 5×5 (no corners) and also steps to corners and 3 straight; blockable. Princess moves 1, <b>shoots</b> the outer ring and 3 straight without moving; she can't be captured while the Prince is next to her.</li></ul>
-<h4>Pieces</h4><ul><li><b>Grand Rook ♖</b> rook + knight moves (move only). <b>Grand Bishop ♗</b> bishop + 1–2 straight. <b>Grand Knight ♘</b> the whole outer ring of the 5×5. Only original Rooks/Bishops/Knights become Grands (automatically on reaching the promotion rank).</li><li><b>Guard Ⓖ</b> king moves, plus steps 2 straight or onto squares around a nearby friend; Archers can't hit it or its neighbours. <b>Chariot Ⓒ</b> slides 2 straight with knight squares off each lane. <b>Archer Ⓐ</b> steps 1; shoots 16 squares around it without moving. <b>Sapper Ⓢ</b> leaps, never captures; after moving it may place a wall next to itself (once per 2 turns). <b>Catapult Ⓣ</b> walks 1–2 straight; fires on 7 squares ahead (hitting (0,4) also splashes (±1,4)), then reloads a turn.</li><li><b>Pawn ♟</b> 1 step (up to 3 on its first move), captures diagonally. <b>Pikeman ♙</b> also captures straight. <b>Skirmisher ⓜ</b> also steps sideways. Pikeman → <b>Lancer Ⓛ</b>, Skirmisher → <b>Raider Ⓓ</b> on promotion.</li></ul>
+<h4>Pieces</h4><ul><li><b>Grand Rook ♖</b> rook + knight moves (move only). <b>Grand Bishop ♗</b> bishop + 1–2 straight. <b>Grand Knight ♘</b> the whole outer ring of the 5×5. Only original Rooks/Bishops/Knights become Grands (automatically on reaching the promotion rank).</li><li><b>Guard Ⓖ</b> king moves, plus steps 2 straight or onto squares around a nearby friend; Archers can't hit it or its neighbours. <b>Chariot Ⓒ</b> slides 2 straight with knight squares off each lane. <b>Archer Ⓐ</b> steps 1; shoots 16 squares around it without moving. <b>Sapper Ⓢ</b> leaps, never captures; after moving it may place a wall next to itself (once per 2 turns). <b>Catapult Ⓣ</b> walks 1–2 straight; fires on 7 squares ahead (hitting (0,4) also splashes (±1,4)), then reloads a turn.</li><li><b>Jester Ⓙ</b> (replaces the middle Guard; pawns can promote to it) never captures by itself; hops to the opposite-colour squares of its 5×5 and borrows the moves of any non-Imperial piece in its 3×3 (never ranged ones, never another Jester). <b>Pawn ♟</b> 1 step (up to 3 on its first move; 2 in the King's aura), captures diagonally; on the 4-player cross board 2 steps (3 in the aura); the wide 2v2 board is like the 2-player board. The Pikeman still captures only the single square straight ahead. <b>Pikeman ♙</b> also captures straight. <b>Skirmisher ⓜ</b> also steps sideways. Pikeman → <b>Lancer Ⓛ</b>, Skirmisher → <b>Raider Ⓓ</b> on promotion.</li></ul>
 <h4>Piece guide</h4><div id="pieceGuide"></div>
 <h4>4-player free-for-all (29×29)</h4><ul><li>Cross-shaped board: a 21×21 centre with a 13×4 arm for each army (same 39-piece layout, rotated). Seats take turns in order; last seat standing wins.</li><li>Promotion happens on the far edge of the centre square (22 steps from your army). Tick <b>Teams</b> for 2v2 (partners sit opposite and never capture or check each other); choose the <b>Wide board</b> for the 30×16 version where each team's two armies sit side by side.</li><li>Check applies to a seat only when it has exactly one Imperial left, and any opponent can give it. A checkmated seat — or one left with only Imperials — is out; a stalemated seat just skips. Their pieces turn <b>gray</b>: they stop moving but can be captured, Imperials included, with no immunities.</li></ul>
-<h4>Walls &amp; special rules</h4><ul><li>Walls block movement and lines; capture one by moving onto it. Ranged shots pass over them. The number on a wall is how many full rounds it still stands (it vanishes at the start of the enemy's 4th turn in 2-player; lifetime scales with the number of seats).</li><li>En passant: after a 2–3 step pawn move, an enemy pawn-family piece may capture diagonally onto a square it passed, next turn only.</li><li>Ranged shots (⌖) capture without moving. Click a piece to see its squares.</li></ul></div></details>
+<h4>Walls &amp; special rules</h4><ul><li>Walls block movement and lines; they belong to the player whose Sapper raised them (shown in that colour): only enemies can capture one, by moving onto it. Ranged shots pass over them. The number on a wall is how many full rounds it still stands (it vanishes at the start of the enemy's 4th turn in 2-player; lifetime scales with the number of seats).</li><li>En passant: after a 2–3 step pawn move, an enemy pawn-family piece may capture diagonally onto a square it passed, next turn only.</li><li>Ranged shots (⌖) capture without moving. Click a piece to see its squares.</li></ul></div></details>
   <div id="history"></div>
   <details id="hostCtl" class="panel hidden" open>
     <summary>Host controls</summary>
@@ -245,6 +284,7 @@
     <button id="nextBtn" class="hidden">Continue to next round</button>
     <button id="resignBtn">Resign</button>
     <button id="drawBtn">Offer draw</button>
+    <button id="menuBtn" title="Leave this game and return to the start screen">Main menu</button>
   </div>
   <div id="chatLog"></div>
   <div>
@@ -262,17 +302,17 @@
   <label>Loser bonus <input id="sCatch" type="number" value="3" min="0"></label>
   <label>Piece cap <input id="sCap" type="number" value="24" min="1"></label>
   <label>Rounds <input id="sRounds" type="number" value="5" min="1"></label>
+  <div id="austLimitsBox"><b>Piece limits</b> <span class="dim">(per player, per round — leave a box empty for no limit)</span><br><div id="austLimits"></div></div>
 </div>
 
 <script src="engine.js"></script>
 <script src="imperial.js"></script>
+<script src="diagrams.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 /* ============ MODES ============ */
 // Add a mode = add a variant object here (see engine.js for the format).
 const MODES = {
-  imperial: { name: 'Imperial Chess (17×16, destroy the army)', imperial: true, opts: [], v: { imperial: true } },
-  imperial4: { name: 'Imperial Chess — 4-Player (29×29; free-for-all or 2v2)', imperial: true, multi: true, all: ['r', 'b', 'y', 'g'], opts: ['teams'], v: { imperial: true } },
   standard:   { name: 'Standard Chess', opts: ['fog', 'traits', 'classes', 'c960'], v: Engine.STANDARD },
   crazyhouse: { name: 'Crazyhouse',     opts: ['drop', 'fog', 'traits', 'classes', 'c960'], v: Engine.CRAZYHOUSE },
   marseillais: { name: 'Marseillais (2 moves per turn)', opts: ['fog', 'traits', 'classes', 'c960'], v: Engine.MARSEILLAIS },
@@ -281,6 +321,8 @@ const MODES = {
   kriegspiel: { opts: ['traits', 'c960'], name: 'Kriegspiel (hidden pieces)', v: Object.assign({}, Engine.STANDARD, { hidden: true }) },
   // The real game is built each round from both players' setups; v here only supplies flags.
   austang: { name: 'Austang (build your army)', match: true, opts: ['fog'], v: Object.assign({}, Engine.STANDARD, { castling: true }) },
+  austangGrand: { name: 'Austang Grand (10×10 fairy army)', match: true, grand: true, opts: ['fog'], v: Engine.AUSTANG_GRAND },
+  austang4: { name: 'Austang 4-Player (build your army, 20×20)', multi: true, match4: true, grand: true, all: ['r', 'b', 'y', 'g'], opts: ['teams'], v: Object.assign({}, Engine.AUSTANG4, { board: undefined }) },
   alice:    { name: 'Alice Chess (two boards)', v: Engine.ALICE },
   infinite: { name: 'Infinite Chess (32×32 board)', opts: ['fog'], v: Engine.INFINITE },
   // multi:true modes are hosted as a hub; `all` = every seat on that board, 2..n players may start.
@@ -293,15 +335,18 @@ const MODES = {
   bughouse:    { name: 'Bughouse (2v2, two boards, partner passes pieces)', multi: true, bug: true, all: ['r', 'b', 'y', 'g'], opts: [], v: Engine.BUGHOUSE },
   fouralice:   { name: '4-Player Alice Chess (two cross boards)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['teams'], v: Object.assign({}, Engine.FOUR, { alice: true, castling: false }) },
   fourinfinite: { name: '4-Player Infinite Chess (open 32×32 board)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['fog', 'teams', 'traits', 'c960'], v: Object.assign({}, Engine.FOUR, { board: 'infinite' }) },
-  threeplayer: { name: '3-Player Chess (hexagonal board)', multi: true, opts: ['fog'], all: ['r', 'b', 'y'], v: Engine.THREE }
+  threeplayer: { name: '3-Player Chess (hexagonal board)', multi: true, opts: ['fog'], all: ['r', 'b', 'y'], v: Engine.THREE },
+  imperial: { name: 'Imperial Chess (17×16, destroy the army)', imperial: true, opts: [], v: { imperial: true } },
+  imperial4: { name: 'Imperial Chess — 4-Player (29×29; free-for-all or 2v2)', imperial: true, multi: true, all: ['r', 'b', 'y', 'g'], opts: ['teams'], v: { imperial: true } },
 };
 const CN = { r: 'Red', b: 'Blue', y: 'Yellow', g: 'Green' };
+function teamLook(on) { document.body.classList.toggle('teamsOn', !!on); CN.y = on ? 'Orange' : 'Yellow'; CN.g = on ? 'Teal' : 'Green'; }      // in 2v2 partners share a colour family
 
 /* ============ STATE ============ */
 const PREFIX = 'chessfriends-';
 // c/i/w/o are the neutral-mode fairy pieces; they use the hollow glyphs so they never look like real pieces.
 const GLYPH = { p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', c:'♔', i:'♘', w:'♗', o:'♖', a:'A', l:'L' };
-const FAIRY = 'ciwoalEXHRBNghustyzjdvm#';
+const FAIRY = 'ciwoalEXHRBNghustyzjdvmf#\u03b1\u03c7\u03c9\u03bd\u03b3\u03b6\u03b4\u03b7\u03ba\u03b2\u03c0\u03b8\u03c6\u03c8\u03be\u03c4\u03c1\u03bc\u03b9\u03b5';
 const SVG = inner => '<svg viewBox="0 0 24 24" aria-hidden="true">' + inner + '</svg>';
 const FAIRY_SVG = {   // custom icons for the neutral / fairy pieces (they take the owner's colour)
   c: SVG('<path d="M12 2.5l8 3v6c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10v-6z" fill="currentColor"/><path d="M12 7v9M8 11h8" stroke="#000a" stroke-width="1.6" fill="none"/>'),
@@ -312,60 +357,109 @@ const FAIRY_SVG = {   // custom icons for the neutral / fairy pieces (they take 
   o: SVG('<path d="M2 4c0 5.5 3.2 8 5.5 8h9c2.3 0 5.5-2.5 5.5-8-2.2 2.2-4.2 2.4-5.3 1H7.3C6.2 6.4 4.2 6.2 2 4z" fill="currentColor"/><rect x="7" y="11" width="10" height="10" rx="4" fill="currentColor"/><circle cx="10.2" cy="17" r="1" fill="#000a"/><circle cx="13.8" cy="17" r="1" fill="#000a"/>')
 };
 const glyphHTML = t => FAIRY_SVG[t] || GLYPH[t];
-GLYPH['#'] = '▒';
+GLYPH['#'] = '▒'; GLYPH.f = 'Ⓙ';
+Object.assign(GLYPH, { '\u03b1': 'Ca', '\u03c7': 'Ma', '\u03c9': 'Am', '\u03bd': 'Nr', '\u03b3': 'Cm', '\u03b6': 'Zb', '\u03b4': 'DK', '\u03b7': 'DH', '\u03ba': 'Ce', '\u03b2': 'Bi', '\u03c0': 'Cn', '\u03b8': 'Gh', '\u03c6': 'Fe', '\u03c8': 'Wz', '\u03be': 'Al', '\u03c4': 'Db', '\u03c1': 'Bp', '\u03bc': 'Sa', '\u03b9': 'Rv', '\u03b5': 'He' });      // Austang Grand pieces (notation text; the board uses the icons below)
+{
+  const BASE = '<rect x="5" y="19.5" width="14" height="2.6" rx="1" fill="currentColor"/>', DK = 'style="stroke:var(--det)" stroke-width="1.5" fill="none"';
+  const HORSE = '<path d="M7 21c0-4.7 1.6-7.6 3.8-9.6L9.8 8 12.2 6.6 13 3l2.4 2.2C18.6 6.8 20 10 20 14v7z" fill="currentColor"/>';
+  Object.assign(FAIRY_SVG, {
+    '\u03b1': SVG('<path d="M12 1.8c3.4 2.7 5.8 5.7 5.8 9.2 0 2.7-1.6 4.4-3 5.2H9.2c-1.4-.8-3-2.5-3-5.2 0-3.5 2.4-6.5 5.8-9.2z" fill="currentColor"/><path d="M9.5 8.5l5 4.5" ' + DK + '/><path d="M3 9.5l3.2 2-3.2 2zM21 9.5l-3.2 2 3.2 2z" fill="currentColor"/>' + BASE),
+    '\u03c7': SVG('<path d="M5.5 3h3v2.3h2.2V3h2.6v2.3h2.2V3h3v6l-2.4 2.2v6.6h2.9v3.4H5.5v-3.4h2.9v-6.6L5.5 9z" fill="currentColor"/><path d="M10.2 12.5v4h3.6" ' + DK + '/>'),
+    '\u03c9': SVG('<path d="M4 19.5L2.8 7.5l5 4.2L12 3.5l4.2 8.2 5-4.2L20 19.5z" fill="currentColor"/><rect x="4" y="19" width="16" height="2.8" rx="1" fill="currentColor"/><circle cx="2.8" cy="6.5" r="1.4" fill="currentColor"/><circle cx="12" cy="2.7" r="1.5" fill="currentColor"/><circle cx="21.2" cy="6.5" r="1.4" fill="currentColor"/><path d="M10.3 10.5v5h3.4" ' + DK + '/>'),
+    '\u03bd': SVG(HORSE + '<circle cx="15" cy="9.5" r="1.1" style="fill:var(--det)"/><path d="M1.8 11h3.2M1.8 15h3.2M1.8 19h3.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'),
+    '\u03b3': SVG('<path d="M4.8 21v-5.8c-1.6-.4-2.5-1.6-2.5-3.2V8.2l2.6-.8.6 2c.9 0 1.6.4 2.1 1.1C8.5 8.7 9.7 7.2 11.4 7.200c1.8 0 2.7 1.500 3.100 3 .8-1.300 2.100-2.100 3.400-1.800 1.600.4 2.400 1.900 2.400 3.600V21h-2.400v-5.200h-4.200V21H10.800v-5.200H7.200V21z" fill="currentColor"/><circle cx="4.4" cy="10.8" r=".9" style="fill:var(--det)"/>'),
+    '\u03b6': SVG(HORSE + '<circle cx="15" cy="9.5" r="1.1" style="fill:var(--det)"/><path d="M10.2 12.5l4.6 1.2M9.4 16l7.600.8M9.2 19.5l8 .2" ' + DK + '/>'),
+    '\u03b4': SVG('<path d="M3 19.5V8l4 3 2-6 3 4 3-4 2 6 4-3v11.5z" fill="currentColor"/><rect x="3" y="19" width="18" height="2.8" rx="1" fill="currentColor"/><path d="M12 11.5l2 2.3-2 2.3-2-2.3z" style="fill:var(--det)"/>'),
+    '\u03b7': SVG(HORSE + '<circle cx="15" cy="9.5" r="1.1" style="fill:var(--det)"/><path d="M2 8.5c3 .2 5.500 1.500 7 4-3 .2-5.500-.8-7-4zM2.500 13c2.500-.1 4.500.9 6 3-2.600.2-4.600-.6-6-3z" fill="currentColor"/>'),
+    '\u03ba': SVG(HORSE + '<circle cx="15" cy="9.5" r="1.1" style="fill:var(--det)"/><circle cx="6" cy="6.500" r="2.300" fill="currentColor"/><path d="M3 15c0-3 1.300-4.800 3-4.800s3 1.800 3 4.800z" fill="currentColor"/>'),
+    '\u03b2': SVG('<path d="M2.500 9.500C2.500 6 5 4 7 5l1.200 2.200c1.200-1 2.800-1.500 4.800-1.500 3.600 0 6.500 1.700 7.500 4.800.600 1.800.5 4.400-.3 6.800V21h-3v-3H9.500v3h-3v-4.500C4 15.500 2.500 13 2.500 9.500z" fill="currentColor"/><path d="M4 7.500C2.500 6 2.500 3.500 3.500 2.500M9 6.500C8.500 4.500 9.500 3 11 2.500" stroke="currentColor" stroke-width="1.800" fill="none" stroke-linecap="round"/><circle cx="5.500" cy="10" r="1" style="fill:var(--det)"/>'),
+    '\u03c0': SVG('<path d="M2.500 9.200l9-3.700 1.800 4.300-9 3.700z" fill="currentColor"/><circle cx="16" cy="15.500" r="5" fill="currentColor"/><circle cx="16" cy="15.500" r="1.800" style="fill:var(--det)"/><rect x="2.500" y="19.500" width="9" height="2.500" rx="1" fill="currentColor"/><path d="M19 3l.7 1.800 1.800.7-1.800.7L19 8l-.7-1.800-1.800-.7 1.800-.7z" fill="currentColor"/>'),
+    '\u03b8': SVG('<ellipse cx="14" cy="11.500" rx="6.500" ry="3.800" fill="currentColor"/><circle cx="6" cy="9" r="2.600" fill="currentColor"/><circle cx="5.200" cy="8.500" r=".8" style="fill:var(--det)"/><path d="M5 6.500L3 3M7 6.500L9 3M11 14.500L7 21.500M14 15l1 6.500M17.500 14.500l4.500 7M12 8.500L10 3.500" ' + DK.replace('stroke:var(--det)','stroke:currentColor') + ' stroke-linecap="round"/>'),
+    '\u03c6': SVG('<path d="M12 3l6.500 6.500L12 16 5.500 9.500z" fill="currentColor"/><rect x="5" y="18" width="14" height="3" rx="1.200" fill="currentColor"/><path d="M12 6.500v6M9 9.500h6" ' + DK + '/>'),
+    '\u03c8': SVG('<rect x="9" y="2.500" width="6" height="6" rx="1" fill="currentColor"/><rect x="2.500" y="9" width="19" height="6" rx="1" fill="currentColor"/><rect x="9" y="15.500" width="6" height="6" rx="1" fill="currentColor"/>'),
+    '\u03be': SVG('<path d="M12 2.500c2 2.500 3.500 5.500 3.500 9 0 1.500-.5 2.800-1.200 3.800H9.700c-.7-1-1.200-2.300-1.200-3.800 0-3.500 1.500-6.500 3.500-9z" fill="currentColor"/><path d="M5 20.500l3-4.500h8l3 4.500z" fill="currentColor"/><path d="M12 6.500l3 3-3 3-3-3z" style="fill:var(--det)"/>'),
+    '\u03c4': SVG('<path d="M3 21V10c0-3 2-5 4.500-5h9C19 5 21 7 21 10v11h-4v-5H7v5z" fill="currentColor"/><path d="M8 10h8" ' + DK + '/><circle cx="12" cy="13" r="1.200" style="fill:var(--det)"/>'),
+    '\u03c1': SVG('<circle cx="12" cy="7" r="3.800" fill="currentColor"/><path d="M12 11c-3 0-4.500 2.500-4.500 5H5v4.500h14V16h-2.500c0-2.500-1.500-5-4.500-5z" fill="currentColor"/><path d="M17.500 3.500l2.500 2.500M20 3.500V6h-2.500" ' + DK + '/>'),
+    '\u03bc': SVG('<path d="M12 2.500c3 3.500 6 6 6 10a6 6 0 0 1-12 0c0-4 3-6.500 6-10z" fill="currentColor"/><rect x="5" y="19" width="14" height="3" rx="1.200" fill="currentColor"/><path d="M12 8.500v7M8.500 12h7" ' + DK + ' transform="rotate(45 12 12)"/>'),
+    '\u03b9': SVG('<path d="M12 2.500l3 5.500h-6z" fill="currentColor"/><path d="M12 9c-3 0-5 2.200-5 5 0 2 1 3.500 2.500 4.500H14.500C16 17.500 17 16 17 14c0-2.800-2-5-5-5z" fill="currentColor"/><rect x="5" y="19" width="14" height="3" rx="1.200" fill="currentColor"/><path d="M9.500 14a2.500 2.500 0 1 1 1 2" ' + DK + '/><path d="M8.500 15.500l1.400-1.700 1.700 1.400" ' + DK + '/>'),
+    '\u03b5': SVG('<path d="M5 20V9.500l7-6.500 7 6.500V20z" fill="currentColor"/><path d="M12 8v7M9 11h6" ' + DK + '/><path d="M3 20h18v2.200H3z" fill="currentColor"/>')
+  });
+}
 Object.assign(GLYPH, { v:'♙', m:'ⓜ', R:'♖', B:'♗', N:'♘', j:'Ⓛ', d:'Ⓓ', E:'Ⓔ', X:'Ⓧ', H:'Ⓗ', g:'Ⓖ', h:'Ⓒ', u:'Ⓐ', s:'Ⓢ', t:'Ⓣ', });
 
 const PAWN = '<circle cx="12" cy="7" r="3.6" fill="currentColor"/><path d="M8.5 20c.3-4.5 1.6-6 3.5-7.5 1.9 1.5 3.2 3 3.5 7.5z" fill="currentColor"/><rect x="6.5" y="19.5" width="11" height="2.5" rx="1" fill="currentColor"/>';
 const CROWN = '<rect x="4.5" y="18" width="15" height="3" rx="1" fill="currentColor"/>';
 const STK = 'stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"';
 Object.assign(FAIRY_SVG, {   // Imperial Chess icons
-  E: SVG('<path d="M5 18l-1.5-9 4.7 3.6L12 6l3.8 6.6L20.5 9 19 18z" fill="currentColor"/>' + CROWN + '<path d="M12 1.5v4M10 3.2h4" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="13.5" r="1.5" fill="#000a"/>'),
-  X: SVG('<path d="M5 18l1.2-8.5 3.3 3L12 6l2.5 6.5 3.3-3L19 18z" fill="currentColor"/>' + CROWN + '<circle cx="6" cy="8.5" r="1.5" fill="currentColor"/><circle cx="12" cy="4.6" r="1.6" fill="currentColor"/><circle cx="18" cy="8.5" r="1.5" fill="currentColor"/><path d="M9 15.5h6" stroke="#000a" stroke-width="1.4"/>'),
-  H: SVG('<path d="M6 18l-1-7 4 2.8L12 8l3 5.8 4-2.8-1 7z" fill="currentColor"/>' + CROWN + '<path d="M12 2l1.6 3H10.4z" fill="currentColor"/><circle cx="12" cy="14" r="1.2" fill="#000a"/><path d="M9.5 16.2h5" stroke="#000a" stroke-width="1.2"/>'),
-  R: SVG('<path d="M5 21h14v-2.5H5zM7 18.5V10h10v8.5zM5.5 10V4.5H8V7h2V4.5h4V7h2V4.5h2.5V10z" fill="currentColor"/><path d="M12 12l.9 1.9 2.1.3-1.5 1.5.4 2.1-1.9-1-1.9 1 .4-2.1L9 14.2l2.1-.3z" fill="#000a"/>'),
-  B: SVG('<path d="M12 2c3.2 2.6 5.2 5.2 5.2 8.2 0 2-1.4 3.6-2.6 4.6V17H9.4v-2.2C8.2 13.8 6.8 12.2 6.8 10.2 6.8 7.2 8.8 4.6 12 2z" fill="currentColor"/><rect x="5.5" y="18.5" width="13" height="2.8" rx="1" fill="currentColor"/><path d="M12 5.5v5M9.5 8h5" stroke="#000a" stroke-width="1.5"/><path d="M4 13h3M17 13h3M12 17.2v1" stroke="currentColor" stroke-width="1.6"/>'),
-  N: SVG('<path d="M6.5 21.5v-2.5c0-4 2.2-6.2 4.2-8.2L8.2 11.6 6 9l5.2-6.6 3 1.100c3.1 1.2 5.3 4.2 5.3 8.200v9.800z" fill="currentColor"/><circle cx="12.2" cy="7.5" r="1.1" fill="#000a"/><path d="M9.5 14l2.5 1" stroke="#000a" stroke-width="1.4"/><path d="M3.5 6l1 2 2 .6-1.5 1.5" stroke="currentColor" stroke-width="1.4" fill="none"/>'),
-  g: SVG('<path d="M5 20.500V11a7 7 0 0 1 14 0v9.500z" fill="currentColor"/><path d="M7 10.500h10v2.600H7z" fill="#000a"/><path d="M12 2.500v5M12 13v7" stroke="#000a" stroke-width="1.5"/>'),
-  h: SVG('<circle cx="12" cy="12" r="9.5" fill="currentColor"/><circle cx="12" cy="12" r="6.6" fill="#000a"/><path d="M12 5.500v13M5.5 12h13M7.4 7.400l9.2 9.200M16.6 7.400l-9.2 9.2" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/>'),
+  E: SVG('<path d="M5 18l-1.5-9 4.7 3.6L12 6l3.8 6.6L20.5 9 19 18z" fill="currentColor"/>' + CROWN + '<path d="M12 1.5v4M10 3.2h4" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="13.5" r="1.5" style="fill:var(--det)"/>'),
+  X: SVG('<path d="M5 18l1.2-8.5 3.3 3L12 6l2.5 6.5 3.3-3L19 18z" fill="currentColor"/>' + CROWN + '<circle cx="6" cy="8.5" r="1.5" fill="currentColor"/><circle cx="12" cy="4.6" r="1.6" fill="currentColor"/><circle cx="18" cy="8.5" r="1.5" fill="currentColor"/><path d="M9 15.5h6" style="stroke:var(--det)" stroke-width="1.4"/>'),
+  H: SVG('<path d="M6 18l-1-7 4 2.8L12 8l3 5.8 4-2.8-1 7z" fill="currentColor"/>' + CROWN + '<path d="M12 2l1.6 3H10.4z" fill="currentColor"/><circle cx="12" cy="14" r="1.2" style="fill:var(--det)"/><path d="M9.5 16.2h5" style="stroke:var(--det)" stroke-width="1.2"/>'),
+  R: SVG('<path d="M5 21h14v-2.5H5zM7 18.5V10h10v8.5zM5.5 10V4.5H8V7h2V4.5h4V7h2V4.5h2.5V10z" fill="currentColor"/><path d="M12 12l.9 1.9 2.1.3-1.5 1.5.4 2.1-1.9-1-1.9 1 .4-2.1L9 14.2l2.1-.3z" style="fill:var(--det)"/>'),
+  B: SVG('<path d="M12 2c3.2 2.6 5.2 5.2 5.2 8.2 0 2-1.4 3.6-2.6 4.6V17H9.4v-2.2C8.2 13.8 6.8 12.2 6.8 10.2 6.8 7.2 8.8 4.6 12 2z" fill="currentColor"/><rect x="5.5" y="18.5" width="13" height="2.8" rx="1" fill="currentColor"/><path d="M12 5.5v5M9.5 8h5" style="stroke:var(--det)" stroke-width="1.5"/><path d="M4 13h3M17 13h3M12 17.2v1" stroke="currentColor" stroke-width="1.6"/>'),
+  N: SVG('<path d="M6.5 21.5v-2.5c0-4 2.2-6.2 4.2-8.2L8.2 11.6 6 9l5.2-6.6 3 1.100c3.1 1.2 5.3 4.2 5.3 8.200v9.800z" fill="currentColor"/><circle cx="12.2" cy="7.5" r="1.1" style="fill:var(--det)"/><path d="M9.5 14l2.5 1" style="stroke:var(--det)" stroke-width="1.4"/><path d="M3.5 6l1 2 2 .6-1.5 1.5" stroke="currentColor" stroke-width="1.4" fill="none"/>'),
+  g: SVG('<path d="M5 20.500V11a7 7 0 0 1 14 0v9.500z" fill="currentColor"/><path d="M7 10.500h10v2.600H7z" style="fill:var(--det)"/><path d="M12 2.500v5M12 13v7" style="stroke:var(--det)" stroke-width="1.5"/>'),
+  h: SVG('<circle cx="12" cy="12" r="9.5" fill="currentColor"/><circle cx="12" cy="12" r="6.6" style="fill:var(--det)"/><path d="M12 5.500v13M5.5 12h13M7.4 7.400l9.2 9.200M16.6 7.400l-9.2 9.2" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/>'),
   u: SVG('<path d="M6 2.500c9 3 9 16 0 19" ' + STK + ' stroke-width="2.2"/><path d="M6 2.500v19" stroke="currentColor" stroke-width="1"/><path d="M3 12h17" ' + STK + '/><path d="M21.5 12l-4.5-3.200v6.400z" fill="currentColor"/>'),
-  s: SVG('<path d="M4.5 21L15 8.5" ' + STK + ' stroke-width="2.6"/><path d="M5.5 9C9.5 3 17 3 21 8.500l-3.3-.6-2.2-3z" fill="currentColor"/><path d="M13 11l4.5 5" stroke="currentColor" stroke-width="2.4"/>'),
+  s: SVG('<path d="M12 22V7" ' + STK + ' stroke-width="2.8"/><path d="M3 11.5C4.500 6 8 4 12 4s7.500 2 9 7.500c-3-2-5.500-2.500-9-2.500s-6 .5-9 2.500z" fill="currentColor"/><path d="M8.500 17h7" stroke="currentColor" stroke-width="2"/>'),
   t: SVG('<path d="M2.5 20.500h19" ' + STK + '/><circle cx="7" cy="18" r="3" fill="currentColor"/><circle cx="17" cy="18" r="3" fill="currentColor"/><path d="M6.5 16L17 5" ' + STK + ' stroke-width="2.6"/><path d="M13.5 3.500c1.5-1.3 5-.8 5.5 1.500l-2 2.500z" fill="currentColor"/>'),
-  y: SVG('<path d="M12 1.800l6.2 6.700L12 22.2 5.8 8.500z" fill="currentColor"/><path d="M5.8 8.500h12.400M12 1.800l-2.6 6.700L12 22.200l2.6-13.700z" stroke="#000a" stroke-width="1.1" fill="none"/>'),
-  z: SVG('<path d="M12 1.800l2.9 6.3 6.9.7-5.2 4.6 1.5 6.800L12 16.800l-6.1 3.4 1.5-6.800L2.2 8.800l6.9-.7z" fill="currentColor"/><circle cx="12" cy="11.2" r="1.8" fill="#000a"/>'),
+  y: SVG('<path d="M12 1.800l6.2 6.700L12 22.2 5.8 8.500z" fill="currentColor"/><path d="M5.8 8.500h12.400M12 1.800l-2.6 6.700L12 22.200l2.6-13.700z" style="stroke:var(--det)" stroke-width="1.1" fill="none"/>'),
+  z: SVG('<path d="M12 1.800l2.9 6.3 6.9.7-5.2 4.6 1.5 6.800L12 16.800l-6.1 3.4 1.5-6.800L2.2 8.800l6.9-.7z" fill="currentColor"/><circle cx="12" cy="11.2" r="1.8" style="fill:var(--det)"/>'),
   j: SVG('<path d="M12 1.500l-3.6 7.500h7.200z" fill="currentColor"/><path d="M12 8v14" ' + STK + ' stroke-width="2.2"/><path d="M7.5 11.500h9" ' + STK + '/><path d="M12 12l6 2.5-6 2.500z" fill="currentColor" opacity=".85"/>'),
+  f: SVG('<path d="M3 17c.8-5 1.600-9 4.200-12 1 2.400 2.600 3.800 4.800 4.600 2.200-.8 3.800-2.200 4.800-4.600 2.600 3 3.400 7 4.200 12z" fill="currentColor"/><circle cx="3.500" cy="4.500" r="1.800" fill="currentColor"/><circle cx="12" cy="8.200" r="1.500" fill="currentColor"/><circle cx="20.500" cy="4.500" r="1.800" fill="currentColor"/><rect x="5" y="17.500" width="14" height="3.800" rx="1.500" fill="currentColor"/><path d="M12 10.500l2.300 3.200-2.300 3.200-2.300-3.200z" style="fill:var(--det)"/>'),
   d: SVG('<path d="M6 21.500L15 6" ' + STK + ' stroke-width="2.6"/><path d="M13 3.500c4.5-1.3 8.5 1 8.5 5-3.2.4-5.8-.8-7.2-3.200z" fill="currentColor"/><path d="M3 10h4M2 13h5" stroke="currentColor" stroke-width="1.6"/>'),
   v: SVG(PAWN + '<path d="M19 2.500v19" stroke="currentColor" stroke-width="1.7"/><path d="M19 1.200l-2 3.600h4z" fill="currentColor"/>'),
   m: SVG(PAWN + '<path d="M2.2 13.500h3.300M18.5 13.500h3.3" stroke="currentColor" stroke-width="1.8"/><path d="M1.5 13.500l2-1.800v3.600zM22.5 13.500l-2-1.800v3.600z" fill="currentColor"/>'),
-  '#': SVG('<rect x="2.5" y="4.5" width="19" height="15" fill="currentColor" opacity=".75"/><path d="M2.5 9.500h19M2.5 14.500h19M8.5 4.500v5M15.5 9.500v5M8.5 14.500v5" stroke="#000a" stroke-width="1.3"/>')
+  '#': SVG('<rect x="2.5" y="4.5" width="19" height="15" fill="currentColor" opacity=".75"/><path d="M2.5 9.500h19M2.5 14.500h19M8.5 4.500v5M15.5 9.500v5M8.5 14.500v5" style="stroke:var(--det)" stroke-width="1.3"/>')
 });
 const SVGF = inner => SVG(inner).replace('<svg ', '<svg style="filter:drop-shadow(0 0 1px #000)" ');
-const IMP_KQ = {   // Imperial Chess only: bolder King / Queen so they differ from the hollow Prince / Princess
-  k: SVGF('<path d="M12 8c-4.2 0-7 2.8-7 6.6 0 2.8 1.4 4.6 2.4 5.400h9.200c1-.8 2.4-2.6 2.4-5.400C19 10.8 16.2 8 12 8z" fill="currentColor"/><rect x="5" y="19.5" width="14" height="2.8" rx="1" fill="currentColor"/><path d="M12 1.200v7M8.8 4.200h6.4" stroke="currentColor" stroke-width="2.4"/><path d="M8 14h8" stroke="#000a" stroke-width="1.4"/>'),
-  q: SVGF('<path d="M4.5 20L3 8.500l5 3.800L12 5.500l4 6.8 5-3.800L19.5 20z" fill="currentColor"/><rect x="4.5" y="19.5" width="15" height="2.8" rx="1" fill="currentColor"/><circle cx="3" cy="7" r="1.7" fill="currentColor"/><circle cx="8" cy="4.2" r="1.7" fill="currentColor"/><circle cx="12" cy="3" r="1.8" fill="currentColor"/><circle cx="16" cy="4.2" r="1.7" fill="currentColor"/><circle cx="21" cy="7" r="1.7" fill="currentColor"/><path d="M8 15.500h8" stroke="#000a" stroke-width="1.4"/>')
-};
+const IMP_KQ = {};   // King and Queen keep their normal glyphs
 Object.assign(FAIRY_SVG, {   // Prince / Princess: same build as King / Queen (body + base) but a different top and a slimmer shape
-  y: SVG('<path d="M12 9.500c-3.5 0-6 2.4-6 5.7 0 2.4 1.2 3.9 2.1 4.600h7.800c.9-.7 2.1-2.2 2.1-4.6 0-3.3-2.5-5.7-6-5.700z" fill="currentColor"/><rect x="5.5" y="19.5" width="13" height="2.6" rx="1" fill="currentColor"/><path d="M12 1.800l3 3.6-3 3.6-3-3.600z" fill="currentColor"/><path d="M12 12.500v4M10 14.500h4" stroke="#000a" stroke-width="1.3"/>'),
-  z: SVG('<path d="M5.5 20L5 10.500l4.3 3.200L12 7.500l2.7 6.200L19 10.5 18.5 20z" fill="currentColor"/><rect x="5" y="19.5" width="14" height="2.6" rx="1" fill="currentColor"/><circle cx="5" cy="9" r="1.5" fill="currentColor"/><circle cx="12" cy="5.8" r="1.7" fill="currentColor"/><circle cx="19" cy="9" r="1.5" fill="currentColor"/><path d="M12 14.200l1.2 1.4-1.2 1.4-1.2-1.400z" fill="#000a"/>')
+  y: SVG('<path d="M12 9.500c-3.5 0-6 2.4-6 5.7 0 2.4 1.2 3.9 2.1 4.600h7.800c.9-.7 2.1-2.2 2.1-4.6 0-3.3-2.5-5.7-6-5.700z" fill="currentColor"/><rect x="5.5" y="19.5" width="13" height="2.6" rx="1" fill="currentColor"/><path d="M12 1.800l3 3.6-3 3.6-3-3.600z" fill="currentColor"/><path d="M12 12.500v4M10 14.500h4" style="stroke:var(--det)" stroke-width="1.3"/>'),
+  z: SVG('<path d="M5.5 20L5 10.500l4.3 3.200L12 7.500l2.7 6.200L19 10.5 18.5 20z" fill="currentColor"/><rect x="5" y="19.5" width="14" height="2.6" rx="1" fill="currentColor"/><circle cx="5" cy="9" r="1.5" fill="currentColor"/><circle cx="12" cy="5.8" r="1.7" fill="currentColor"/><circle cx="19" cy="9" r="1.5" fill="currentColor"/><path d="M12 14.200l1.2 1.4-1.2 1.4-1.2-1.400z" style="fill:var(--det)"/>')
 });
 const setGlyph = (el, t) => { if (game && game.imperial && IMP_KQ[t]) el.innerHTML = IMP_KQ[t]; else if (FAIRY_SVG[t]) el.innerHTML = FAIRY_SVG[t]; else el.textContent = GLYPH[t]; };
 const $ = id => document.getElementById(id);
 let mode = 'standard', game = null, peer, conn, myColor = 'w', isHost = false, sel = null, over = null;
-let overRes = null, M = null, pal = 'p', setupMsg = '', centered = false;   // M = Austang match state
+let overRes = null, M = null, A4 = null, pal = 'p', setupMsg = '', centered = false;   // M = Austang match state
 const COST = { k: 0, p: 1, n: 3, b: 3, r: 5, q: 9 };
+// Austang modes: board size, army palette, prices, default settings and default piece limits (the host can change every limit; an empty box = no limit)
+const PNAMES = { k: 'King', p: 'Pawn', n: 'Knight', b: 'Bishop', r: 'Rook', q: 'Queen', '\u03b1': 'Cardinal', '\u03c7': 'Marshal', '\u03c9': 'Amazon', '\u03bd': 'Nightrider', '\u03b3': 'Camel', '\u03b6': 'Zebra', '\u03b4': 'Dragon King', '\u03b7': 'Dragon Horse', '\u03ba': 'Centaur', '\u03b2': 'Bison', '\u03c0': 'Cannon', '\u03b8': 'Grasshopper', '\u03c6': 'Ferz', '\u03c8': 'Wazir', '\u03be': 'Alfil', '\u03c4': 'Dabbaba', '\u03c1': 'Berolina Pawn', '\u03bc': 'Sacrificer', '\u03b9': 'Reviver', '\u03b5': 'Herald' };
+const AUST_CFG = {
+  austang: { w: 8, h: 8, palette: ['k', 'p', 'n', 'b', 'r', 'q'], cost: COST,
+             def: { start: 20, base: 8, step: 2, catchup: 3, cap: 24, rounds: 5 }, lim: { q: 2 } },
+  austangGrand: { w: 10, h: 10, palette: ['k', 'p', 'n', 'b', 'r', 'q', '\u03b1', '\u03c7', '\u03c9', '\u03bd', '\u03b3', '\u03b6', '\u03b4', '\u03b7', '\u03ba', '\u03b2', '\u03c0', '\u03b8', '\u03c6', '\u03c8', '\u03be', '\u03c4', '\u03c1', '\u03bc', '\u03b9', '\u03b5'],
+                  cost: { k: 0, p: 1, n: 3, b: 3, r: 5, q: 9, '\u03b1': 7, '\u03c7': 8, '\u03c9': 13, '\u03bd': 5, '\u03b3': 2, '\u03b6': 2, '\u03b4': 7, '\u03b7': 5, '\u03ba': 6, '\u03b2': 5, '\u03c0': 5, '\u03b8': 4, '\u03c6': 1, '\u03c8': 2, '\u03be': 2, '\u03c4': 2, '\u03c1': 2, '\u03bc': 6, '\u03b9': 10, '\u03b5': 8 },
+                  def: { start: 30, base: 10, step: 2, catchup: 4, cap: 30, rounds: 5 }, lim: { q: 2, '\u03c9': 1, '\u03b1': 2, '\u03c7': 2, '\u03b4': 2, '\u03ba': 2, '\u03c0': 2, '\u03bc': 2, '\u03b9': 1, '\u03b5': 1 } }
+};
+const AC = () => AUST_CFG[M.mode];
+AUST_CFG.austang4 = Object.assign({}, AUST_CFG.austangGrand, { w: 10, h: 5 });      // 4-player Austang: every player builds in their own 10x5 arm (same pieces, prices and limits as Austang Grand)
 const LET = 'abcdefghijklmnopqrstuvwxyz';
 const sqName = (x, y) => (x < 26 ? LET[x] : LET[Math.floor(x / 26) - 1] + LET[x % 26]) + (y + 1);
 let mySeat = 'r', conns = [], mstarted = false, lobbyBase = '', mseats = null, gs = { dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false };
 let nBusy = false, gtraits = null, draft = null, revealedAll = false;
-let foeSel = null, foeSet = null, rmarkSet = null, glitchSeen = 0, mirageSeen = 0, mineSet = null, gclasses = null, abFrom = null, chargeSq = null, abMode = null, abSet = null, revealedCl = false, pendTraits = null, abSeenG = null, abSeen = 0;
+let foeSel = null, foeSet = null, rmarkSet = null, clipMap = null, selIdx = 0, glitchSeen = 0, mirageSeen = 0, mineSet = null, gclasses = null, abFrom = null, chargeSq = null, abMode = null, abSet = null, revealedCl = false, pendTraits = null, abSeenG = null, abSeen = 0;
 let myToken = null, roomCode = null, spectateMode = false, spectating = false, specs = [], everJoined = false, peerToken = null;
 let resignLog = [], replay = null, retryTimer = null, retries = 0;
 let bots = {}, bots2p = null, lobbyBots = [], botTimer = null;
 let specChatOn = false, specChatAllowed = false;            // spectators may chat only if the host switches it on      // optional bot players (host only)   // multiplayer (3/4 players): host is the hub
+function drawWhy() {                             // multiplayer draw reason: only bare kings left, or nobody can move
+  if (!game || !game.drawn || game.imperial) return '';
+  const [W, H] = [game.w, game.h];
+  for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) { if (game.valid && !game.valid(x, y)) continue; const p = game.at(x, y); if (p && !p.dead && p.t !== 'k' && game.seats.includes(p.c)) return ''; }
+  return 'only bare kings are left (checkmate is impossible)';
+}
 const ended = () => over || (game && (game.multi ? (!!game.winner() || game.drawn) : ['checkmate', 'stalemate', 'draw', 'bare'].includes(game.status())));
 const SPEC_OK = new Set(['move', 'resign', 'drawAccept', 'newgame', 'traits', 'mmove', 'nmove', 'mresign', 'mchat', 'schat', 'specChatSetting']);
 function sendSpecs(msg) {
   if (!isHost || !specs.length || !SPEC_OK.has(msg.type)) return;
   specs.forEach(c => c.open && c.send(msg));
+}
+const mmoveMsg = m => { let n = -1; try { n = game.history().length; } catch (e) { /* no history */ } return { type: 'mmove', m, n, t: game.turn }; };      // (built after the host applied the move)
+let lastResync = 0;
+function askResync() {                           // a guest noticed it no longer matches the host: ask for the whole game again
+  if (isHost || Date.now() - lastResync < 2500) return; lastResync = Date.now();
+  addChat('', 'Your board was out of step with the host — refreshing it…', true);
+  send({ type: 'resync' });
 }
 const broadcast = msg => { conns.forEach(c => c.open && c.send(msg)); sendSpecs(msg); };
 const inPlay = () => game && (!M || M.phase === 'play');
@@ -376,6 +470,7 @@ Object.keys(MODES).forEach(k => {
 });
 
 // Kriegspiel referee: both browsers print the same public announcement after each move.
+const GRAND_UP = 'RBN';                           // Imperial: the Grand pieces
 function impAnnounce() {
   const h = game.history(), e = h[h.length - 1]; if (!e) return;
   const who = game.multi ? CN[e.c] : e.c === 'w' ? 'White' : 'Black', n = IMP_NAMES[e.by] || 'piece';
@@ -385,6 +480,7 @@ function impAnnounce() {
   else if (e.castle) t = who + ' ' + n + ' hopped over its partner.';
   else if (e.swap) t = who + ' Heir swapped with a Knight.';
   else if (e.wall) t = who + ' Sapper raised a wall at ' + sqName(e.tx, e.ty) + '.';
+  if (e.promo) t += (t ? ' ' : '') + who + ' ' + n + (GRAND_UP.includes(e.promo) ? ' was promoted into a ' + IMP_NAMES[e.promo] + '!' : ' was promoted to ' + (IMP_NAMES[e.promo] || 'a new piece') + '.');
   if (e.cap && e.cap !== '#' && 'EXH'.includes(e.cap)) t += ' ' + IMP_NAMES[e.cap] + ' destroyed!';
   if (t) addChat('', t.trim(), true);
 }
@@ -424,7 +520,7 @@ const FOES_MODES = ['standard', 'crazyhouse', 'marseillais', 'cylinder', 'infini
 const GS_DEFAULTS = { dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false, neutralDrop: false, impRoam: false, traits: false, offers: 4, c960: false, back960: null, cyl: false,
   foeMoves: true, seed: 1, classes: false, clStart: 2, clGain: 1, clCap: 8, clPer: 0, clSum: 4, clUlt: false, clHide: false, clFree: false, clHideFx: false };
 // Builds an engine for a mode from plain settings, without touching any globals (also used to rebuild games for replay).
-function makeEngine(m, seatsIn, gsIn, traits, classes) {
+function makeEngine(m, seatsIn, gsIn, traits, classes, a4) {
   const g2 = Object.assign({}, GS_DEFAULTS, gsIn || {}), op = MODES[m].opts || [];
   g2.traits = !!g2.traits && op.includes('traits');
   g2.fog = !!g2.fog && op.includes('fog');
@@ -444,6 +540,10 @@ function makeEngine(m, seatsIn, gsIn, traits, classes) {
     let teams = g2.teams && op.includes('teams') ? { r: 0, y: 0, b: 1, g: 1 } : null;
     if (teams && new Set(seats.map(c => teams[c])).size < 2) teams = null;
     g2.teams = !!teams;
+    if (MODES[m].match4) {                         // Austang 4-player: 20x20 cross (or the 20x14 wide team board); the armies come from the match layer
+      const base = teams && g2.board === 'wide' ? Engine.AUSTANG4_WIDE : Engine.AUSTANG4;
+      return { game: Engine.create(Object.assign({}, base, { seats, dead: all.filter(c => !seats.includes(c)), teams, armies: a4 ? a4.armies : undefined, first: a4 ? a4.first : undefined })), gs: g2, seats };
+    }
     if (MODES[m].imperial) return { game: Imperial.create({ four: true, seats, teams, wide: !!teams && g2.board === 'wide', height: +g2.height || 0 }), gs: g2, seats };
     const dead = all.filter(c => !seats.includes(c)), neu = !!MODES[m].v.neutral;
     const game = Engine.create(Object.assign({}, MODES[m].v, { seats, dead, dropZone: neu ? 'arm' : g2.dropZone, teams,
@@ -456,6 +556,7 @@ function makeEngine(m, seatsIn, gsIn, traits, classes) {
 
 function newGame(m, s, o) {
   o = o || {};
+  if (!MODES[m].match4) A4 = null;
   mode = m; sel = null; over = null; overRes = null; setupMsg = ''; pal = 'p'; centered = false; cylShift = 0;
   gs = Object.assign({}, GS_DEFAULTS, o.gs || gs);
   gtraits = o.traits || null; draft = null; revealedAll = false; resignLog = [];
@@ -464,12 +565,17 @@ function newGame(m, s, o) {
   gs.classes = !!gs.classes && ((MODES[m].opts || []).includes('classes'));
   gs.foeMoves = !!gs.foeMoves && FOES_MODES.includes(m) && !gs.fog;      // enemy-move preview: off in hidden-information modes
   if (MODES[m].match) {
-    s = s || { start: 20, base: 8, step: 2, catchup: 3, cap: 24, rounds: 5 };
-    M = { s, round: 1, scores: { w: 0, b: 0 }, pool: { w: s.start, b: s.start },
-          setups: { w: { '4,0': 'k' }, b: { '4,7': 'k' } }, phase: 'setup', sentRound: 0, opp: null };
+    const ac = AUST_CFG[m];
+    s = s || Object.assign({}, ac.def, { lim: Object.assign({}, ac.lim) });
+    if (!s.lim) s.lim = {};
+    const mid = Math.floor(ac.w / 2);
+    M = { mode: m, s, round: 1, scores: { w: 0, b: 0 }, pool: { w: s.start, b: s.start },
+          setups: { w: { [mid + ',0']: 'k' }, b: { [mid + ',' + (ac.h - 1)]: 'k' } }, phase: 'setup', sentRound: 0, opp: null };
     game = null;
+  } else if (MODES[m].match4 && !o.a4round) {      // Austang 4-player: no board until every player has built an army
+    game = null; M = null; mseats = o.seats || mseats;
   } else {
-    const r = makeEngine(m, o.seats || mseats, gs, gtraits, gclasses);
+    const r = makeEngine(m, o.seats || mseats, gs, gtraits, gclasses, o.a4round && A4 ? { armies: A4.armies, first: A4.first } : null);
     M = null; nBusy = false; game = r.game; gs = r.gs;
     if (MODES[m].multi) mseats = r.seats;
     if (gs.c960 && gs.back960) addChat('', 'Chess960 layout: ' + gs.back960.toUpperCase().split('').join(' ') + ' — castle by moving your king onto your own rook.', true);
@@ -480,14 +586,27 @@ function handleMessage(msg) {
   if (replay && !['chat', 'mchat', 'schat'].includes(msg.type)) { replay.queue.push({ msg }); return; }
   if (isHost && (msg.type === 'move' || msg.type === 'resign' || msg.type === 'drawAccept')) sendSpecs(msg);
   switch (msg.type) {
+    case 'a4resume':
+      stopRetry(); newGame(msg.mode, null, { seats: msg.seats, gs: msg.gs }); a4Load(msg.a4); mySeat = msg.seat; a4Apply(msg.x);
+      $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
+      addChat('', 'Reconnected — you are back in the match.', true); render(); break;
+    case 'a4status': if (A4 && msg.round === A4.round) { A4.ready = {}; (msg.ready || []).forEach(c => { A4.ready[c] = true; }); render(); } break;
+    case 'a4mate': if (A4 && A4.teams && A4.phase === 'setup' && msg.setup && typeof msg.setup === 'object') { A4.mate[msg.seat] = msg.setup; render(); } break;
+    case 'a4reject': if (A4) { A4.sent = 0; setupMsg = String(msg.text || 'Your army was rejected.'); render(); } break;
+    case 'a4start': if (A4 && A4.phase === 'setup' && msg.round === A4.round) startRound4(msg.armies, msg.first); break;
+    case 'a4next': if (A4 && A4.phase === 'between') { a4Next(); render(); } break;
+    case 'a4new':
+      newGame(msg.mode, null, { seats: msg.seats, gs: msg.gs }); initA4(msg.seats, msg.a4.s, msg.gs); $('modeSel2').value = mode;
+      addChat('', 'New match: ' + MODES[mode].name + '. Build your army!', true); render(); break;
     case 'resume':
       stopRetry(); loadRecord(msg.rec);
       if (msg.seat) mySeat = msg.seat;
+      if (msg.a4x && A4) a4Apply(msg.a4x);
       if (msg.color) myColor = msg.color;
       draft = msg.draft && msg.draft.offers ? { kind: msg.draft.kind || 'trait', mine: msg.draft.offers, picked: msg.draft.picked } : null;
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       if (game && game.multi) $('rematchBtn').classList.add('hidden'); else $('rematchBtn').classList.remove('hidden');
-      addChat('', 'Reconnected — you are back in the game.', true); render(); break;
+      addChat('', msg.resync ? 'Board refreshed from the host.' : 'Reconnected — you are back in the game.', true); render(); break;
     case 'spec':
       stopRetry(); spectating = true; specChatAllowed = !!msg.chat; loadRecord(msg.rec);
       myColor = 'w'; if (game && game.multi) mySeat = game.seats[0];
@@ -513,6 +632,12 @@ function handleMessage(msg) {
       render(); break;
     case 'minit':
       newGame(msg.mode, null, { seats: msg.seats, gs: msg.gs }); mySeat = msg.seat;
+      if (MODES[msg.mode].match4) {
+        initA4(msg.seats, msg.a4.s, msg.gs);
+        $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
+        addChat('', 'You are ' + CN[mySeat] + '. Build your army in your own arm — nobody sees it until everyone is ready' + (A4.teams ? ' (your partner can watch you build).' : '.'), true);
+        render(); break;
+      }
       if (gs.traits || gs.classes) draft = { kind: gs.traits ? 'trait' : 'class', mine: null, picked: null };
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       if (game.teams) addChat('', 'Teams: ' + teamNames('r') + ' vs ' + teamNames('b') + '.', true);
@@ -527,7 +652,14 @@ function handleMessage(msg) {
       announceTraitStart(); render(); break;
     case 'mwait': $('lobbyMsg').textContent = msg.text; break;
     case 'kicked': $('lobbyMsg').textContent = 'The host removed you from the room.'; $('lobby').classList.remove('hidden'); $('game').classList.add('hidden'); break;
-    case 'mmove': if (game && game.move(msg.m)) { sel = game.imperial && game.pend && game.turn === mySeat ? { x: game.pend.x, y: game.pend.y } : null; announceMulti(); render(); } break;
+    case 'mmove': {
+      const ok = !!(game && game.move(msg.m));
+      if (ok) { sel = game.imperial && game.pend && game.turn === mySeat ? { x: game.pend.x, y: game.pend.y } : null; announceMulti(); render(); }
+      let bad = !ok;                                  // the host says how many moves have been played and whose turn it is now: any disagreement = we drifted
+      if (ok && msg.n !== undefined) { try { bad = game.history().length !== msg.n || game.turn !== msg.t; } catch (e) { bad = false; } }
+      if (bad) askResync();
+      break;
+    }
     case 'mresign': if (game) { logResign(msg.seat); game.resign(msg.seat); announceMulti(); render(); } break;
     case 'mchat': addChat(CN[msg.from], String(msg.text).slice(0, 300)); break;
     case 'rematchReq': addChat('', 'Opponent wants a rematch.', true); break;
@@ -537,7 +669,11 @@ function handleMessage(msg) {
     case 'drawAccept': over = 'Draw by agreement.'; overRes = 'd'; render(); break;
     case 'endRound': over = 'Round ended by the host.'; overRes = 'd'; render(); break;
     case 'ready':
-      if (M) { M.opp = { round: msg.round, setup: msg.setup }; addChat('', 'Opponent is ready.', true); tryStart(); render(); }
+      if (M) {
+        const prob = setupProblem(myColor === 'w' ? 'b' : 'w', msg.setup);       // an army that breaks the rules (e.g. a modified client ignoring the piece limits) is not accepted
+        if (prob) { addChat('', "Opponent's army was rejected (" + prob + ') — ask them to rebuild it, or end the round.', true); render(); break; }
+        M.opp = { round: msg.round, setup: msg.setup }; addChat('', 'Opponent is ready.', true); tryStart(); render();
+      }
       break;
     case 'drawDecline': addChat('', 'Opponent declined the draw.', true); break;
     case 'chat':
@@ -570,7 +706,7 @@ function setupConn(c) {
 }
 
 function host() {
-  isHost = true; myColor = 'w'; mseats = null; bots = {}; bots2p = null; lobbyBots = []; specChatOn = false; $('specChatChk').checked = false; newGame($('modeSel').value, readSettings(), { gs: readGS() });
+  isHost = true; myColor = 'w'; mseats = null; bots = {}; bots2p = null; lobbyBots = []; specChatOn = false; $('specChatChk').checked = false; newGame($('modeSel').value, readSettings($('modeSel').value), { gs: readGS() });
   const code = Math.random().toString(36).slice(2, 7);
   peer = new Peer(PREFIX + code);
   peer.on('open', () => {
@@ -601,7 +737,8 @@ function showPromo(cands) {
   const p = $('promo'); p.innerHTML = '';
   cands.forEach(m => {
     const b = document.createElement('button');
-    b.innerHTML = glyphHTML(m.promo);
+    b.innerHTML = m.promo ? glyphHTML(m.promo) : m.rev ? '↺ ' + glyphHTML(m.rev) : m.free ? 'Free step' : 'Move';
+    b.title = m.promo ? 'Promote' : m.rev ? 'Revive ' + PNAMES[m.rev] : m.free ? 'Herald: free step (your turn goes on)' : 'Normal move';
     b.onclick = () => { p.classList.add('hidden'); play(m); };
     p.appendChild(b);
   });
@@ -618,19 +755,20 @@ function clickSq(x, y) {
   if (sel) {
     const cand = sel.drop
       ? game.drops().filter(m => m.drop === sel.drop && m.tx === x && m.ty === y)
-      : game.moves(sel.x, sel.y).filter(m => m.tx === x && m.ty === y);
+      : selMoves().filter(m => m.tx === x && m.ty === y);
     if (friendlyPending(x, y, cand)) return;
-    if (cand.length) { cand[0].promo ? showPromo(cand) : play(cand[0]); return; }
+    if (cand.length) { (cand[0].promo || cand.some(m => m.rev || m.free)) ? showPromo(cand.map(withCk)) : play(withCk(cand[0])); return; }
     const own = game.at(x, y) && game.at(x, y).c === myColor;
     if (MODES[mode].v.hidden && !sel.drop && !own && !(x === sel.x && y === sel.y)) {
       addChat('', 'Referee: illegal move, try again.', true); return;
     }
   }
   const p = game.at(x, y);
-  sel = (p && p.c === myColor && !(sel && sel.x === x && sel.y === y)) ? { x, y } : null;
+  sel = (p && !p.wall && p.c === myColor && !(sel && sel.x === x && sel.y === y)) ? { x, y } : null; selIdx = 0;
   render();
 }
 
+const hasReviveUnit = () => { for (let y = 0; y < game.h; y++) for (let x = 0; x < game.w; x++) { const p = game.at(x, y); if (p && p.c === (game.multi ? mySeat : myColor) && (p.t === '\u03bc' || p.t === '\u03b9')) return true; } return false; };
 function renderHand(c, el) {
   el.innerHTML = '';
   if (!MODES[mode].v.drops) return;
@@ -674,7 +812,7 @@ function bugStatus() {
 
 function multiStatus() {
   if (game.bug) return bugStatus();
-  if (game.drawn) return 'Game drawn — nobody left can move.';
+  if (game.drawn) return 'Game drawn — ' + (drawWhy() || 'nobody left can move') + '.';
   const w = game.winner();
   if (w) return 'Game over — ' + teamNames(w) + (sameSide(w, mySeat) ? ' (you) win!' : game.teams ? ' win.' : ' wins.');
   if (!game.alive(mySeat)) return 'You are eliminated — spectating. ' + CN[game.turn] + "'s turn.";
@@ -698,7 +836,9 @@ function statusText() {
   if (s === 'draw') return 'Draw — not enough material to checkmate.';
   return (M ? 'Round ' + M.round + '/' + M.s.rounds + ' · ' : '') + (game.turn === myColor ? 'Your turn' : "Opponent's turn") + ' (you are ' + (myColor === 'w' ? 'White' : 'Black') +
          ', ' + MODES[mode].name + ')' + (s === 'check' ? ' — check!' : '') +
-         (MODES[mode].v.movesPerTurn > 1 ? ' — ' + game.left + ' move' + (game.left > 1 ? 's' : '') + ' left' : '');
+         (MODES[mode].v.movesPerTurn > 1 ? ' — ' + game.left + ' move' + (game.left > 1 ? 's' : '') + ' left' : '') +
+         (M && game.yard && game.yard(myColor).length && game.yard(myColor).length < 40 && hasReviveUnit() ? ' — Fallen: ' + game.yard(myColor).map(t => GLYPH[t] || t).join(' ') : '') +
+         (game.turn === myColor && game.freeLeft && game.freeLeft() > 0 && game.freeLeft() < 5 ? ' — Herald: ' + game.freeLeft() + ' free step' + (game.freeLeft() > 1 ? 's' : '') + ' left' : '');
 }
 
 // ---- cylinder chess view: a tilted, shaded barrel with faded 'beyond the edge' files that you can spin ----
@@ -737,13 +877,16 @@ function initCylEvents() {
 
 // ---- zoomable board (used by both Infinite boards) ----
 const boardPx = () => { const m = $('gameMain'), w = m ? m.clientWidth : 0; return w > 100 ? w : Math.min(innerWidth - 32, 480); };      // pixel width of the board column
+$('menuBtn').onclick = () => { const live = game && !ended() && !spectating; if (live && !confirm('Leave this game and go back to the main menu? The game will be abandoned.')) return; location.href = location.pathname; };
+new MutationObserver(() => { if (!$('game').classList.contains('hidden')) requestAnimationFrame(() => { if (game) render(); }); }).observe($('game'), { attributes: true, attributeFilter: ['class'] });
+let rzT = 0; addEventListener('resize', () => { clearTimeout(rzT); rzT = setTimeout(() => { if (game && !$('game').classList.contains('hidden')) render(); }, 150); });
 function layoutGame() {                         // tells CSS how tall the board is relative to its width, so it can fill the window height
   const m = $('gameMain'); if (!m || !game) return;
   let asp = 1;
   if (!game.hex && game.w && game.h) asp = game.h / game.w;
   const mm = MODES[mode] || {};
   if (mm.bug || (mm.v && mm.v.alice)) asp *= 2;
-  if ($('boardWrap').classList.contains('zoomable') || (game.w === 32 && game.h === 32)) asp = 0.62;
+  if ($('boardWrap').classList.contains('zoomable') || (game.w === 32 && game.h === 32) || (!game.hex && !game.layers && (game.multi ? game.w >= 29 : game.imperial && game.w > 12))) asp = 0.62;
   m.style.setProperty('--asp', String(Math.max(0.4, asp)));
 }
 const view = { k: 1, x: 0, y: 0 };
@@ -824,7 +967,7 @@ function getToken(code) {
 const liveGame = () => (replay ? replay.live : game);
 function buildRecord() {
   const g = liveGame();
-  return { mode, gs: Object.assign({}, gs), seats: g.multi ? g.seats : null, traits: gtraits, classes: gclasses, abils: g.abLog ? g.abLog() : [], moves: g.history(),
+  return { mode, gs: Object.assign({}, gs), seats: g.multi ? g.seats : null, a4: A4 ? a4Meta() : undefined, traits: gtraits, classes: gclasses, abils: g.abLog ? g.abLog() : [], moves: g.history(),
     resigns: resignLog.slice(), over: replay ? replay.saved.over : over, overRes: replay ? replay.saved.overRes : overRes };
 }
 function applyRecord(g, rec, k) {
@@ -841,9 +984,10 @@ function applyRecord(g, rec, k) {
   if (applied >= rec.moves.length) { doAbs(Infinity); doResigns(Infinity); }
   return g;
 }
-const buildGameFromRecord = (rec, k) => applyRecord(makeEngine(rec.mode, rec.seats, rec.gs, rec.traits, rec.classes).game, rec, k);
+const buildGameFromRecord = (rec, k) => applyRecord(makeEngine(rec.mode, rec.seats, rec.gs, rec.traits, rec.classes, rec.a4 && rec.a4.armies ? { armies: rec.a4.armies, first: rec.a4.first } : null).game, rec, k);
 function loadRecord(rec) {
-  newGame(rec.mode, null, { seats: rec.seats, gs: rec.gs, traits: rec.traits, classes: rec.classes });
+  if (rec.a4) a4Load(rec.a4);
+  newGame(rec.mode, null, { seats: rec.seats, gs: rec.gs, traits: rec.traits, classes: rec.classes, a4round: !!(rec.a4 && rec.a4.armies) });
   applyRecord(game, rec);
   resignLog = (rec.resigns || []).slice(); over = rec.over || null; overRes = rec.overRes || null;
 }
@@ -914,7 +1058,11 @@ function rebindMulti(c, old) {
   try { if (old.open) old.close(); } catch (e) { /* already closed */ }
   c.on('data', msg => hostRecv(c, msg));
   c.on('close', () => { if (!c.replaced) addChat('', CN[c.seat] + ' disconnected — they can rejoin with the same link.', true); });
-  onOpen(c, () => { c.send({ type: 'resume', rec: buildRecord(), seat: c.seat, draft: draftFor(c.seat) }); addChat('', CN[c.seat] + ' reconnected.', true); });
+  onOpen(c, () => {
+    if (A4 && !game) a4SendResume(c);
+    else c.send({ type: 'resume', rec: buildRecord(), seat: c.seat, draft: draftFor(c.seat), a4x: A4 ? a4Extra(c.seat) : undefined });
+    addChat('', CN[c.seat] + ' reconnected.', true);
+  });
 }
 function rebind2p(c) {
   const old = conn;
@@ -929,12 +1077,13 @@ function rebind2p(c) {
 }
 function addSpectator(c) {
   const early = (MODES[mode].multi && !mstarted) || (!MODES[mode].multi && !everJoined && !bots2p);
-  if (M || !game || early) {
-    onOpen(c, () => { c.send({ type: 'mwait', text: M ? "Spectating isn't available in Austang." : 'The game has not started yet — try the link again in a moment.' }); setTimeout(() => c.close(), 300); });
+  if (M || A4 || !game || early) {
+    onOpen(c, () => { c.send({ type: 'mwait', text: (M || A4) ? "Spectating isn't available in Austang." : 'The game has not started yet — try the link again in a moment.' }); setTimeout(() => c.close(), 300); });
     return;
   }
   c.spec = true; specs.push(c);
   c.on('data', msg => {                                   // spectators can only send chat, and only if the host allows it
+    if (msg && msg.type === 'resync') { c.send({ type: 'spec', rec: buildRecord(), chat: specChatOn }); return; }
     if (!msg || msg.type !== 'specChat' || !specChatOn || typeof msg.text !== 'string') return;
     const t = msg.text.trim().slice(0, 300), who = 'Spectator ' + (specs.indexOf(c) + 1);
     if (!t) return;
@@ -1009,9 +1158,32 @@ function notifyTurn() {
 
 // ---- Swap trait: pick two of your pieces ----
 let swapMode = false, swapFirst = null, pendingFriendly = null;
+// Glitch 'Clipping': a square can hold a stack of the owner's pieces. selIdx = which member of the selected stack moves (0 = the piece on top).
+function selMoves() {
+  if (!(game.memberMoves && sel && !sel.drop)) return game.moves(sel.x, sel.y);
+  const st = game.stackAt && game.stackAt(sel.x, sel.y);
+  if (!st || selIdx >= st.length) selIdx = 0;
+  return selIdx > 0 ? game.memberMoves(sel.x, sel.y, selIdx) : game.moves(sel.x, sel.y);
+}
+const withCk = m => (selIdx > 0 && sel && !sel.drop ? Object.assign({}, m, { ck: selIdx }) : m);
+function renderStackPick() {
+  const box = $('stackPick'); if (!box) return;
+  const st = game && game.stackAt && sel && !sel.drop && !replay && !spectating && !draft && !M && !ended() && game.turn === meId() ? game.stackAt(sel.x, sel.y) : null;
+  box.innerHTML = '';
+  if (!st) { box.classList.add('hidden'); return; }
+  if (selIdx >= st.length) selIdx = 0;
+  const lab = document.createElement('span'); lab.className = 'dim'; lab.textContent = 'Overlapping pieces: choose which one moves'; box.appendChild(lab);
+  st.forEach((p, i) => {
+    const b = document.createElement('button'); b.innerHTML = glyphHTML(shownType(p)); b.title = i === 0 ? 'Top piece' : 'Piece sharing the square';
+    if (i === selIdx) b.className = 'on';
+    b.onclick = () => { selIdx = i; render(); };
+    box.appendChild(b);
+  });
+  box.classList.remove('hidden');
+}
 function friendlyPending(x, y, cand) {            // returns true while waiting for the confirming second click
   const tg = game.at(x, y);
-  if (!sel || !cand.length || !tg || tg.c !== meId() || cand[0].castle) return false;
+  if (!sel || !cand.length || !tg || tg.c !== meId() || cand[0].castle || cand[0].swap || cand[0].join || cand[0].rev) return false;      // (a Sacrificer's own square is not a friendly-fire target)
   const from = sel.x + ',' + sel.y;
   if (pendingFriendly && pendingFriendly.x === x && pendingFriendly.y === y && pendingFriendly.from === from) { pendingFriendly = null; return false; }
   pendingFriendly = { x, y, from }; render(); return true;
@@ -1042,7 +1214,7 @@ const PIECE_GUIDE = [
   ['E', 'Emperor (Imperial)', 'Rook lines plus the squares beside the line; a piece on the line blocks the side squares at and beyond it. Reach 3 if the Empress dies. Immune to pawns and Rooks. Can castle over a Rook.'],
   ['X', 'Empress (Imperial)', 'Diagonals plus the 4 orthogonal neighbours of each line square. Reach 3 if the Emperor dies. Immune to pawns and Bishops. Can castle over a Bishop.'],
   ['H', 'Heir (Imperial)', 'Leaps to the 16 knight and camel squares (24 once Emperor and Empress are gone). Immune to pawns and Knights. Can swap with a friendly Knight.'],
-  ['k', 'King', 'One step any direction. Aura (5×5): friendly pawns may repeat their 2-step; Rooks, Bishops, Knights and Grands can’t be captured by pawns.'],
+  ['k', 'King', 'One step any direction, or onto any square next to a friendly piece within 2 squares of it (moving or capturing, like a Guard’s hop but able to capture). Aura (7×7): friendly pawns walk one step further (and keep that for one more turn after leaving it); Rooks, Bishops, Knights and Grands can’t be captured by pawns.'],
   ['q', 'Queen', 'Moves like a standard queen. Aura (5×5): Pawns also capture straight; Archers, Guards, Chariots, Sappers, Catapults can’t be captured by pawns.'],
   ['y', 'Prince', 'Captures on the 5×5 around it (no corners); also steps to the 4 corners and 3 squares straight. Blockable. One at a time, promotion only.'],
   ['z', 'Princess', 'Steps 1 any direction; shoots the outer ring of the 5×5 and 3 straight without moving. Can’t be captured while the Prince is adjacent. One at a time, promotion only.'],
@@ -1052,22 +1224,93 @@ const PIECE_GUIDE = [
   ['N', 'Grand Knight', 'Leaps to any square on the outer ring of the 5×5.'],
   ['g', 'Guard', 'King moves and captures; also steps 2 straight or onto empty squares around a nearby friend. Archers can’t hit it or its neighbours.'],
   ['h', 'Chariot', 'Slides 2 straight plus the knight squares beside each lane (a blocker cuts them off).'],
+  ['f', 'Jester', 'Never captures by itself. Hops to the opposite-colour squares of its 5×5 (light ↔ dark). Also copies the moves (and captures) of any piece within its 3×3 except Imperials, other Jesters and ranged pieces (Archer, Catapult, Lancer thrust, Princess shots). Pawns can promote to it.'],
   ['u', 'Archer', 'Steps 1 straight. Shoots 16 squares around it without moving, can’t be blocked.'],
   ['s', 'Sapper', 'Leaps 1 diagonal or 2 straight; never captures. After moving it may place a wall next to itself (once per 2 turns).'],
   ['t', 'Catapult', 'Walks 1–2 straight. Fires on 7 squares ahead; hitting the middle of the far row splashes both sides. Reloads a turn after firing.'],
-  ['p', 'Pawn', 'Steps 1 (up to 3 on its first move), captures diagonally.'],
+  ['p', 'Pawn', 'Steps 1 (up to 3 on its first move), captures diagonally. In the king’s aura it steps 2. On the 4-player cross board pawns walk 2 after their first move and 3 in the aura (the wide 2v2 board is like the 2-player board).'],
   ['v', 'Pikeman', 'Pawn that also captures straight ahead. Promotes to a Lancer too.'],
   ['m', 'Skirmisher', 'Pawn that can also step sideways. Promotes to a Raider too.'],
   ['j', 'Lancer', 'Thrusts at 3 squares straight ahead without moving; slides to capture at 4–5; unblockable 3-wide front; moves only sideways.'],
   ['d', 'Raider', 'Slides sideways up to 5 (captures within 3), 2 vertically, plus (±3,±1) leaps.'],
-  ['#', 'Wall', 'Blocks movement and lines. Capture it by moving onto it. Ranged shots pass over it.']
+  ['#', 'Wall', 'Blocks movement and lines. Belongs to the Sapper’s player (shown in their colour): only enemies can capture it, by moving onto it. Ranged shots pass over it.']
 ];
+const GRAND_GUIDE = [
+  ['k', 'King', 'One step in any direction; castles with a rook that has not moved.'], ['q', 'Queen', 'Slides along ranks, files and diagonals.'],
+  ['r', 'Rook', 'Slides along ranks and files.'], ['b', 'Bishop', 'Slides diagonally.'], ['n', 'Knight', 'Leaps in an L.'], ['p', 'Pawn', 'Steps 1 (2 from its 2nd rank), captures diagonally, promotes on the last rank.'],
+  ['\u03b1', 'Cardinal', 'Bishop + knight: slides diagonally and also leaps like a knight (captures with both).'],
+  ['\u03c7', 'Marshal', 'Rook + knight: slides along ranks and files and also leaps like a knight (captures with both).'],
+  ['\u03c9', 'Amazon', 'Queen + knight: the strongest piece. Cannot be promoted to.'],
+  ['\u03bd', 'Nightrider', 'Repeats the knight jump in a straight line, as far as it likes; the first piece on the line stops it (it must be empty to jump on).'],
+  ['\u03b3', 'Camel', 'Leaps 3 squares one way and 1 the other. Always stays on the same colour of square.'],
+  ['\u03b6', 'Zebra', 'Leaps 3 squares one way and 2 the other. Changes square colour every move.'],
+  ['\u03b4', 'Dragon King', 'Rook + one diagonal step: slides along ranks and files and can also step 1 square diagonally.'],
+  ['\u03b7', 'Dragon Horse', 'Bishop + one orthogonal step: slides diagonally and can also step 1 square along a rank or file.'],
+  ['\u03ba', 'Centaur', 'King + knight: steps 1 in any direction and also leaps like a knight.'],
+  ['\u03b2', 'Bison', 'Camel + zebra: leaps (3,1) or (3,2). Reaches both square colours.'],
+  ['\u03c0', 'Cannon', 'Moves like a rook but cannot capture that way. It captures by jumping over exactly one piece (yours or theirs) on a rank or file and taking the first piece behind it. Needs a screen: with none, or two or more in the way, it cannot capture.'],
+  ['\u03b8', 'Grasshopper', 'Along any queen line it hops over the first piece it meets (either colour) and lands on the square right behind it: empty = a move, enemy = a capture. No piece to hop over, or a friend on the landing square: no move.'],
+  ['\u03c6', 'Ferz', 'Steps 1 square diagonally. Always stays on the same colour of square. A cheap blocker.'],
+  ['\u03c8', 'Wazir', 'Steps 1 square along a rank or file. A cheap blocker.'],
+  ['\u03be', 'Alfil', 'Leaps exactly 2 squares diagonally (over anything). Always stays on the same colour of square.'],
+  ['\u03c4', 'Dabbaba', 'Leaps exactly 2 squares along a rank or file (over anything).'],
+  ['\u03c1', 'Berolina Pawn', 'A pawn turned around: it steps diagonally forward (2 diagonal squares from its 2nd rank, if both are empty) but captures straight ahead. Promotes on the last rank. No en passant. Can’t start on your back rank.'],
+  ['\u03bc', 'Sacrificer', 'Walks like a king (1 step, captures too; not royal). Instead of moving it can sacrifice itself: select it, click it again and pick one of YOUR captured pieces (never the king). The Sacrificer is replaced by that piece, on the same square, and the turn ends. Pawns can’t be revived onto a back rank.'],
+  ['\u03b9', 'Reviver', 'Walks like a king (1 step, captures too; not royal). Instead of moving it can bring back one of YOUR captured pieces on an empty square next to it (select it, click an empty neighbouring square, choose “revive”). The Reviver stays, then needs to recharge for 4 of your turns (the piece shows its countdown). Never the king; no pawns onto a back rank.'],
+  ['\u03b5', 'Herald', 'Walks like a king (1 step, captures too; not royal) and can also move 2 squares straight forward (both squares empty, no capture). Your pawns (also Berolina) within 2 squares of it (a 5×5 area) can NOT capture or give check at all. In return, before your normal move you may take up to 5 free single steps with those pawns (moves only, no promotion, none may give check). A pawn that took a free step keeps its free steps and its no-capture state for the rest of that turn, even after it leaves the Herald’s area, so one pawn can march several squares. Select a pawn, click its forward square and choose “free step”. Free steps don’t end your turn.']
+];
+let grandDone = false;
+function fillGrandGuide() {
+  if (grandDone) return; grandDone = true;
+  $('grandGuide').innerHTML = GRAND_GUIDE.map(([t, n, d]) => guideRow(t, n, d, glyphHTML(t), true)).join('');
+  wireGuide($('grandGuide'), 'grand', Engine.AUSTANG_GRAND);
+}
+// ---- movement diagrams: tiny boards with the squares a piece reaches, computed from the real engines (diagrams.js) ----
+const MARK_TXT = { m: 'moves there (can’t capture)', c: 'captures only', b: 'moves or captures', s: 'shoots (captures without moving)' };
+function diagramEl(grid, iconHtml) {
+  const d = document.createElement('div'); d.className = 'dg'; d.style.setProperty('--n', grid.N);
+  const ex = {}; (grid.extras || []).forEach(e => { ex[e.j + ',' + e.i] = e; });
+  grid.rows.forEach((row, j) => [...row].forEach((ch, i) => {
+    const c = document.createElement('div'); c.className = 'dgc ' + (((i + j) & 1) ? 'd' : 'l') + (ch === '#' ? ' cut' : '') + (ch === 'o' ? ' me' : '');
+    if (ch === 'o') c.innerHTML = '<span class="dgp">' + iconHtml + '</span>';
+    else if (ch === 'e' && ex[j + ',' + i]) c.innerHTML = '<span class="dgp dgx ' + (ex[j + ',' + i].c === 'w' ? '' : 'xb') + '">' + glyphHTML(ex[j + ',' + i].t) + '</span>';
+    else if (ch !== '.' && ch !== '#' && ch !== 'e') c.innerHTML = '<i class="mk ' + ch + '"></i>';
+    d.appendChild(c);
+  }));
+  return d;
+}
+function diagramBlock(kind, t, iconHtml, variant) {          // kind 'imp' | 'grand'; returns a node with one diagram per situation worth showing, plus a legend
+  const box = document.createElement('div'); box.className = 'dgwrap'; const seen = new Set();
+  Diagrams.states(kind === 'imp' ? 'imp' : 'grand', t).forEach(st => {
+    let g; try { g = kind === 'imp' ? Diagrams.gridImp(Imperial, t, Object.assign({ R: 5 }, st.o)) : Diagrams.grid2p(Engine, variant, t, Object.assign({ R: 5 }, st.o)); } catch (e) { return; }
+    g.rows.forEach(r => [...r].forEach(ch => { if (MARK_TXT[ch]) seen.add(ch); }));
+    const w = document.createElement('div'); w.className = 'dgstate';
+    const cap = document.createElement('div'); cap.className = 'dgcap'; cap.textContent = st.label; w.appendChild(cap);
+    w.appendChild(diagramEl(g, iconHtml)); box.appendChild(w);
+  });
+  const lg = document.createElement('div'); lg.className = 'dgl';
+  ['m', 'c', 'b', 's'].filter(k => seen.has(k)).forEach(k => { const sp = document.createElement('span'); sp.innerHTML = '<i class="mk ' + k + '"></i>' + MARK_TXT[k]; lg.appendChild(sp); });
+  box.appendChild(lg);
+  return box;
+}
+function wireGuide(container, kind, variant) {                // 'Show moves' buttons under each guide row (diagrams are built on first click)
+  container.querySelectorAll('.dgbtn').forEach(b => {
+    b.onclick = () => {
+      const row = b.closest('.pg'), slot = row.querySelector('.dgslot');
+      if (!slot.firstChild) slot.appendChild(diagramBlock(kind, row.dataset.t, row.querySelector('.pgi').innerHTML, variant));
+      const open = slot.classList.toggle('hidden') === false; b.textContent = open ? 'Hide moves ▴' : 'Show moves ▦';
+    };
+    b.closest('.pg').querySelector('.dgslot').classList.add('hidden');
+  });
+}
+const guideRow = (t, n, d, icon, diag) => '<div class="pg" data-t="' + t.replace(/"/g, '') + '"><span class="pgi">' + icon + '</span><div><b>' + n + '</b> — ' + d + (diag ? '<div><button class="dgbtn">Show moves ▦</button><div class="dgslot"></div></div>' : '') + '</div></div>';
 let pgDone = false;
 function fillPieceGuide() {
   if (pgDone) return; pgDone = true;
-  $('pieceGuide').innerHTML = PIECE_GUIDE.map(([t, n, d]) => '<div class="pg"><span class="pgi">' + (IMP_KQ[t] || glyphHTML(t)) + '</span><div><b>' + n + '</b> — ' + d + '</div></div>').join('');
+  $('pieceGuide').innerHTML = PIECE_GUIDE.map(([t, n, d]) => guideRow(t, n, d, IMP_KQ[t] || glyphHTML(t), t !== '#')).join('');
+  wireGuide($('pieceGuide'), 'imp');
 }
-const IMP_NAMES = { p:'Pawn', v:'Pikeman', m:'Skirmisher', r:'Rook', b:'Bishop', n:'Knight', q:'Queen', k:'King', R:'Grand Rook', B:'Grand Bishop', N:'Grand Knight', E:'Emperor', X:'Empress', H:'Heir', g:'Guard', h:'Chariot', u:'Archer', s:'Sapper', t:'Catapult', y:'Prince', z:'Princess', j:'Lancer', d:'Raider', '#':'wall' };
+const IMP_NAMES = { p:'Pawn', v:'Pikeman', m:'Skirmisher', r:'Rook', b:'Bishop', n:'Knight', q:'Queen', k:'King', R:'Grand Rook', B:'Grand Bishop', N:'Grand Knight', E:'Emperor', X:'Empress', H:'Heir', g:'Guard', h:'Chariot', u:'Archer', f:'Jester', s:'Sapper', t:'Catapult', y:'Prince', z:'Princess', j:'Lancer', d:'Raider', '#':'wall' };
 function impText(g, e) {
   const A = sqName(e.fx, e.fy), Z = sqName(e.tx, e.ty), P = GLYPH[e.by] || '';
   if (e.skip) return P + A + ' no wall';
@@ -1082,6 +1325,8 @@ function mlText(g, e) {
   const sq = (x, y) => (g.hex ? (x - g.radius) + ',' + (y - g.radius) : sqName(x, y));
   if (e.swap) return 'swap ' + sq(e.fx, e.fy) + '⇄' + sq(e.tx, e.ty);
   if (e.drop) return mlLetter(e.drop) + '@' + sq(e.tx, e.ty);
+  if (e.rev) return 'revive ' + (GLYPH[e.rev] || '') + '@' + sq(e.tx, e.ty);
+  if (e.free) return 'free ' + sq(e.fx, e.fy) + '→' + sq(e.tx, e.ty);
   const at = (x, y) => (g.bug ? g.at(e.board, x, y) : g.layers ? g.at(x, y, e.fl) : g.at(x, y));
   const p = at(e.fx, e.fy), t = p ? (p.fx && p.fx.msk && !maskSeen(p) ? p.fx.msk : p.t) : '', dest = at(e.tx, e.ty);
   if (t === 'k' && (e.castle || (e.ty === e.fy && Math.abs(e.tx - e.fx) === 2) || (dest && dest.t === 'r' && dest.c === p.c))) return 'castle';
@@ -1129,10 +1374,11 @@ function updateMoveList() {
 
 // ================= bots (host only) =================
 const isBotId = pid => (game.multi ? !!bots[pid] : !!(bots2p && pid !== myColor));
+const secretSeat = sd => !!(game && game.cls && game.cls[sd] && Engine.CLASSES[game.cls[sd]] && Engine.CLASSES[game.cls[sd]].secret);      // bots never play a secret class (Glitch)
 function botSeatToMove() {
   if (!isHost || !game || spectating || replay || draft || M || game.bug || ended()) return null;
-  if (game.multi) { if (game.neutralPending) return null; const sd = game.turn; return bots[sd] && game.alive(sd) ? sd : null; }
-  return bots2p && game.turn !== myColor ? game.turn : null;
+  if (game.multi) { if (game.neutralPending) return null; const sd = game.turn; return bots[sd] && game.alive(sd) && !secretSeat(sd) ? sd : null; }
+  return bots2p && game.turn !== myColor && !secretSeat(game.turn) ? game.turn : null;
 }
 function scheduleBot() {
   if (botTimer || !botSeatToMove()) return;
@@ -1144,7 +1390,7 @@ function botStep() {
   let m = null;
   try { m = game.imperial ? Imperial.botChoose(game, game.multi ? bots[sd] : bots2p) : Engine.botChoose(game, sd, game.multi ? bots[sd] : bots2p); } catch (e) { m = null; }
   if (!m) return;
-  if (game.multi) { if (game.move(m)) { broadcast({ type: 'mmove', m }); announceMulti(); render(); } }
+  if (game.multi) { if (game.move(m)) { broadcast(mmoveMsg(m)); announceMulti(); render(); } }
   else if (game.move(m)) { send({ type: 'move', m }); announce(); render(); }
 }
 function startVsBot(level) {
@@ -1161,13 +1407,14 @@ $('botNormal').onclick = () => startVsBot('normal');
 const addLobbyBot = level => {
   if (!isHost || mstarted || !MODES[mode].multi || MODES[mode].bug) return;
   if (1 + conns.length + lobbyBots.length >= maxSeats()) return;
-  lobbyBots.push({ level, team: (conns.length + lobbyBots.length + 1) % 2 }); renderRoster();
+  { const cnt = [0, 0]; cnt[hostTeam]++; conns.filter(x => x.ready).forEach(x => cnt[x.team]++); lobbyBots.forEach(b => cnt[b.team]++); lobbyBots.push({ level, team: cnt[0] <= cnt[1] ? 0 : 1 }); } renderRoster();
 };
 $('addBotEasy').onclick = () => addLobbyBot('easy');
 $('addBotNormal').onclick = () => addLobbyBot('normal');
 $('botTakeBtn').onclick = () => {
   const sd = $('removeSel').value;
   if (!isHost || !game || !game.multi || game.bug || !sd || !game.alive(sd) || sd === mySeat) return;
+  if (secretSeat(sd)) { addChat('', 'A bot can\'t take over that seat.', true); return; }      // (generic wording: it must not reveal a secret class)
   bots[sd] = 'normal'; addChat('', CN[sd] + ' is now played by a bot (Normal).', true); render();
 };
 
@@ -1196,7 +1443,7 @@ function beginDraft(kind) {                                   // host only; trai
   const offers = {};
   partIds().forEach(p => { offers[p] = rollOffers(kind); });
   draft = { kind, offers, picks: {}, mine: offers[meId()], picked: null };
-  partIds().forEach(pid => { if (isBotId(pid)) draft.picks[pid] = offers[pid][Math.floor(Math.random() * offers[pid].length)]; });
+  partIds().forEach(pid => { if (isBotId(pid)) { const ok = offers[pid].filter(id => kind !== 'class' || !CLS(id).secret); draft.picks[pid] = ok[Math.floor(Math.random() * ok.length)]; } });      // (bots are never dealt a secret class)
   if (game.multi) conns.forEach(c => { if (!bots[c.seat]) c.send({ type: 'draft', kind, offers: offers[c.seat] }); });
   else if (!bots2p) send({ type: 'draft', kind, offers: offers[myColor === 'w' ? 'b' : 'w'] });
   render();
@@ -1213,7 +1460,7 @@ function recvPick(who, id) {
 }
 function autoPickRest() {
   if (!draft || !draft.offers) return;
-  partIds().forEach(p => { if (!draft.picks[p]) { const o = draft.offers[p]; draft.picks[p] = o[Math.floor(Math.random() * o.length)]; } });
+  partIds().forEach(p => { if (!draft.picks[p]) { const o = draft.offers[p].filter(id => !(draft.kind === 'class' && isBotId(p) && CLS(id).secret)); draft.picks[p] = o[Math.floor(Math.random() * o.length)]; } });
   if (draft.offers[meId()] && !draft.picked) draft.picked = draft.picks[meId()];
   checkDraft();
 }
@@ -1298,9 +1545,16 @@ function foeClick(x, y) {                      // clicking an enemy piece (with 
   return false;
 }
 const fxClass = p => (p.fx && p.fx.msk && maskSeen(p) ? ' fx-msk' : '') + (p.wall ? ' fx-wall' : '') + (p.fx ? (p.fx.frz ? ' fx-frz' : '') + (p.fx.dis ? ' fx-dis' : '') + (p.fx.jmp ? ' fx-jmp' : '') + (p.fx.shd && fxSeen(p.fx.shd) ? ' fx-shd' : '') + (p.fx.sct && fxSeen(p.fx.sct) ? ' fx-sct' : '') + (p.fx.phn ? ' fx-phn' : '') + (p.fx.dcy ? ' fx-dcy' : '') : '');
+function markClip(d, x, y, visible) {              // Clipping: dashed outline on a clipped square, badge with the number of overlapping pieces
+  const z = clipMap && clipMap[x + ',' + y];
+  if (!z || !visible) return;
+  d.classList.add('clip'); d.title = 'Clipped square' + (z.n ? ' (' + (z.n + 1) + ' pieces overlap)' : ' (' + z.ttl + ' turn' + (z.ttl === 1 ? '' : 's') + ' left)');
+  if (z.n) { const b = document.createElement('b'); b.className = 'stk'; b.textContent = '×' + (z.n + 1); d.appendChild(b); }
+}
 function abValidate() {                          // drops a stale ability selection and computes the highlighted target squares
   abSet = null;
-  mineSet = null; foeSet = null; rmarkSet = null;
+  mineSet = null; foeSet = null; rmarkSet = null; clipMap = null;
+  if (game && game.clips) { const cz = game.clips(); if (cz.length) { clipMap = {}; cz.forEach(z => { clipMap[z.x + ',' + z.y] = z; }); } }
   if (game && game.markers) { const mk = game.markers(); if (mk.length) rmarkSet = new Set(mk.map(m => m.x + ',' + m.y)); }
   if (foeSel && game && game.reach && gs.foeMoves) {
     const fp = game.at(foeSel.x, foeSel.y);
@@ -1362,6 +1616,7 @@ function announceAbilities() {
   const log = game.abLog();
   if (abSeenG !== game) { abSeenG = game; abSeen = log.length; return; }      // loading a game/record: don't re-announce the past
   while (abSeen < log.length) {
+    if (log[abSeen].ab === 'pick') { abSeen++; continue; }      // (Clipping: which stack member moves is not worth announcing)
     const e = log[abSeen++], k = CLS(game.cls[e.c]), a = e.ab === 'stop' ? { name: 'End Overrun' } : k.abilities.find(q => q.id === e.ab);
     const hide = gs.clHide && !spectating && e.c !== meId() && !isMate(e.c);
     const foeCast = !spectating && e.c !== meId() && !isMate(e.c), noWhere = foeCast && (e.ab === 'mine' || (gs.clHideFx && (e.ab === 'shield' || e.ab === 'sanctuary')));
@@ -1374,10 +1629,13 @@ function specStatus() {
   if (game.bug) return 'Spectating — both boards are in play';
   return 'Spectating — ' + (game.multi ? CN[game.turn] : game.turn === 'w' ? 'White' : 'Black') + ' to move';
 }
+let promoHint = false;                           // Imperial: an original Rook/Bishop/Knight is selected -> tint the zone where it would become a Grand piece
 function render() {
+  teamLook(game ? game.teams : (A4 && A4.teams));
+  promoHint = !!(game && game.imperial && game.inPromo && sel && !sel.drop && !replay && !spectating && (p => p && !p.dead && p.o && 'rbn'.includes(p.t) && p.c === meId())(game.at(sel.x, sel.y)));
   renderCore();
   renderDraft();
-  renderClassBar(); announceAbilities(); tidyHost();
+  renderClassBar(); renderStackPick(); announceAbilities(); tidyHost();
   notifyTurn();
   updateMoveList();
   scheduleBot();
@@ -1388,7 +1646,7 @@ function render() {
   if (!sel) pendingFriendly = null;
   if (pendingFriendly) $('status').textContent = 'Friendly Fire: click that piece again to capture your own piece, or choose something else.';
   if (abMode) { const ab = game.abilities(meId()).find(a => a.id === abMode); $('status').textContent = (ab ? ab.name : 'Ability') + (abFrom ? ': now click the destination/target square' : (ab && ab.steps === 2 ? ': first click the piece to use' : ': click a highlighted square')) + ' (click anywhere else to cancel).'; }
-  if (!abMode && !replay && !spectating && game.overrunOf && game.overrunOf(meId()) && game.turn === meId() && !ended()) $('status').textContent = 'Overrun! Keep capturing with the marked piece' + (game.overrunOf(meId()).n ? ' or press End Overrun.' : '.');
+  if (game && !abMode && !replay && !spectating && game.overrunOf && game.overrunOf(meId()) && game.turn === meId() && !ended()) $('status').textContent = 'Overrun! Keep capturing with the marked piece' + (game.overrunOf(meId()).n ? ' or press End Overrun.' : '.');
   else if (!abMode && chargeSq && game.turn === meId() && !ended()) $('status').textContent = 'Charge! Move the marked piece' + (chargeSq.stage === 2 ? ' again (its second move).' : '.');
   if (swapMode) $('status').textContent = 'Swap: ' + (swapFirst ? 'now pick the second piece (first: ' + sqName(swapFirst.x, swapFirst.y) + ')' : 'pick the first of your two pieces') + ' — not kings or pawns. Once per game.';
   $('endRoundBtn').classList.toggle('hidden', !(isHost && M && M.phase === 'play' && !ended()));
@@ -1425,13 +1683,16 @@ function render() {
 function renderCore() {
   layoutGame();
   $('rulesBox').classList.toggle('hidden', !MODES[mode].imperial); if (MODES[mode].imperial) fillPieceGuide();
+  $('grandBox').classList.toggle('hidden', !MODES[mode].grand); if (MODES[mode].grand) fillGrandGuide();
   cylSetup(false);
   abValidate();
   $('boardWrap').classList.remove('zoomable'); $('boardWrap').style.height = ''; document.body.classList.remove('nopagescroll'); $('zoomCtl').classList.add('hidden'); $('board').style.transform = '';
   $('board').classList.remove('hexb'); $('board').style.height = ''; $('board2').style.width = '';
   if (M && M.phase === 'play' && game && ended()) finishRound();
+  if (A4 && A4.phase === 'play' && game && ended()) finishRound4();
   updateAustUI();
   if (M && M.phase === 'setup') return renderSetup();
+  if (A4 && A4.phase === 'setup') return renderSetup4();
   if (game && game.bug) return renderBug();
   if (game && game.multi && game.layers) return renderAlice4();
   if (game && game.multi) return renderMulti();
@@ -1446,7 +1707,7 @@ function renderCore() {
   $('board2Wrap').classList.add('hidden'); $('capA').classList.add('hidden');
   const hist = g.history(), last = hist[hist.length - 1];
   const hid = MODES[mode].v.hidden && !ended() && !replay && !spectating;
-  const hints = sel && !hid ? (sel.drop ? g.drops().filter(m => m.drop === sel.drop) : g.moves(sel.x, sel.y)) : [];
+  const hints = sel && !hid ? (sel.drop ? g.drops().filter(m => m.drop === sel.drop) : selMoves()) : [];
   let kingSq = null;
   if (g.inCheck()) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const p = g.at(x, y); if (p && p.t === 'k' && p.c === g.turn) kingSq = x + ',' + y;
@@ -1469,17 +1730,19 @@ function renderCore() {
     if (mineSet && mineSet.has(x + ',' + y)) d.classList.add('mine');
     if (foeSet && foeSet.has(x + ',' + y)) d.classList.add('foe');
     if (rmarkSet && rmarkSet.has(x + ',' + y)) d.classList.add('rmark');
+    markClip(d, x, y, !fogged);
+    if (promoHint && game.inPromo(x, y, meId())) d.classList.add('promoz');
     if ((abFrom && abFrom.x === x && abFrom.y === y) || (chargeSq && chargeSq.x === x && chargeSq.y === y) || (foeSel && foeSel.x === x && foeSel.y === y)) d.classList.add('sel');
     if (p) {
       const s = document.createElement('span');
-      setGlyph(s, shownType(p)); if (p.wall && g.wallLife) addWallNum(s, g.wallLife(x, y));
+      setGlyph(s, shownType(p)); if (p.wall && g.wallLife) addWallNum(s, g.wallLife(x, y)); if (p.rc > 0) addWallNum(s, p.rc);      // (Reviver recharge countdown)
       s.className = (p.c === 'w' ? 'w-piece' : '') + (FAIRY.includes(p.t) ? ' fairy' : '') + (p.champ && p.c === myColor ? ' champ' : '') + fxClass(p);
       d.appendChild(s);
     }
     d.onclick = () => clickSq(x, y);
     el.appendChild(d);
   }
-  if (big) setupBigBoard(34, 12);
+  if (big) setupBigBoard(34, g.imperial ? Math.max(W, H) : 12);
   if (cylOn) cylSetup(true);
   renderHand(myColor === 'w' ? 'b' : 'w', $('handTop'));
   renderHand(myColor, $('handBot'));
@@ -1489,10 +1752,25 @@ function renderCore() {
 }
 
 /* ============ AUSTANG (match layer) ============ */
-function readSettings() {
+function readSettings(m) {
+  const cfg = AUST_CFG[m || mode]; if (!cfg) return null;
   const n = (id, d) => { const v = parseInt($(id).value, 10); return isNaN(v) ? d : Math.max(0, v); };
-  return { start: n('sStart', 20), base: n('sBase', 8), step: n('sStep', 2), catchup: n('sCatch', 3),
-           cap: Math.max(1, n('sCap', 24)), rounds: Math.max(1, n('sRounds', 5)) };
+  const lim = {};
+  document.querySelectorAll('#austLimits input').forEach(i => { const v = parseInt(i.value, 10); if (!isNaN(v) && v >= 0) lim[i.dataset.t] = v; });
+  return { start: n('sStart', cfg.def.start), base: n('sBase', cfg.def.base), step: n('sStep', cfg.def.step), catchup: n('sCatch', cfg.def.catchup),
+           cap: Math.max(1, n('sCap', cfg.def.cap)), rounds: Math.max(1, n('sRounds', cfg.def.rounds)), lim };
+}
+let austShown = null;
+function syncAustSettings(v) {                  // switching between Austang modes loads that mode's default numbers and piece-limit boxes
+  if (austShown === v) return; austShown = v;
+  const c = AUST_CFG[v], d = c.def;
+  [['sStart', 'start'], ['sBase', 'base'], ['sStep', 'step'], ['sCatch', 'catchup'], ['sCap', 'cap'], ['sRounds', 'rounds']].forEach(([id, k]) => { $(id).value = d[k]; });
+  const box = $('austLimits'); box.innerHTML = '';
+  c.palette.filter(t => t !== 'k').forEach(t => {
+    const l = document.createElement('label'), i = document.createElement('input');
+    i.type = 'number'; i.min = '0'; i.placeholder = '∞'; i.dataset.t = t; if (c.lim[t] != null) i.value = c.lim[t];
+    l.innerHTML = PNAMES[t] + ' '; l.appendChild(i); box.appendChild(l);
+  });
 }
 
 let gsRoomState = null, roomKind = null;
@@ -1514,7 +1792,7 @@ function updateAustUI() {
     $('swapLbl').classList.toggle('hidden', !!game.multi);
   }
   const v = room ? (isHost ? $('modeSel2').value : '') : $('modeSel').value;
-  $('austSettings').classList.toggle('hidden', v !== 'austang');
+  $('austSettings').classList.toggle('hidden', !AUST_CFG[v]); if (AUST_CFG[v]) syncAustSettings(v);
   const op = (MODES[v] && MODES[v].opts) || [];
   $('gsBox').classList.toggle('hidden', !op.length);
   $('gsDrop').classList.toggle('hidden', !op.includes('drop'));
@@ -1529,17 +1807,19 @@ function updateAustUI() {
   const mv = (MODES[v] && MODES[v].v) || {}, fixedWide = mv.board === 'wide';
   const teamBoard = op.includes('teams') && $('teamsChk').checked && !op.includes('neutral') && !(mv.alice || mv.board);
   $('gsBoard').classList.toggle('hidden', !(teamBoard || fixedWide));
+  const wideNo = op.includes('teams') && $('teamsChk').checked && !(teamBoard || fixedWide);
+  $('wideNote').classList.toggle('hidden', !wideNo);
   $('boardKindWrap').classList.toggle('hidden', fixedWide);
-  $('heightWrap').classList.toggle('hidden', !(fixedWide || $('boardSel').value === 'wide'));
+  $('heightWrap').classList.toggle('hidden', !(fixedWide || $('boardSel').value === 'wide') || !!(MODES[v] && MODES[v].match4));      // (Austang 4-player wide board is always 20 x 14)
   $('gsFoes').classList.toggle('hidden', !FOES_MODES.includes(v) || $('fogChk').checked);
   $('impRoamLbl').classList.toggle('hidden', $('nsetSel').value !== 'mixed');            // imps only exist in the Mixed set
-  $('specLinkBtn').classList.toggle('hidden', !!M); $('specChatLbl').classList.toggle('hidden', !!M);      // Austang has no spectators
-  $('drawBtn').classList.toggle('hidden', !!(game && game.multi));
+  $('specLinkBtn').classList.toggle('hidden', !!(M || A4)); $('specChatLbl').classList.toggle('hidden', !!(M || A4));      // Austang has no spectators
+  $('drawBtn').classList.toggle('hidden', !!(game && game.multi) || !!(A4 && A4.phase === 'setup')); $('resignBtn').classList.toggle('hidden', !!(A4 && A4.phase === 'setup'));
   const hostMulti = !!(game && game.multi && isHost);
   $('removeSel').classList.toggle('hidden', !hostMulti); $('removeBtn').classList.toggle('hidden', !hostMulti);
   if (game && game.multi) $('rematchBtn').classList.add('hidden');
-  $('readyBtn').classList.toggle('hidden', !(M && M.phase === 'setup' && M.sentRound !== M.round));
-  $('nextBtn').classList.toggle('hidden', !(M && M.phase === 'between' && M.round < M.s.rounds));
+  $('readyBtn').classList.toggle('hidden', !((M && M.phase === 'setup' && M.sentRound !== M.round) || (A4 && A4.phase === 'setup' && A4.sent !== A4.round)));
+  $('nextBtn').classList.toggle('hidden', !((M && M.phase === 'between' && M.round < M.s.rounds) || (A4 && isHost && A4.phase === 'between' && A4.round < A4.s.rounds)));
   tidyHost();
 }
 function tidyHost() {                           // hide option groups / host rows that have nothing to show
@@ -1548,43 +1828,81 @@ function tidyHost() {                           // hide option groups / host row
 }
 
 function mineStats() {
-  let s = 0, n = 0; const m = M.setups[myColor];
-  for (const k in m) { s += COST[m[k]]; n++; }
+  let s = 0, n = 0; const m = M.setups[myColor], cost = AC().cost;
+  for (const k in m) { s += cost[m[k]]; n++; }
   return { s, n };
+}
+const countOf = (setup, t) => Object.values(setup).filter(u => u === t).length;
+const limTxt = t => { const l = M.s.lim && M.s.lim[t]; return l != null ? ' (max ' + l + ')' : ''; };
+function setupProblem(color, setup) {          // everything a legal army has to satisfy (also used on the opponent's army when it arrives)
+  const c = AC(), W = c.w, H = c.h; let pts = 0, n = 0, kings = 0;
+  if (!setup || typeof setup !== 'object') return 'Invalid army.';
+  for (const key in setup) {
+    const xy = key.split(',').map(Number), x = xy[0], y = xy[1], t = setup[key];
+    if (!(x >= 0 && x < W && y >= 0 && y < H) || !(t in c.cost)) return 'Invalid piece placement.';
+    if (color === 'w' ? y >= H / 2 : y < H / 2) return 'A piece is outside its own half.';
+    if ((t === 'p' || t === '\u03c1') && (y === 0 || y === H - 1)) return "Pawns can't start on the back rank.";
+    pts += c.cost[t]; n++; if (t === 'k') kings++;
+  }
+  if (kings !== 1) return 'You need exactly one king.';
+  if (pts > M.pool[color]) return 'Not enough points.';
+  if (n > M.s.cap) return 'Piece cap reached.';
+  for (const t in (M.s.lim || {})) if (countOf(setup, t) > M.s.lim[t]) return 'At most ' + M.s.lim[t] + ' ' + PNAMES[t].toLowerCase() + (M.s.lim[t] === 1 ? '' : 's') + ' allowed.';
+  return '';
 }
 
 function placeAt(x, y) {
   if (M.sentRound === M.round) return;
-  const key = x + ',' + y, bak = Object.assign({}, M.setups[myColor]);
+  const H = AC().h, key = x + ',' + y, bak = Object.assign({}, M.setups[myColor]);
   setupMsg = '';
   if (pal === 'x') { delete M.setups[myColor][key]; return render(); }
-  if (pal === 'p' && (y === 0 || y === 7)) { setupMsg = "Pawns can't start on the back rank."; return render(); }
+  if ((pal === 'p' || pal === '\u03c1') && (y === 0 || y === H - 1)) { setupMsg = "Pawns can't start on the back rank."; return render(); }
   const m = M.setups[myColor];
   if (pal === 'k') for (const k in m) if (m[k] === 'k') delete m[k];
   m[key] = pal;
-  const st = mineStats();
+  const st = mineStats(), lim = M.s.lim && M.s.lim[pal];
   if (st.s > M.pool[myColor]) { M.setups[myColor] = bak; setupMsg = 'Not enough points.'; }
   else if (st.n > M.s.cap) { M.setups[myColor] = bak; setupMsg = 'Piece cap reached.'; }
+  else if (lim != null && countOf(m, pal) > lim) { M.setups[myColor] = bak; setupMsg = 'Limit reached: at most ' + lim + ' ' + PNAMES[pal].toLowerCase() + (lim === 1 ? '' : 's') + '.'; }
   render();
 }
 
+function renderPieceDemo(ctx) {                    // what the selected piece does, drawn on a tiny board, before you place it
+  const box = $('pieceDemo'); box.innerHTML = '';
+  ctx = ctx || { cfg: AC(), locked: M.sentRound === M.round, s: M.s, v: MODES[M.mode].v };
+  const c = ctx.cfg, locked = ctx.locked;
+  if (locked || pal === 'x' || !(pal in c.cost)) { box.classList.add('hidden'); return; }
+  const info = GRAND_GUIDE.find(e => e[0] === pal) || [pal, PNAMES[pal], ''];
+  const lim = ctx.s.lim && ctx.s.lim[pal];
+  const left = document.createElement('div'); left.className = 'dgstate';
+  const g = Diagrams.grid2p(Engine, ctx.v, pal, Object.assign({ R: 5 }, Diagrams.states('grand', pal)[0].o));
+  left.appendChild(diagramEl(g, glyphHTML(pal)));
+  const right = document.createElement('div'); right.className = 'pdtxt';
+  right.innerHTML = '<b>' + PNAMES[pal] + '</b> — ' + c.cost[pal] + ' point' + (c.cost[pal] === 1 ? '' : 's') + (lim != null ? ' · max ' + lim : '') + '<br>' + info[2];
+  const lg = document.createElement('div'); lg.className = 'dgl'; const seen = new Set();
+  g.rows.forEach(r => [...r].forEach(ch => { if (MARK_TXT[ch]) seen.add(ch); }));
+  ['m', 'c', 'b', 's'].filter(k => seen.has(k)).forEach(k => { const sp = document.createElement('span'); sp.innerHTML = '<i class="mk ' + k + '"></i>' + MARK_TXT[k]; lg.appendChild(sp); });
+  right.appendChild(lg);
+  box.appendChild(left); box.appendChild(right); box.classList.remove('hidden');
+}
 function renderSetup() {
   const el = $('board'); el.innerHTML = '';
-  el.style.gridTemplateColumns = 'repeat(8,minmax(0,1fr))'; el.style.aspectRatio = '1'; el.style.width = '100%';
+  const c = AC(), W = c.w, H = c.h;
+  el.style.gridTemplateColumns = 'repeat(' + W + ',minmax(0,1fr))'; el.style.aspectRatio = '1'; el.style.width = '100%';
   $('board2Wrap').classList.add('hidden'); $('capA').classList.add('hidden');
-  el.style.fontSize = (boardPx() / 8 * 0.7) + 'px';
+  el.style.fontSize = (boardPx() / W * 0.7) + 'px';
   const m = M.setups[myColor], locked = M.sentRound === M.round;
-  for (let i = 0; i < 64; i++) {
-    const r = Math.floor(i / 8), c = i % 8;
-    const x = myColor === 'w' ? c : 7 - c, y = myColor === 'w' ? 7 - r : r;
-    const own = myColor === 'w' ? y < 4 : y >= 4;
+  for (let i = 0; i < W * H; i++) {
+    const r = Math.floor(i / W), cc = i % W;
+    const x = myColor === 'w' ? cc : W - 1 - cc, y = myColor === 'w' ? H - 1 - r : r;
+    const own = myColor === 'w' ? y < H / 2 : y >= H / 2;
     const d = document.createElement('div');
     d.className = 'sq ' + ((x + y) % 2 === 1 ? 'l' : 'd');
     if (!own) d.style.opacity = '.3';
     const t = own && m[x + ',' + y];
     if (t) {
       const s = document.createElement('span');
-      s.textContent = GLYPH[t]; if (myColor === 'w') s.className = 'w-piece';
+      setGlyph(s, t); s.className = (myColor === 'w' ? 'w-piece' : '') + (FAIRY.includes(t) ? ' fairy' : '');
       d.appendChild(s);
     }
     if (own && !locked) d.onclick = () => placeAt(x, y);
@@ -1596,13 +1914,19 @@ function renderSetup() {
     (locked ? ' — waiting for opponent…' : (M.opp && M.opp.round === M.round ? ' — opponent is ready' : ''));
   $('handTop').innerHTML = '';
   const hb = $('handBot'); hb.innerHTML = '';
-  if (!locked) ['k', 'p', 'n', 'b', 'r', 'q', 'x'].forEach(t => {
+  if (!locked) c.palette.concat(['x']).forEach(t => {
     const b = document.createElement('button');
-    b.textContent = t === 'x' ? '✖' : GLYPH[t] + (COST[t] ? '·' + COST[t] : '');
+    if (t === 'x') b.textContent = '✖';
+    else {
+      const lim = M.s.lim && M.s.lim[t];
+      b.innerHTML = glyphHTML(t) + (c.cost[t] ? '·' + c.cost[t] : '') + (lim != null ? '<small> ' + countOf(m, t) + '/' + lim + '</small>' : '');
+      b.title = PNAMES[t] + ' — ' + c.cost[t] + ' point' + (c.cost[t] === 1 ? '' : 's') + limTxt(t);
+    }
     if (pal === t) b.className = 'on';
     b.onclick = () => { pal = t; render(); };
     hb.appendChild(b);
   });
+  renderPieceDemo();
   const opp = myColor === 'w' ? 'b' : 'w';
   $('history').textContent = 'Score: you ' + M.scores[myColor] + ' – ' + M.scores[opp] + ' opponent';
 }
@@ -1614,16 +1938,16 @@ function tryStart() {
 }
 
 function startRound() {
-  const rows = [];
-  for (let y = 7; y >= 0; y--) {
+  const rows = [], W = AC().w, H = AC().h;
+  for (let y = H - 1; y >= 0; y--) {
     let row = '';
-    for (let x = 0; x < 8; x++) {
-      const t = (y < 4 ? M.setups.w : M.setups.b)[x + ',' + y];
-      row += t ? (y < 4 ? t.toUpperCase() : t) : '.';
+    for (let x = 0; x < W; x++) {
+      const t = (y < H / 2 ? M.setups.w : M.setups.b)[x + ',' + y];
+      row += t ? (y < H / 2 ? t.toUpperCase() : t) : '.';
     }
     rows.push(row);
   }
-  const mk = f => Engine.create(Object.assign({}, MODES.austang.v, { setup: rows, first: f }));
+  const mk = f => Engine.create(Object.assign({}, MODES[M.mode].v, { setup: rows, first: f }));
   const f = M.round % 2 === 1 ? 'w' : 'b', other = f === 'w' ? 'b' : 'w';
   game = mk(f);
   const o = mk(other);
@@ -1645,13 +1969,15 @@ function finishRound() {
 }
 
 $('readyBtn').onclick = () => {
-  const kings = Object.values(M.setups[myColor]).filter(t => t === 'k').length;
-  if (kings !== 1) { setupMsg = 'You need exactly one king.'; return render(); }
+  if (A4) return a4Ready();
+  const prob = setupProblem(myColor, M.setups[myColor]);
+  if (prob) { setupMsg = prob; return render(); }
   M.sentRound = M.round; setupMsg = '';
   send({ type: 'ready', round: M.round, setup: M.setups[myColor] });
   tryStart(); render();
 };
 $('nextBtn').onclick = () => {
+  if (A4) { if (isHost && A4.phase === 'between') { broadcast({ type: 'a4next' }); a4Next(); a4HostSendMates(); render(); } return; }
   M.round++; M.phase = 'setup'; M.sentRound = 0; setupMsg = ''; sel = null;
   render();
 };
@@ -1664,6 +1990,194 @@ $('wheelSel').onchange = () => { try { localStorage.setItem('chessWheel', $('whe
 $('boardSel').onchange = updateAustUI;
 $('teamsChk').onchange = () => { updateAustUI(); if (isHost && !mstarted) renderRoster(); };
 $('modeSel2').onchange = updateAustUI;
+
+/* ============ AUSTANG 4-PLAYER (build-your-army match for 2–4 players; the host is the hub) ============ */
+// (A4 itself is declared with the other state variables near the top)
+// A4 = { s settings, teams, seats, round, phase 'setup'|'play'|'between', scores{seat}, pool{seat}, setups{seat:{'u,r':type}} (the host holds everyone's), mate{seat:setup} (your partner's live build), ready{seat:true}, sent (round you pressed Ready), counted, armies, first }
+const A4W = 10, A4H = 5, A4PARTNER = { r: 'y', y: 'r', b: 'g', g: 'b' };
+const a4cfg = () => AUST_CFG.austang4;
+const a4Partner = c => (A4 && A4.teams && A4.seats.includes(A4PARTNER[c]) ? A4PARTNER[c] : null);
+function initA4(seats, s, gsIn) {
+  const T = { r: 0, y: 0, b: 1, g: 1 };
+  A4 = { s, teams: !!(gsIn && gsIn.teams) && new Set(seats.map(c => T[c])).size === 2, seats: seats.slice(), round: 1, phase: 'setup', scores: {}, pool: {}, setups: {}, mate: {}, ready: {}, sent: 0, counted: 0, armies: null, first: null };
+  seats.forEach(c => { A4.scores[c] = 0; A4.pool[c] = s.start; A4.setups[c] = { '4,0': 'k' }; });
+  game = null; M = null; over = null; overRes = null; sel = null; setupMsg = ''; pal = 'p';
+}
+const a4Meta = () => ({ s: A4.s, teams: A4.teams, seats: A4.seats, round: A4.round, phase: A4.phase, scores: A4.scores, pool: A4.pool, armies: A4.armies, first: A4.first, counted: A4.counted });
+function a4Load(meta) {
+  A4 = Object.assign({ setups: {}, mate: {}, ready: {}, sent: 0 }, JSON.parse(JSON.stringify(meta)));
+  A4.seats.forEach(c => { if (!A4.setups[c]) A4.setups[c] = { '4,0': 'k' }; });
+}
+function a4Extra(seat) {
+  const p = a4Partner(seat);
+  return { setup: A4.setups[seat], ready: Object.keys(A4.ready).filter(c => A4.ready[c]), mate: p ? { [p]: A4.setups[p] } : {} };
+}
+function a4Apply(x) {
+  if (!A4 || !x) return;
+  if (x.setup) A4.setups[mySeat] = x.setup;
+  A4.ready = {}; (x.ready || []).forEach(c => { A4.ready[c] = true; });
+  A4.sent = A4.ready[mySeat] ? A4.round : 0;
+  if (x.mate) A4.mate = x.mate;
+}
+function a4SendResume(c) { c.send({ type: 'a4resume', mode, seat: c.seat, seats: A4.seats, gs, a4: a4Meta(), x: a4Extra(c.seat) }); }
+const a4Stats = setup => { let s = 0, n = 0; const cost = a4cfg().cost; for (const k in setup) { s += cost[setup[k]] || 0; n++; } return { s, n }; };
+function a4Problem(setup, pool) {                    // everything a legal army has to satisfy (the host checks every army again)
+  const c = a4cfg(); let pts = 0, n = 0, kings = 0;
+  if (!setup || typeof setup !== 'object') return 'Invalid army.';
+  for (const key in setup) {
+    const xy = key.split(',').map(Number), u = xy[0], r = xy[1], t = setup[key];
+    if (!(Number.isInteger(u) && Number.isInteger(r) && u >= 0 && u < A4W && r >= 0 && r < A4H) || typeof t !== 'string' || !Object.prototype.hasOwnProperty.call(c.cost, t)) return 'Invalid piece placement.';
+    if ((t === 'p' || t === '\u03c1') && r === 0) return "Pawns can't start on the back rank.";
+    pts += c.cost[t]; n++; if (t === 'k') kings++;
+  }
+  if (kings !== 1) return 'You need exactly one king.';
+  if (pts > pool) return 'Not enough points (' + pts + '/' + pool + ').';
+  if (n > A4.s.cap) return 'Too many pieces (max ' + A4.s.cap + ').';
+  for (const t in (A4.s.lim || {})) if (countOf(setup, t) > A4.s.lim[t]) return 'At most ' + A4.s.lim[t] + ' ' + PNAMES[t] + '.';
+  return '';
+}
+function a4Share() {                                  // guests tell the host about every change (for reconnects and so the host can show a partner); the host tells its partner directly
+  if (!isHost) { send({ type: 'a4build', round: A4.round, setup: A4.setups[mySeat] }); return; }
+  const p = a4Partner(mySeat), pc = p && conns.find(x => x.seat === p);
+  if (pc && pc.open) pc.send({ type: 'a4mate', seat: mySeat, setup: A4.setups[mySeat] });
+}
+function a4HostSendMates() {                          // (host) give every player a look at their partner's current build
+  if (!A4.teams) return;
+  A4.seats.forEach(sd => {
+    const p = a4Partner(sd); if (!p) return;
+    if (p === mySeat) A4.mate[sd] = A4.setups[sd];
+    else { const pc = conns.find(x => x.seat === p); if (pc && pc.open) pc.send({ type: 'a4mate', seat: sd, setup: A4.setups[sd] }); }
+  });
+}
+function a4Place(u, r) {
+  if (A4.sent === A4.round) return;
+  const key = u + ',' + r, mine = A4.setups[mySeat], bak = Object.assign({}, mine); setupMsg = '';
+  if (pal === 'x') { delete mine[key]; a4Share(); return render(); }
+  if ((pal === 'p' || pal === '\u03c1') && r === 0) { setupMsg = "Pawns can't start on the back rank."; return render(); }
+  if (pal === 'k') for (const k in mine) if (mine[k] === 'k') delete mine[k];
+  mine[key] = pal;
+  const st = a4Stats(mine), lim = A4.s.lim && A4.s.lim[pal];
+  if (st.s > A4.pool[mySeat]) { A4.setups[mySeat] = bak; setupMsg = 'Not enough points.'; }
+  else if (st.n > A4.s.cap) { A4.setups[mySeat] = bak; setupMsg = 'Piece cap reached (' + A4.s.cap + ').'; }
+  else if (lim != null && countOf(mine, pal) > lim) { A4.setups[mySeat] = bak; setupMsg = 'Limit reached: at most ' + lim + ' ' + PNAMES[pal] + '.'; }
+  else a4Share();
+  render();
+}
+function a4Ready() {
+  if (!A4 || A4.phase !== 'setup' || A4.sent === A4.round) return;
+  const prob = a4Problem(A4.setups[mySeat], A4.pool[mySeat]);
+  if (prob) { setupMsg = prob; return render(); }
+  A4.sent = A4.round; setupMsg = '';
+  if (isHost) a4HostReady(mySeat, A4.setups[mySeat], null); else send({ type: 'a4ready', round: A4.round, setup: A4.setups[mySeat] });
+  render();
+}
+function a4HostReady(seat, setup, cn) {
+  const prob = a4Problem(setup, A4.pool[seat]);
+  if (prob) {
+    if (seat === mySeat) { A4.sent = 0; setupMsg = prob; render(); } else if (cn && cn.open) cn.send({ type: 'a4reject', text: prob });
+    return;
+  }
+  A4.setups[seat] = setup; A4.ready[seat] = true;
+  broadcast({ type: 'a4status', round: A4.round, ready: Object.keys(A4.ready).filter(c => A4.ready[c]) });
+  addChat('', CN[seat] + ' is ready.', true);
+  if (A4.seats.every(c => A4.ready[c])) a4HostStart(); else render();
+}
+function a4HostStart() {
+  const armies = {};
+  A4.seats.forEach(c => { armies[c] = Object.entries(A4.setups[c]).map(([k, t]) => { const xy = k.split(',').map(Number); return { u: xy[0], r: xy[1], t }; }); });
+  const first = A4.seats[(A4.round - 1) % A4.seats.length];
+  broadcast({ type: 'a4start', round: A4.round, armies, first });
+  startRound4(armies, first);
+}
+function hostRecvA4(c, msg) {
+  if (!A4 || !c.seat) return;
+  if (msg.type !== 'a4build' && msg.type !== 'a4ready') return;
+  if (A4.phase !== 'setup' || msg.round !== A4.round || A4.ready[c.seat] || !msg.setup || typeof msg.setup !== 'object') return;
+  if (msg.type === 'a4ready') return a4HostReady(c.seat, msg.setup, c);
+  if (Object.keys(msg.setup).length > 60) return;
+  A4.setups[c.seat] = msg.setup;
+  const p = a4Partner(c.seat);
+  if (p === mySeat) { A4.mate[c.seat] = msg.setup; render(); }
+  else if (p) { const pc = conns.find(x => x.seat === p); if (pc && pc.open) pc.send({ type: 'a4mate', seat: c.seat, setup: msg.setup }); }
+}
+function startRound4(armies, first) {
+  A4.armies = armies; A4.first = first; A4.phase = 'play'; A4.counted = 0;
+  newGame(mode, null, { seats: A4.seats, gs, a4round: true });
+  sel = null; $('promo').classList.add('hidden');
+  addChat('', 'Round ' + A4.round + '/' + A4.s.rounds + ' begins — ' + CN[first] + ' moves first. All armies are revealed!', true);
+  render();
+}
+function finishRound4() {
+  if (!A4 || A4.counted === A4.round) return;
+  A4.counted = A4.round;
+  const w = game.winner(), T = c => (game.teams ? game.teams[c] : c);
+  A4.seats.forEach(c => { if (w) { if (T(c) === T(w)) A4.scores[c] += 1; } else A4.scores[c] += 0.5; });
+  const gain = A4.s.base + A4.s.step * (A4.round - 1);
+  A4.seats.forEach(c => { A4.pool[c] += gain; if (w && T(c) !== T(w)) A4.pool[c] += A4.s.catchup; });
+  A4.phase = 'between';
+  addChat('', 'Round ' + A4.round + ' over. Everyone gains ' + gain + ' points' + (w ? ', everyone who didn’t win +' + A4.s.catchup + '.' : '.') + ' You will have ' + A4.pool[mySeat] + ' to spend.', true);
+  if (A4.round >= A4.s.rounds) {
+    const best = Math.max(...A4.seats.map(c => A4.scores[c])), top = A4.seats.filter(c => A4.scores[c] === best);
+    addChat('', 'Match over! ' + (A4.teams ? top.map(c => CN[c]).join(' & ') + ' win' : top.map(c => CN[c]).join(' & ') + (top.length > 1 ? ' tie' : ' wins')) + ' with ' + best + ' point' + (best === 1 ? '' : 's') + '. The host can start a new match with “New game”.', true);
+  }
+}
+function a4Next() {
+  A4.round++; A4.phase = 'setup'; A4.sent = 0; A4.ready = {}; A4.mate = {}; A4.armies = null;
+  game = null; over = null; overRes = null; sel = null; setupMsg = ''; $('promo').classList.add('hidden');
+  addChat('', 'Round ' + A4.round + '/' + A4.s.rounds + ': build your army. You have ' + A4.pool[mySeat] + ' points.', true);
+}
+function a4ScoreLine() {
+  const parts = A4.teams
+    ? [['r', 'y'], ['b', 'g']].map(g2 => g2.filter(c => A4.seats.includes(c))).filter(g2 => g2.length).map(g2 => g2.map(c => CN[c]).join(' & ') + ' ' + A4.scores[g2[0]])
+    : A4.seats.map(c => CN[c] + ' ' + A4.scores[c]);
+  return 'Round ' + A4.round + '/' + A4.s.rounds + ' · Score: ' + parts.join(' · ');
+}
+function a4StatusExtra() {
+  let t = '';
+  if (A4.phase === 'between') t += A4.round < A4.s.rounds ? (isHost ? ' — press “Continue to next round”.' : ' — waiting for the host to continue.') : ' — match over.';
+  if (game && game.yard && game.yard(mySeat).length && game.yard(mySeat).length < 40 && hasReviveUnit()) t += ' — Fallen: ' + game.yard(mySeat).map(x => GLYPH[x] || x).join(' ');
+  if (game && game.turn === mySeat && game.freeLeft && game.freeLeft() > 0 && game.freeLeft() < 5 && !ended()) t += ' — Herald: ' + game.freeLeft() + ' free step' + (game.freeLeft() > 1 ? 's' : '') + ' left';
+  return t;
+}
+function a4Arm(el, setup, seat, onclick) {            // one player's 10x5 arm, own back rank at the bottom
+  el.innerHTML = ''; el.classList.remove('hexb');
+  const w = Math.min(boardPx(), 640);
+  el.style.gridTemplateColumns = 'repeat(' + A4W + ',minmax(0,1fr))'; el.style.aspectRatio = A4W + '/' + A4H; el.style.width = w + 'px'; el.style.height = ''; el.style.fontSize = (w / A4W * 0.72) + 'px';
+  for (let r = A4H - 1; r >= 0; r--) for (let u = 0; u < A4W; u++) {
+    const d = document.createElement('div'); d.className = 'sq ' + ((u + r) % 2 === 1 ? 'l' : 'd');
+    const t = setup && setup[u + ',' + r];
+    if (t) { const sp = document.createElement('span'); setGlyph(sp, t); sp.className = 'pc-' + seat + (FAIRY.includes(t) ? ' fairy' : ''); d.appendChild(sp); }
+    if (onclick) d.onclick = () => onclick(u, r);
+    el.appendChild(d);
+  }
+}
+function renderSetup4() {
+  const c = a4cfg(), locked = A4.sent === A4.round, m = A4.setups[mySeat], mate = a4Partner(mySeat);
+  $('capA').classList.add('hidden');
+  a4Arm($('board'), m, mySeat, locked ? null : a4Place);
+  const w2 = $('board2Wrap');
+  if (mate) { w2.classList.remove('hidden'); w2.querySelector('.lbl').textContent = CN[mate] + ' (your partner) — live view of their build'; a4Arm($('board2'), A4.mate[mate] || {}, mate, null); }
+  else w2.classList.add('hidden');
+  const st = a4Stats(m), rd = A4.seats.filter(sd => A4.ready[sd]).map(sd => CN[sd]);
+  $('status').textContent = 'Round ' + A4.round + '/' + A4.s.rounds + ' — build your army (you are ' + CN[mySeat] + '). Points ' + st.s + '/' + A4.pool[mySeat] + ' · pieces ' + st.n + '/' + A4.s.cap +
+    (setupMsg ? ' — ' + setupMsg : '') + (locked ? ' — waiting for the others…' : '') + (rd.length ? ' · Ready: ' + rd.join(', ') : '');
+  $('handTop').innerHTML = '';
+  const hb = $('handBot'); hb.innerHTML = '';
+  if (!locked) c.palette.concat(['x']).forEach(t => {
+    const b = document.createElement('button');
+    if (t === 'x') b.textContent = '✖';
+    else {
+      const lim = A4.s.lim && A4.s.lim[t];
+      b.innerHTML = glyphHTML(t) + (c.cost[t] ? '·' + c.cost[t] : '') + (lim != null ? '<small> ' + countOf(m, t) + '/' + lim + '</small>' : '');
+      b.title = PNAMES[t] + ' — ' + c.cost[t] + ' point' + (c.cost[t] === 1 ? '' : 's') + (lim != null ? ' (max ' + lim + ')' : '');
+    }
+    if (pal === t) b.className = 'on';
+    b.onclick = () => { pal = t; render(); };
+    hb.appendChild(b);
+  });
+  renderPieceDemo({ cfg: c, locked, s: A4.s, v: Engine.AUSTANG_GRAND });
+  $('history').textContent = a4ScoreLine();
+}
 
 /* ============ ALICE CHESS (two boards) ============ */
 // Click a piece on either board, then a destination square on the SAME board; the piece
@@ -1729,31 +2243,52 @@ function lobbySeats() {
   const seats = seatsFor(mode, players.length);
   return { seats, by: seats.slice() };
 }
+const SEAT_HEX = { r: '#ff5a5a', y: '#ff9a3c', b: '#5aa0ff', g: '#3fd6cf' }, SEAT_NAME = { r: 'Red', y: 'Orange', b: 'Blue', g: 'Teal' };      // 2v2 look
 function renderRoster() {
   const r = $('roster'); r.innerHTML = '';
-  const tOn = teamsOn(), ready = conns.filter(c => c.ready);
-  const row = (name, team, toggle, kick) => {
-    const d = document.createElement('div'); d.textContent = name + ' ';
-    if (tOn) { const t = document.createElement('button'); t.textContent = 'Team ' + 'AB'[team]; t.style.background = team ? '#2b5d9b' : '#a33'; t.onclick = toggle; d.appendChild(t); d.appendChild(document.createTextNode(' ')); }
-    if (kick) { const k = document.createElement('button'); k.textContent = 'Kick'; k.onclick = kick; d.appendChild(k); }
-    r.appendChild(d);
+  const tOn = teamsOn(), ready = conns.filter(c => c.ready), bug = !!MODES[mode].bug;
+  // everybody in lobby order: host, joined players, bots
+  const rows = [{ name: 'You (host)', get team() { return hostTeam; }, flip: () => { hostTeam ^= 1; } }]
+    .concat(ready.map((c, i) => ({ name: 'Player ' + (i + 2), get team() { return c.team; }, flip: () => { c.team ^= 1; }, kick: () => kickConn(c) })))
+    .concat(lobbyBots.map(b => ({ name: 'Bot (' + b.level + ')', get team() { return b.team; }, flip: () => { b.team ^= 1; }, kick: () => { lobbyBots.splice(lobbyBots.indexOf(b), 1); renderRoster(); } })));
+  const n = rows.length, by = tOn ? lobbySeats().by : [];
+  const mk = (row, k) => {
+    const d = document.createElement('div'); d.className = 'rrow';
+    if (tOn && by[k]) { const dot = document.createElement('span'); dot.className = 'rdot'; dot.style.background = SEAT_HEX[by[k]]; dot.title = SEAT_NAME[by[k]]; d.appendChild(dot); }
+    d.appendChild(document.createTextNode(row.name + ' '));
+    if (tOn) { const t = document.createElement('button'); t.textContent = 'Move to Team ' + 'AB'[row.team ^ 1] + ' ⇄'; t.onclick = () => { row.flip(); renderRoster(); }; d.appendChild(t); d.appendChild(document.createTextNode(' ')); }
+    if (row.kick) { const kb = document.createElement('button'); kb.textContent = row.kick === undefined ? '' : (row.name.startsWith('Bot') ? 'Remove' : 'Kick'); kb.onclick = row.kick; d.appendChild(kb); }
+    return d;
   };
-  row('1. You (host)', hostTeam, () => { hostTeam ^= 1; renderRoster(); });
-  ready.forEach((c, i) => row((i + 2) + '. Player joined', c.team, () => { c.team ^= 1; renderRoster(); }, () => kickConn(c)));
-  lobbyBots.forEach((b, j) => row((ready.length + j + 2) + '. Bot (' + b.level + ')', b.team, () => { b.team ^= 1; renderRoster(); }, () => { lobbyBots.splice(lobbyBots.indexOf(b), 1); renderRoster(); }));
-  const n = ready.length + 1 + lobbyBots.length;
-  $('addBotEasy').disabled = $('addBotNormal').disabled = n >= maxSeats();
+  if (tOn) {
+    const cols = document.createElement('div'); cols.id = 'teamCols';
+    [0, 1].forEach(t => {
+      const col = document.createElement('div'); col.className = 'tcol t' + t;
+      const members = rows.map((row, k) => ({ row, k })).filter(o => o.row.team === t);
+      const h = document.createElement('div'); h.className = 'thead';
+      h.textContent = 'Team ' + 'AB'[t] + ' — ' + (t ? 'Blue & Teal' : 'Red & Orange') + ' (' + members.length + '/2)';
+      col.appendChild(h);
+      members.forEach(o => col.appendChild(mk(o.row, o.k)));
+      if (!members.length) { const e = document.createElement('div'); e.className = 'dim'; e.textContent = '(empty)'; col.appendChild(e); }
+      cols.appendChild(col);
+    });
+    r.appendChild(cols);
+  } else rows.forEach((row, k) => r.appendChild(mk(row, k)));
+  $('addBotEasy').disabled = $('addBotNormal').disabled = n >= maxSeats() || !!MODES[mode].match4;
   let ok = n >= 2;
   if (tOn) {
-    const cnt = [0, 0]; cnt[hostTeam]++; ready.forEach(c => cnt[c.team]++); lobbyBots.forEach(b => cnt[b.team]++);
+    const cnt = [0, 0]; rows.forEach(row => cnt[row.team]++);
     ok = cnt[0] >= 1 && cnt[1] >= 1 && cnt[0] <= 2 && cnt[1] <= 2;
-    if (MODES[mode].bug) ok = cnt[0] === 2 && cnt[1] === 2;
-    const note = document.createElement('div');
-    note.textContent = MODES[mode].bug
-      ? (ok ? 'Board A: Red (White) vs Blue (Black). Board B: Green (White) vs Yellow (Black). Team A = Red + Yellow, Team B = Blue + Green. No clocks.' : 'Bughouse needs exactly 2 players on each team (4 total). Click a team button to move a player.')
-      : (ok ? 'Team A = Red & Yellow, Team B = Blue & Green. Teams alternate turns.' : 'Each team needs 1–2 players. Click a team button to move a player.');
+    if (bug) ok = cnt[0] === 2 && cnt[1] === 2;
+    const note = document.createElement('div'); note.className = 'dim';
+    note.textContent = bug
+      ? (ok ? 'Board A: Red (White) vs Blue (Black). Board B: Green (White) vs Yellow (Black). Team A = Red + Yellow, Team B = Blue + Green. No clocks.' : 'Bughouse needs exactly 2 players on each team (4 total). Use the “Move to Team” buttons.')
+      : (ok ? 'Partners share a colour family and never capture or check each other. Teams alternate turns.' : 'Each team needs 1–2 players. Use the “Move to Team” buttons to rearrange (bots included).');
     r.appendChild(note);
+  } else if (n >= 2) {
+    const note = document.createElement('div'); note.className = 'dim'; note.textContent = 'Tick “2v2 teams” above to choose who plays with whom.'; r.appendChild(note);
   }
+  if (MODES[mode].match4 && lobbyBots.length) { ok = false; const nb = document.createElement('div'); nb.className = 'dim'; nb.textContent = 'Bots can’t build armies — remove them to play Austang 4-Player.'; r.appendChild(nb); }
   $('startBtn').disabled = !ok;
   $('startBtn').textContent = 'Start game (' + n + ' player' + (n > 1 ? 's' : '') + ')';
   ready.forEach((c, i) => c.send({ type: 'mwait', text: 'Connected. You are player ' + (i + 2) + ' of ' + n + ' so far — waiting for the host to start…' }));
@@ -1764,7 +2299,8 @@ function kickConn(c) {
   conns = conns.filter(x => x !== c); renderRoster();
 }
 function hostMultiConn(c) {
-  conns.push(c); c.team = conns.length % 2;
+  conns.push(c);
+  { const cnt = [0, 0]; cnt[hostTeam]++; conns.filter(x => x !== c && x.ready).forEach(x => cnt[x.team]++); lobbyBots.forEach(b => cnt[b.team]++); c.team = cnt[0] <= cnt[1] ? 0 : 1; }
   onOpen(c, () => {
     c.ready = true; renderRoster();
     if ($('autoChk').checked && conns.filter(x => x.ready).length + lobbyBots.length === maxSeats() - 1) startMulti();
@@ -1788,10 +2324,12 @@ function startMulti() {
   bots = {};
   lobbyBots.forEach((b, j) => { bots[by[1 + players.length + j]] = b.level; });
   newGame(mode, null, { seats, gs: readGS() });
-  conns.forEach(c => c.send({ type: 'minit', mode, seat: c.seat, seats, gs }));
+  if (MODES[mode].match4) initA4(seats, readSettings(mode), gs);
+  conns.forEach(c => c.send({ type: 'minit', mode, seat: c.seat, seats, gs, a4: A4 ? { s: A4.s, teams: A4.teams } : undefined }));
   if (needDraft()) beginDraft();
   $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
   $('hostCtl').classList.remove('hidden'); $('modeSel2').value = mode;
+  if (A4) { a4HostSendMates(); addChat('', 'You are ' + CN[mySeat] + '. Build your army in your own arm — nobody sees it until everyone is ready' + (A4.teams ? ' (your partner can watch you build).' : '.'), true); render(); return; }
   addChat('', 'You are ' + CN[mySeat] + '. Turn order: ' + game.seats.map(c => CN[c]).join(' → ') + '.', true);
   render();
 }
@@ -1800,11 +2338,19 @@ function teamNames(s) { return game.teams ? game.seats.filter(c => game.teams[c]
 const sameSide = (a, b) => a === b || !!(game && game.teams && game.teams[a] === game.teams[b]);
 
 function hostRecv(c, msg) {
+  if (A4 && msg && typeof msg.type === 'string' && msg.type.startsWith('a4')) return hostRecvA4(c, msg);
+  if (A4 && !game) {                                         // chat and resync while the armies are being built
+    if (msg.type === 'chat') { const t = String(msg.text).slice(0, 300); addChat(CN[c.seat], t); broadcast({ type: 'mchat', from: c.seat, text: t }); }
+    else if (msg.type === 'resync') a4SendResume(c);
+    return;
+  }
   if (!game || !game.multi) return;
   if (replay && msg.type !== 'chat') { replay.queue.push({ host: true, c, msg }); return; }
   if (msg.type === 'tryMove') {
     if (game.bug && msg.m) msg.m.seat = c.seat;
-    if (!draft && !bots[c.seat] && !ended() && (game.bug ? game.canMove(c.seat) : game.turn === c.seat) && game.move(msg.m)) { broadcast({ type: 'mmove', m: msg.m }); announceMulti(); render(); }
+    if (!draft && !bots[c.seat] && !ended() && (game.bug ? game.canMove(c.seat) : game.turn === c.seat) && game.move(msg.m)) { broadcast(mmoveMsg(msg.m)); announceMulti(); render(); }
+  } else if (msg.type === 'resync') {
+    c.send({ type: 'resume', rec: buildRecord(), seat: c.seat, draft: draftFor(c.seat), resync: true, a4x: A4 ? a4Extra(c.seat) : undefined });
   } else if (msg.type === 'pick') {
     recvPick(c.seat, msg.id);
   } else if (msg.type === 'tryResign') {
@@ -1833,7 +2379,7 @@ function announceMulti() {
     const why = e.reason === 'checkmate' ? 'was checkmated' : e.reason === 'stalemate' ? 'was stalemated' : e.reason === 'bare' ? 'was left with only Imperials' : 'resigned';
     addChat('', CN[e.c] + ' ' + why + ' and is out. ' + (e.taken ? 'Their pieces now belong to ' + CN[e.taken] + '!' : e.fallen ? 'Their pieces are now neutral!' : 'Their pieces turn gray.'), true);
   });
-  if (game.drawn) addChat('', 'Nobody left can move — the game is a draw.', true);
+  if (game.drawn) addChat('', (drawWhy() ? 'Only bare kings are left' : 'Nobody left can move') + ' — the game is a draw.', true);
   const w = game.winner();
   if (w) addChat('', teamNames(w) + (game.teams ? ' win!' : ' wins!'), true);
   maybeRunNeutral();
@@ -1884,7 +2430,7 @@ function playMulti(m) {
   sel = null;
   if (game.bug) m = Object.assign({}, m, { seat: mySeat });
   if (isHost) {
-    if (game.move(m)) { broadcast({ type: 'mmove', m }); announceMulti(); }
+    if (game.move(m)) { broadcast(mmoveMsg(m)); announceMulti(); }
   } else send({ type: 'tryMove', m });
   if (game.imperial && game.pend && game.turn === mySeat) sel = { x: game.pend.x, y: game.pend.y };
   render();
@@ -1907,14 +2453,14 @@ function clickMulti(x, y) {
   if (sel) {
     const cand = sel.drop
       ? game.drops().filter(m => m.drop === sel.drop && m.tx === x && m.ty === y)
-      : game.moves(sel.x, sel.y).filter(m => m.tx === x && m.ty === y);
+      : selMoves().filter(m => m.tx === x && m.ty === y);
     if (friendlyPending(x, y, cand)) return;
-    if (cand.length) { cand[0].promo ? showPromo(cand) : playMulti(cand[0]); return; }
+    if (cand.length) { (cand[0].promo || cand.some(m => m.rev || m.free)) ? showPromo(cand.map(withCk)) : playMulti(withCk(cand[0])); return; }
     const own = game.at(x, y) && game.at(x, y).c === mySeat;
     if (hid && !sel.drop && !own && !(x === sel.x && y === sel.y)) { addChat('', 'Referee: illegal move, try again.', true); return; }
   }
   const p = game.at(x, y);
-  sel = (p && p.c === mySeat && !p.dead && !(sel && sel.x === x && sel.y === y)) ? { x, y } : null;
+  sel = (p && !p.wall && p.c === mySeat && !p.dead && !(sel && sel.x === x && sel.y === y)) ? { x, y } : null; selIdx = 0;
   render();
 }
 
@@ -2078,7 +2624,7 @@ function renderMulti() {
   el.innerHTML = '';
   $('board2Wrap').classList.add('hidden'); $('capA').classList.add('hidden');
   const hist = g.history(), last = hist[hist.length - 1];
-  const hints = sel && !hid ? (sel.drop ? g.drops().filter(m => m.drop === sel.drop) : g.moves(sel.x, sel.y)) : [];
+  const hints = sel && !hid ? (sel.drop ? g.drops().filter(m => m.drop === sel.drop) : selMoves()) : [];
   const kp = g.alive(g.turn) && g.inCheck(g.turn) && (!hid || g.turn === mySeat) ? g.kingPos(g.turn) : null;
 
   const decorate = (d, x, y) => {
@@ -2095,10 +2641,12 @@ function renderMulti() {
     if (mineSet && mineSet.has(x + ',' + y)) d.classList.add('mine');
     if (foeSet && foeSet.has(x + ',' + y)) d.classList.add('foe');
     if (rmarkSet && rmarkSet.has(x + ',' + y)) d.classList.add('rmark');
+    markClip(d, x, y, !fogged);
+    if (promoHint && game.inPromo(x, y, meId())) d.classList.add('promoz');
     if ((abFrom && abFrom.x === x && abFrom.y === y) || (chargeSq && chargeSq.x === x && chargeSq.y === y) || (foeSel && foeSel.x === x && foeSel.y === y)) d.classList.add('sel');
     if (shown) {
       const sp = document.createElement('span');
-      setGlyph(sp, shownType(p)); if (p.wall && g.wallLife) addWallNum(sp, g.wallLife(x, y)); sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (FAIRY.includes(p.t) ? ' fairy' : '') + (p.champ && sameSide(p.c, mySeat) ? ' champ' : '') + fxClass(p);
+      setGlyph(sp, shownType(p)); if (p.wall && g.wallLife) addWallNum(sp, g.wallLife(x, y)); if (p.rc > 0) addWallNum(sp, p.rc); sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (FAIRY.includes(p.t) ? ' fairy' : '') + (p.champ && sameSide(p.c, mySeat) ? ' champ' : '') + fxClass(p);
       if (p.c === 'n') d.classList.add('neu');
       d.appendChild(sp);
     }
@@ -2133,11 +2681,11 @@ function renderMulti() {
       d.className = 'sq ' + ((x + y) % 2 === 1 ? 'l' : 'd') + (cylOn && (c === 0 || c === Wd - 1) ? ' ghost' : '');
       decorate(d, x, y); el.appendChild(d);
     }
-    if (inf) setupBigBoard(34, 18);
+    if (inf) setupBigBoard(34, g.imperial ? Math.max(W, H) : 18);
     if (cylOn) cylSetup(true);
   }
   renderMultiHands();
-  $('status').textContent = statusText();
+  $('status').textContent = statusText() + (A4 ? a4StatusExtra() : '');
   $('drawBanner').classList.add('hidden');
   if (isHost) {
     const rs = $('removeSel'), prev = rs.value;
@@ -2147,6 +2695,7 @@ function renderMulti() {
   }
   $('history').textContent = 'Order: ' + g.seats.map(c => CN[c] + (g.alive(c) ? '' : ' ✖')).join(' → ') +
     (g.neutral ? '   |   Neutral (purple, dashed ring): shield = commoner (1 step any way), horned face = imp (knight jump), ghost = wraith (up to 2 diagonally), bull = ox (up to 2 straight). They always capture when they can. Capture one to tame it — drop it on your own arm.' : '');
+  if (A4) $('history').textContent = a4ScoreLine() + '   |   ' + $('history').textContent;
 }
 
 /* ============ CHAT ============ */
@@ -2164,7 +2713,7 @@ function sendChat() {
     if (!specChatAllowed) { addChat('', 'The host has not switched spectator chat on.', true); return; }
     send({ type: 'specChat', text: t }); $('chatIn').value = ''; return;
   }
-  if (game && game.multi) {
+  if ((game && game.multi) || A4) {
     if (isHost) { addChat(CN[mySeat], t); broadcast({ type: 'mchat', from: mySeat, text: t }); }
     else send({ type: 'chat', text: t });
     $('chatIn').value = ''; return;
@@ -2198,15 +2747,24 @@ $('declineDraw').onclick = () => { $('drawBanner').classList.add('hidden'); send
 $('newBtn').onclick = () => {
   if (replay) exitReplay();
   const m = $('modeSel2').value, swap = $('swapChk').checked;
-  if (MODES[mode].multi || MODES[m].multi) {
-    if (m !== mode) { addChat('', "Can't switch between 2-player and multiplayer modes in one room — create a new room.", true); $('modeSel2').value = mode; return; }
-    newGame(mode, null, { gs: readGS(), seats: mseats }); sel = null;
-    broadcast({ type: 'newgame', mode, seats: mseats, gs });
-    addChat('', 'New game: ' + MODES[mode].name + '.', true);
+  if (!!MODES[mode].multi !== !!MODES[m].multi || (MODES[m].multi && MODES[m].all.length < (mseats || []).length)) {
+    addChat('', "Can't switch between 2-player and multiplayer modes in one room — create a new room.", true); $('modeSel2').value = mode; return;
+  }
+  if (MODES[m].match4) {                                    // Austang 4-player: a brand-new match, everybody builds again
+    newGame(m, null, { gs: readGS(), seats: mseats }); sel = null;
+    initA4(mseats, readSettings(m), gs); a4HostSendMates();
+    broadcast({ type: 'a4new', mode: m, seats: mseats, gs, a4: { s: A4.s, teams: A4.teams } });
+    addChat('', 'New match: ' + MODES[m].name + '. Build your army!', true);
+    render(); return;
+  }
+  if (MODES[m].multi) {                                     // another multiplayer mode (same people, same seats): restart the room in it
+    newGame(m, null, { gs: readGS(), seats: mseats }); sel = null;
+    broadcast({ type: 'newgame', mode: m, seats: mseats, gs });
+    addChat('', 'New game: ' + MODES[m].name + '.', true);
     if (needDraft()) beginDraft();
     render(); return;
   }
-  newGame(m, m === 'austang' ? readSettings() : null, { gs: readGS() });
+  newGame(m, readSettings(m), { gs: readGS() });
   if (swap) myColor = myColor === 'w' ? 'b' : 'w';
   send({ type: 'newgame', mode: m, swap, settings: M && M.s, gs });
   $('promo').classList.add('hidden'); $('drawBanner').classList.add('hidden');

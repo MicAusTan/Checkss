@@ -1,6 +1,6 @@
 /* Imperial Chess engine (2-player 17x16 and 4-player 29x29 free-for-all). Same API shape as Engine.create() so index.html can drive it.
    Piece codes: p pawn, v pikeman, m skirmisher | r b n q k | R B N = Grand Rook/Bishop/Knight
-   E emperor, X empress, H heir | g guard, h chariot, u archer, s sapper, t catapult | y prince, z princess
+   E emperor, X empress, H heir | g guard, h chariot, u archer, s sapper, t catapult, f jester | y prince, z princess
    x = 0..16 (files), y = 0..15. White starts at y=0 (back) and moves +y; Black mirrors. */
 const Imperial = (() => {
   const PF = 'pvm', IMP = 'EXH';
@@ -23,10 +23,13 @@ const Imperial = (() => {
   const PRS_CAP = RING.concat([[3, 0], [-3, 0], [0, 3], [0, -3]]);
   const NEAR = K8.concat([[2, 0], [-2, 0], [0, 2], [0, -2]]).concat([[0, 0]]);
   const CAT = [[3, 2], [-3, 2], [2, 3], [-2, 3], [-1, 4], [0, 4], [1, 4]];
-  const FRONT = 'hmpmpvvvpmpmh', R2 = 'sagnbqgkbngas', BACK = 'rnbtrXHErtbnr';
-  const GRAND = { r: 'R', b: 'B', n: 'N' }, MINOR = ['r', 'b', 'n', 'g', 'h', 'u', 's', 't'];
+  const FRONT = 'hmpmpvvvpmpmh', R2 = 'sugnbqfkbngus', BACK = 'rnbtrXHErtbnr';
+  const GRAND = { r: 'R', b: 'B', n: 'N' }, MINOR = ['r', 'b', 'n', 'g', 'h', 'u', 's', 't', 'f'];   // (what a pawn can promote to; f = Jester)
+  const AURA_R = 3;     // king aura radius (7x7). TUNE ME
+  const RALLY_R = 2;    // the King may step next to any friend within this distance. TUNE ME
+  const RALLY_CAP = true;   // ...and may capture there too (false = move only, like the Guard's special squares). TUNE ME
   const CMAX = 6;   // castle: max landing distance. TUNE ME (cooldown = 3 own turns, see CCDp)
-  const VAL = { p: 1, v: 1.4, m: 1.3, r: 5, b: 3.3, n: 3, q: 9, k: 3, R: 7, B: 5, N: 5, E: 7, X: 7, H: 6, g: 3, h: 4, u: 3.2, s: 2, t: 4, y: 5, z: 5, j: 4.5, d: 4, '#': 0.2 };
+  const VAL = { f: 4, p: 1, v: 1.4, m: 1.3, r: 5, b: 3.3, n: 3, q: 9, k: 3, R: 7, B: 5, N: 5, E: 7, X: 7, H: 6, g: 3, h: 4, u: 3.2, s: 2, t: 4, y: 5, z: 5, j: 4.5, d: 4, '#': 0.2 };
 
   // 2v2 "wide" board: each team's two armies sit side by side (26 files), the middle ranks are 30 wide (2 extra files each side, like the 2-player board)
   const wideGeom = H => ({ w: 30, h: H, valid: (x, y) => x >= 0 && y >= 0 && x < 30 && y < H && ((y < 3 || y > H - 4) ? x >= 2 && x <= 27 : true),
@@ -55,7 +58,7 @@ const Imperial = (() => {
     }
     const nImp = q => q.E + q.X + q.H;
     const near = (B, x, y, c, ts, r) => { for (let a = -r; a <= r; a++) for (let b = -r; b <= r; b++) { const p = at(B, x + a, y + b); if (p && !p.dead && p.c === c && ts.includes(p.t)) return true; } return false; };
-    const kingAura = (B, x, y, c) => near(B, x, y, c, 'k', 2), queenAura = (B, x, y, c) => near(B, x, y, c, 'q', 2);
+    const kingAura = (B, x, y, c) => near(B, x, y, c, 'k', AURA_R), queenAura = (B, x, y, c) => near(B, x, y, c, 'q', 2);
 
     function pathClear(B, x, y, dx, dy) {                // Prince: some shortest king-step path is empty
       const m = Math.max(Math.abs(dx), Math.abs(dy)), sx = Math.sign(dx), sy = Math.sign(dy);
@@ -131,7 +134,8 @@ const Imperial = (() => {
         case 'p': case 'v': case 'm': {
           if (emptyR(0, 1)) {
             addR(0, 1, { cap: false });
-            const n = !p.m ? 3 : kingAura(B, x, y, c) ? 2 : 1;
+            const base = (MULTI && !o.wide) ? 2 : 1, glow = p.ag !== undefined && S.ply - p.ag <= NS;      // glow: left the king's aura on its last move: still counts for this one turn
+            const n = !p.m ? 3 : (kingAura(B, x, y, c) || glow) ? base + 1 : base;
             for (let i = 2; i <= n; i++) { if (!emptyR(0, i) || !emptyR(0, i - 1)) break; addR(0, i, { cap: false }); }
           }
           addR(1, 1, { mv: false }); addR(-1, 1, { mv: false });
@@ -140,7 +144,14 @@ const Imperial = (() => {
           if (S.ep && S.ep.c !== c) for (const dx of [1, -1]) { const [d, e] = R(dx, 1); if (S.ep.passed.some(q => q.x === x + d && q.y === y + e)) add(d, e, { cap: false, ep: true }); }
           break;
         }
-        case 'k': leap(K8); break;
+        case 'k': {                                       // King: one step, or onto any square beside a friend within RALLY_R (captures allowed when RALLY_CAP)
+          leap(K8);
+          for (let a = -RALLY_R; a <= RALLY_R; a++) for (let b = -RALLY_R; b <= RALLY_R; b++) {
+            if (!a && !b) continue; const q = at(B, x + a, y + b);
+            if (q && !q.wall && !q.dead && q.c === c) for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) add(a + i, b + j, { cap: RALLY_CAP });
+          }
+          break;
+        }
         case 'q': slide(K8, 16); break;
         case 'r': slide(OR, 16); break;
         case 'b': slide(DG, 16); break;
@@ -188,6 +199,17 @@ const Imperial = (() => {
           for (const sx of [1, -1]) for (const sy of [1, -1]) add(3 * sx, sy);
           break;
         }
+        case 'f': {                                       // Jester: never captures by itself; hops to the opposite-colour squares of its 5x5; borrows the moves of any non-Imperial piece in its 3x3 (never ranged ones)
+          for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) if ((a + b) & 1) add(a, b, { cap: false });
+          const seenT = new Set();
+          for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+            if (!a && !b) continue; const q = at(B, x + a, y + b);
+            if (!q || q.wall || q.dead || q.t === 'f' || IMP.includes(q.t) || seenT.has(q.t)) continue; seenT.add(q.t);
+            const B2 = B.slice(); B2[y * W + x] = { t: q.t, c, m: p.m, o: false };
+            for (const r of gen(B2, x, y, inf)) if (!r.shoot && !r.castle && !r.swap && !r.ep) out.push(Object.assign({}, r, { via: q.t }));
+          }
+          break;
+        }
         case 'y':
           PR_CAP.forEach(([a, b]) => pathClear(B, x, y, a, b) && add(a, b));
           PR_MOV.forEach(([a, b]) => pathClear(B, x, y, a, b) && add(a, b, { cap: false }));
@@ -214,8 +236,9 @@ const Imperial = (() => {
         if (cut(r.tx, r.ty) || r.tx === x && r.ty === y) continue;
         const t = B[r.ty * W + r.tx], key = r.tx + ',' + r.ty + (r.shoot ? 's' : '') + (r.ep ? 'e' : '') + (r.castle ? 'c' : '') + (r.swap ? 'w' : ''); if (seen.has(key)) continue;
         if (r.swap) { if (t && t.c === p.c && 'nN'.includes(t.t)) { seen.add(key); out.push({ fx: x, fy: y, tx: r.tx, ty: r.ty, swap: true }); } continue; }
-        if (t && t.wall) { if (!r.shoot) { seen.add(key); out.push({ fx: x, fy: y, tx: r.tx, ty: r.ty }); } continue; }
-        if (t ? !(r.cap && canTake(B, p, t, inf) && !protectedFrom(B, p, t, r.tx, r.ty, inf)) : !r.mv) continue;
+        if (t && t.wall) { if (!r.shoot && team(t.c) !== team(p.c)) { seen.add(key); out.push({ fx: x, fy: y, tx: r.tx, ty: r.ty }); } continue; }      // only the enemy can break a wall
+        const ap = r.via ? Object.assign({}, p, { t: r.via }) : p;       // a Jester's borrowed move counts as made by the piece it borrowed from
+        if (t ? !(r.cap && canTake(B, ap, t, inf) && !protectedFrom(B, ap, t, r.tx, r.ty, inf)) : !r.mv) continue;
         seen.add(key);
         const m = { fx: x, fy: y, tx: r.tx, ty: r.ty }; if (r.shoot) m.shoot = true; if (r.ep) m.ep = true; if (r.castle) m.castle = true;
         if (!r.shoot && inZone(r.tx, r.ty)) {
@@ -240,7 +263,7 @@ const Imperial = (() => {
     function apply(St, m) {
       const B = St.B.slice(), p = B[m.fy * W + m.fx], inf = info(St.B), [Fx, Fy] = rot(p.c, 0, 1);
       if (m.skip || m.wall) {
-        if (m.wall) { B[m.ty * W + m.tx] = { t: '#', c: 'x', wall: true, wp: St.ply }; B[m.fy * W + m.fx] = Object.assign({}, p, { wp: St.ply }); }
+        if (m.wall) { B[m.ty * W + m.tx] = { t: '#', c: p.c, wall: true, wp: St.ply }; B[m.fy * W + m.fx] = Object.assign({}, p, { wp: St.ply }); }
         return fin(B, St, null);
       }
       const dead = B[m.ty * W + m.tx];
@@ -261,6 +284,10 @@ const Imperial = (() => {
       let cap = dead;
       if (m.ep && St.ep) { cap = B[St.ep.ly * W + St.ep.lx]; B[St.ep.ly * W + St.ep.lx] = null; }
       B[m.ty * W + m.tx] = Object.assign({}, p, { t: m.promo || p.t, m: true, o: m.promo && !GRAND[p.t] ? false : p.o, cd: m.castle ? St.ply : p.cd });
+      if (PF.includes(p.t)) {                           // aura memory: leaving the king's aura by this move grants one more turn of it (not renewable by using it)
+        const q = B[m.ty * W + m.tx], was = kingAura(St.B, m.fx, m.fy, p.c), now = kingAura(B, m.tx, m.ty, p.c);
+        if (was && !now) q.ag = St.ply; else delete q.ag;
+      }
       if (p.t === 's' && (p.wp === undefined || St.ply - p.wp >= WCD)) {
         let free = false; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) if ((a || b) && empty(B, m.tx + a, m.ty + b)) free = true;
         if (free) return fin(B, St, cap, { pend: { x: m.tx, y: m.ty } });
@@ -278,12 +305,12 @@ const Imperial = (() => {
       for (let i = 0; i < B.length; i++) {
         const q = B[i]; if (!q || team(q.c) === team(c) || q.wall || q.dead) continue;
         const saveS = S; S = St; let list; try { list = gen(B, i % W, (i / W) | 0, inf); } finally { S = saveS; }
-        if (list.some(r => r.cap && r.tx === tx && r.ty === ty && canTake(B, q, t, inf) && !protectedFrom(B, q, t, tx, ty, inf))) return true;
+        if (list.some(r => { const aq = r.via ? Object.assign({}, q, { t: r.via }) : q; return r.cap && r.tx === tx && r.ty === ty && canTake(B, aq, t, inf) && !protectedFrom(B, aq, t, tx, ty, inf); })) return true;
       }
       return false;
     }
     function legal(St, x, y) {
-      const p = at(St.B, x, y); if (!p || p.dead || p.c !== St.turn) return [];
+      const p = at(St.B, x, y); if (!p || p.dead || p.wall || p.c !== St.turn) return [];
       if (St.pend) {
         if (x !== St.pend.x || y !== St.pend.y) return [];
         const o = [{ fx: x, fy: y, tx: x, ty: y, skip: true }];
@@ -294,11 +321,11 @@ const Imperial = (() => {
       return pseudo(St, x, y).filter(m => { if (m.castle && pre) return false; const n = apply(St, m); return !loneAttacked(n.B, p.c, n.ply); });
     }
     function anyLegal(St) {
-      for (let i = 0; i < St.B.length; i++) { const p = St.B[i]; if (p && !p.dead && p.c === St.turn && legal(St, i % W, (i / W) | 0).length) return true; }
+      for (let i = 0; i < St.B.length; i++) { const p = St.B[i]; if (p && !p.dead && !p.wall && p.c === St.turn && legal(St, i % W, (i / W) | 0).length) return true; }
       return false;
     }
     function all(St) {
-      const o = []; for (let i = 0; i < St.B.length; i++) { const p = St.B[i]; if (p && !p.dead && p.c === St.turn) o.push(...legal(St, i % W, (i / W) | 0)); }
+      const o = []; for (let i = 0; i < St.B.length; i++) { const p = St.B[i]; if (p && !p.dead && !p.wall && p.c === St.turn) o.push(...legal(St, i % W, (i / W) | 0)); }
       return o;
     }
     function status() {
@@ -346,6 +373,7 @@ const Imperial = (() => {
       get drawn() { return !!S.drawn; },
       alive: c => !!S.alive[c],
       winner: () => (MULTI && !S.drawn && liveTeams(S) === 1 ? SEATS.find(c => S.alive[c]) : null),
+      inPromo: (x, y, c) => !cut(x, y) && G.rank(c, x, y) >= G.promo,       // is (x, y) in c's promotion zone? (for the board tint)
       wallLife: (x, y) => { const p = at(S.B, x, y); return p && p.wall ? Math.max(1, Math.ceil((p.wp + WLIFE - S.ply) / NS)) : 0; },   // rounds of play the wall still stands
       valid: (x, y) => !cut(x, y), kingPos: lonePos,
       at: (x, y) => at(S.B, x, y), cut,
