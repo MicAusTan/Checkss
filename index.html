@@ -63,6 +63,7 @@
   .sq.check { box-shadow:inset 0 0 20px 6px rgba(255,0,0,.7); }
   .sq.hint::after { content:""; width:28%; height:28%; border-radius:50%; background:var(--move); position:absolute; }
   .sq.hint.cap::after { width:90%; height:90%; background:none; border:4px solid var(--move); }
+  .sq.hint.shot::after { width:90%; height:90%; background:linear-gradient(#e07a00,#e07a00) center/3px 100% no-repeat,linear-gradient(#e07a00,#e07a00) center/100% 3px no-repeat; border:4px solid #e07a00; }
   .pc-r,.pc-b,.pc-y,.pc-g,.pc-dead { text-shadow:0 0 2px #000,0 0 2px #000,0 0 2px #000; }
   .pc-r { color:#ff5a5a; } .pc-b { color:#5aa0ff; } .pc-y { color:#ffd84d; } .pc-g { color:#5fd16a; }
   body.teamsOn .pc-y { color:#ff9a3c; } body.teamsOn .pc-g { color:#3fd6cf; }      /* 2v2: Red + Orange against Blue + Teal */
@@ -89,6 +90,12 @@
   #promo button, .hand button { background:#3a3733; font-size:1.5rem; padding:2px 12px; }
   .hand { min-height:42px; display:flex; gap:4px; align-items:center; }
   .hand button.on { background:#779556; }
+  .hand.picker { flex-direction:column; align-items:stretch; gap:6px; }
+  .hand.picker .pkg { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+  .hand.picker .pkl { flex:0 0 100%; font-size:.72rem; opacity:.6; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+  .hand.picker button { font-size:1.35rem; padding:3px 9px; display:inline-flex; align-items:center; gap:3px; }
+  .hand.picker button .pc { font-size:.6em; opacity:.8; } .hand.picker button small { font-size:.45em; opacity:.8; margin-left:2px; }
+  .hand.picker button.full:not(.on) { opacity:.45; }
   #history { font-size:.9rem; opacity:.8; margin-top:8px; }
   #austSettings { max-width:480px; margin-top:12px; font-size:.9rem; }
   #austSettings label { display:inline-block; margin:4px 10px 4px 0; }
@@ -133,6 +140,9 @@
   .mk.c { width:80%; height:80%; background:transparent; border:3px solid #e03030; box-shadow:none; }
   .mk.b { width:80%; height:80%; border:3px solid #e03030; background:radial-gradient(circle,#1fae45 0 21%,transparent 23%); box-shadow:none; }
   .mk.s { width:74%; height:74%; background:linear-gradient(#e07a00,#e07a00) center/2px 100% no-repeat,linear-gradient(#e07a00,#e07a00) center/100% 2px no-repeat; border:2px solid #e07a00; box-shadow:none; }
+  .dgc.au::after { content:''; position:absolute; inset:0; background:rgba(120,90,255,.28); box-shadow:inset 0 0 0 1px rgba(150,120,255,.55); pointer-events:none; }
+  .mk.au { width:1em; height:1em; border-radius:2px; background:rgba(120,90,255,.45); box-shadow:inset 0 0 0 1px rgba(150,120,255,.9); }
+  .mk.x { width:74%; height:74%; background:radial-gradient(circle,#1fae45 0 17%,transparent 19%),linear-gradient(#e07a00,#e07a00) center/2px 100% no-repeat,linear-gradient(#e07a00,#e07a00) center/100% 2px no-repeat; border:2px solid #e07a00; box-shadow:none; }
   .dgl { display:flex; flex-wrap:wrap; gap:3px 12px; font-size:.78em; margin-top:4px; opacity:.9; } .dgl span { display:inline-flex; align-items:center; gap:4px; } .dgl .mk { width:1em; height:1em; flex:none; }
   .dgl .mk.m { width:.6em; height:.6em; margin:0 .2em; } .dgl .mk.b { background:radial-gradient(circle,#1fae45 0 21%,transparent 23%); }
   #pieceDemo { display:flex; flex-wrap:wrap; gap:6px 14px; margin:8px 0; padding:8px; border-radius:8px; background:#2c2926; align-items:flex-start; }
@@ -164,6 +174,9 @@
   :root { --det: rgba(255,255,255,.8); } .w-piece { --det: rgba(0,0,0,.5); }
   .fairy:not(.w-piece) svg { filter:drop-shadow(0 0 1px rgba(255,255,255,.6)); }
   .hidden, #zoomCtl.hidden, #cylCtl.hidden { display:none; }
+  #dlgBack { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px; } #dlgBack.hidden { display:none; }
+  #dlg { background:#2c2926; border:1px solid #555; border-radius:10px; padding:18px 20px; max-width:380px; width:100%; box-shadow:0 8px 30px rgba(0,0,0,.6); }
+  #dlg p { margin:0 0 14px; font-size:1rem; line-height:1.4; } #dlgBtns { display:flex; gap:8px; justify-content:flex-end; } #dlgBtns button { padding:8px 16px; } #dlgNo { background:#555; } #dlgOk.danger { background:#a33a3a; }
 </style>
 </head>
 <body>
@@ -177,6 +190,7 @@
 <div id="lobby">
   <select id="modeSel"></select>
   <button id="hostBtn">Create game</button>
+  <button id="practiceBtn" title="Standard chess against Stockfish, with an optional Coach">Practice vs Stockfish</button>
   <div style="margin-top:8px">
     <input id="codeIn" placeholder="Room code" style="width:140px">
     <button id="joinBtn">Join game</button>
@@ -233,6 +247,10 @@
   </div>
 </details>
 
+<div id="dlgBack" class="hidden" role="dialog" aria-modal="true"><div id="dlg"><p id="dlgMsg"></p><div id="dlgBtns"><button id="dlgNo">Cancel</button><button id="dlgOk">OK</button></div></div></div>
+
+<div id="practice" class="hidden"></div>
+
 <div id="game" class="hidden">
  <div id="gameMain">
   <div id="status"></div>
@@ -264,7 +282,7 @@
 <h4>Imperials</h4><ul><li>Immune to pawn-family captures (Pawn, Pikeman, Skirmisher). Emperor also immune to Rooks, Empress to Bishops, Heir to Knights (Grand pieces ignore this).</li><li><b>Emperor</b>: rook lines plus the squares beside the line. <b>Empress</b>: diagonals plus the 4 orthogonal neighbours of each line square. A piece on the line cuts off the side squares at and beyond it. Lose your Empress → the Emperor reaches only 3 squares and loses Rook immunity (and vice-versa). <b>Heir</b>: 16 knight + camel leaps; when both Emperor and Empress are gone he also gets (±2,±4),(±4,±2) and loses Knight immunity.</li><li><b>Castle</b>: Emperor hops a friendly Rook/Grand Rook, Empress a friendly Bishop/Grand Bishop, landing on an empty square beyond it (max 6 away, cooldown 3 of your turns, not while in check). <b>Swap</b>: the Heir may swap with a friendly Knight/Grand Knight in his reach.</li></ul>
 <h4>King &amp; Queen auras</h4><ul><li>King (aura 7×7): friendly pawn-family walk one step further (2 on the 2-player and wide boards, 3 on the 4-player cross board); a pawn that leaves the aura by its own move keeps that bonus for its next turn only; Rooks, Bishops, Knights and Grands can't be captured by pawn-family pieces. The King can also move or capture onto any square beside a friendly piece within 2 squares of him (a bigger Guard hop).</li><li>Queen (aura 5×5): ordinary Pawns also capture straight ahead; Archers, Guards, Chariots, Sappers, Catapults can't be captured by pawn-family pieces.</li></ul>
 <h4>Royals</h4><ul><li><b>Prince</b> / <b>Princess</b> (promotion only, one each): Prince captures on the 5×5 (no corners) and also steps to corners and 3 straight; blockable. Princess moves 1, <b>shoots</b> the outer ring and 3 straight without moving; she can't be captured while the Prince is next to her.</li></ul>
-<h4>Pieces</h4><ul><li><b>Grand Rook ♖</b> rook + knight moves (move only). <b>Grand Bishop ♗</b> bishop + 1–2 straight. <b>Grand Knight ♘</b> the whole outer ring of the 5×5. Only original Rooks/Bishops/Knights become Grands (automatically on reaching the promotion rank).</li><li><b>Guard Ⓖ</b> king moves, plus steps 2 straight or onto squares around a nearby friend; Archers can't hit it or its neighbours. <b>Chariot Ⓒ</b> slides 2 straight with knight squares off each lane. <b>Archer Ⓐ</b> steps 1; shoots 16 squares around it without moving. <b>Sapper Ⓢ</b> leaps, never captures; after moving it may place a wall next to itself (once per 2 turns). <b>Catapult Ⓣ</b> walks 1–2 straight; fires on 7 squares ahead (hitting (0,4) also splashes (±1,4)), then reloads a turn.</li><li><b>Jester Ⓙ</b> (replaces the middle Guard; pawns can promote to it) never captures by itself; hops to the opposite-colour squares of its 5×5 and borrows the moves of any non-Imperial piece in its 3×3 (never ranged ones, never another Jester). <b>Pawn ♟</b> 1 step (up to 3 on its first move; 2 in the King's aura), captures diagonally; on the 4-player cross board 2 steps (3 in the aura); the wide 2v2 board is like the 2-player board. The Pikeman still captures only the single square straight ahead. <b>Pikeman ♙</b> also captures straight. <b>Skirmisher ⓜ</b> also steps sideways. Pikeman → <b>Lancer Ⓛ</b>, Skirmisher → <b>Raider Ⓓ</b> on promotion.</li></ul>
+<h4>Pieces</h4><ul><li><b>Grand Rook ♖</b> rook + knight moves (move only). <b>Grand Bishop ♗</b> bishop + 1–2 straight. <b>Grand Knight ♘</b> the whole outer ring of the 5×5. Only original Rooks/Bishops/Knights become Grands (automatically on reaching the promotion rank).</li><li><b>Guard Ⓖ</b> king moves, plus steps 2 straight or onto squares around a nearby friend; Archers can't hit it or its neighbours. <b>Chariot Ⓒ</b> slides 2 straight with knight squares off each lane. <b>Archer Ⓐ</b> steps 1; shoots 16 squares around it without moving. <b>Sapper Ⓢ</b> leaps, never captures; after moving it may place a wall next to itself (once per 2 turns). <b>Catapult Ⓣ</b> walks 1–2 straight; fires on 7 squares ahead (hitting (0,4) also splashes (±1,4)), then reloads a turn.</li><li><b>Jester Ⓙ</b> (replaces the middle Guard; pawns can promote to it) never captures by itself; hops to the opposite-colour squares of its 5×5 and borrows the moves of any non-Imperial piece of its OWN side in its 3×3 (never enemies, never ranged ones, never another Jester). <b>Pawn ♟</b> 1 step (up to 3 on its first move; 2 in the King's aura), captures diagonally; on the 4-player cross board 2 steps (3 in the aura); the wide 2v2 board is like the 2-player board. The Pikeman still captures only the single square straight ahead. <b>Pikeman ♙</b> also captures straight. <b>Skirmisher ⓜ</b> also steps sideways. Pikeman → <b>Lancer Ⓛ</b>, Skirmisher → <b>Raider Ⓓ</b> on promotion.</li></ul>
 <h4>Piece guide</h4><div id="pieceGuide"></div>
 <h4>4-player free-for-all (29×29)</h4><ul><li>Cross-shaped board: a 21×21 centre with a 13×4 arm for each army (same 39-piece layout, rotated). Seats take turns in order; last seat standing wins.</li><li>Promotion happens on the far edge of the centre square (22 steps from your army). Tick <b>Teams</b> for 2v2 (partners sit opposite and never capture or check each other); choose the <b>Wide board</b> for the 30×16 version where each team's two armies sit side by side.</li><li>Check applies to a seat only when it has exactly one Imperial left, and any opponent can give it. A checkmated seat — or one left with only Imperials — is out; a stalemated seat just skips. Their pieces turn <b>gray</b>: they stop moving but can be captured, Imperials included, with no immunities.</li></ul>
 <h4>Walls &amp; special rules</h4><ul><li>Walls block movement and lines; they belong to the player whose Sapper raised them (shown in that colour): only enemies can capture one, by moving onto it. Ranged shots pass over them. The number on a wall is how many full rounds it still stands (it vanishes at the start of the enemy's 4th turn in 2-player; lifetime scales with the number of seats).</li><li>En passant: after a 2–3 step pawn move, an enemy pawn-family piece may capture diagonally onto a square it passed, next turn only.</li><li>Ranged shots (⌖) capture without moving. Click a piece to see its squares.</li></ul></div></details>
@@ -308,6 +326,7 @@
 <script src="engine.js"></script>
 <script src="imperial.js"></script>
 <script src="diagrams.js"></script>
+<script src="practice.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 /* ============ MODES ============ */
@@ -346,7 +365,7 @@ function teamLook(on) { document.body.classList.toggle('teamsOn', !!on); CN.y = 
 const PREFIX = 'chessfriends-';
 // c/i/w/o are the neutral-mode fairy pieces; they use the hollow glyphs so they never look like real pieces.
 const GLYPH = { p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', c:'♔', i:'♘', w:'♗', o:'♖', a:'A', l:'L' };
-const FAIRY = 'ciwoalEXHRBNghustyzjdvmf#\u03b1\u03c7\u03c9\u03bd\u03b3\u03b6\u03b4\u03b7\u03ba\u03b2\u03c0\u03b8\u03c6\u03c8\u03be\u03c4\u03c1\u03bc\u03b9\u03b5';
+const FAIRY = 'ciwoalEXHRBNghustyzjdvmf#\u03b1\u03c7\u03c9\u03bd\u03b3\u03b6\u03b4\u03b7\u03ba\u03b2\u03c0\u03b8\u03c6\u03c8\u03be\u03c4\u03c1\u03bc\u03b9\u03b5\u03bb\u03c5\u03bf';
 const SVG = inner => '<svg viewBox="0 0 24 24" aria-hidden="true">' + inner + '</svg>';
 const FAIRY_SVG = {   // custom icons for the neutral / fairy pieces (they take the owner's colour)
   c: SVG('<path d="M12 2.5l8 3v6c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10v-6z" fill="currentColor"/><path d="M12 7v9M8 11h8" stroke="#000a" stroke-width="1.6" fill="none"/>'),
@@ -358,7 +377,7 @@ const FAIRY_SVG = {   // custom icons for the neutral / fairy pieces (they take 
 };
 const glyphHTML = t => FAIRY_SVG[t] || GLYPH[t];
 GLYPH['#'] = '▒'; GLYPH.f = 'Ⓙ';
-Object.assign(GLYPH, { '\u03b1': 'Ca', '\u03c7': 'Ma', '\u03c9': 'Am', '\u03bd': 'Nr', '\u03b3': 'Cm', '\u03b6': 'Zb', '\u03b4': 'DK', '\u03b7': 'DH', '\u03ba': 'Ce', '\u03b2': 'Bi', '\u03c0': 'Cn', '\u03b8': 'Gh', '\u03c6': 'Fe', '\u03c8': 'Wz', '\u03be': 'Al', '\u03c4': 'Db', '\u03c1': 'Bp', '\u03bc': 'Sa', '\u03b9': 'Rv', '\u03b5': 'He' });      // Austang Grand pieces (notation text; the board uses the icons below)
+Object.assign(GLYPH, { '\u03b1': 'Ca', '\u03c7': 'Ma', '\u03c9': 'Am', '\u03bd': 'Nr', '\u03b3': 'Cm', '\u03b6': 'Zb', '\u03b4': 'DK', '\u03b7': 'DH', '\u03ba': 'Ce', '\u03b2': 'Bi', '\u03c0': 'Cn', '\u03b8': 'Gh', '\u03c6': 'Fe', '\u03c8': 'Wz', '\u03be': 'Al', '\u03c4': 'Db', '\u03c1': 'Bp', '\u03bc': 'Sa', '\u03b9': 'Rv', '\u03b5': 'He', '\u03bb': 'Sn', '\u03c5': 'Mo', '\u03bf': 'Ba' });      // Austang Grand pieces (notation text; the board uses the icons below)
 {
   const BASE = '<rect x="5" y="19.5" width="14" height="2.6" rx="1" fill="currentColor"/>', DK = 'style="stroke:var(--det)" stroke-width="1.5" fill="none"';
   const HORSE = '<path d="M7 21c0-4.7 1.6-7.6 3.8-9.6L9.8 8 12.2 6.6 13 3l2.4 2.2C18.6 6.8 20 10 20 14v7z" fill="currentColor"/>';
@@ -382,7 +401,10 @@ Object.assign(GLYPH, { '\u03b1': 'Ca', '\u03c7': 'Ma', '\u03c9': 'Am', '\u03bd':
     '\u03c1': SVG('<circle cx="12" cy="7" r="3.800" fill="currentColor"/><path d="M12 11c-3 0-4.500 2.500-4.500 5H5v4.500h14V16h-2.500c0-2.500-1.500-5-4.500-5z" fill="currentColor"/><path d="M17.500 3.500l2.500 2.500M20 3.500V6h-2.500" ' + DK + '/>'),
     '\u03bc': SVG('<path d="M12 2.500c3 3.500 6 6 6 10a6 6 0 0 1-12 0c0-4 3-6.500 6-10z" fill="currentColor"/><rect x="5" y="19" width="14" height="3" rx="1.200" fill="currentColor"/><path d="M12 8.500v7M8.500 12h7" ' + DK + ' transform="rotate(45 12 12)"/>'),
     '\u03b9': SVG('<path d="M12 2.500l3 5.500h-6z" fill="currentColor"/><path d="M12 9c-3 0-5 2.200-5 5 0 2 1 3.500 2.500 4.500H14.500C16 17.500 17 16 17 14c0-2.800-2-5-5-5z" fill="currentColor"/><rect x="5" y="19" width="14" height="3" rx="1.200" fill="currentColor"/><path d="M9.500 14a2.500 2.500 0 1 1 1 2" ' + DK + '/><path d="M8.500 15.500l1.400-1.700 1.700 1.400" ' + DK + '/>'),
-    '\u03b5': SVG('<path d="M5 20V9.500l7-6.500 7 6.500V20z" fill="currentColor"/><path d="M12 8v7M9 11h6" ' + DK + '/><path d="M3 20h18v2.200H3z" fill="currentColor"/>')
+    '\u03b5': SVG('<path d="M5 20V9.500l7-6.500 7 6.500V20z" fill="currentColor"/><path d="M12 8v7M9 11h6" ' + DK + '/><path d="M3 20h18v2.200H3z" fill="currentColor"/>'),
+    '\u03bb': SVG('<circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 1.5v6.5M12 16v6.5M1.5 12H8M16 12h6.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/>'),
+    '\u03c5': SVG('<path d="M6.5 7.5l3.2-3.6 7.800 8.300-3.200 3.600z" fill="currentColor"/><path d="M6 21l4.500-6.500M18 21l-4.500-6.500" stroke="currentColor" stroke-width="2.200" stroke-linecap="round"/><path d="M3 21.500h18" stroke="currentColor" stroke-width="2.200" stroke-linecap="round"/><circle cx="18.500" cy="4.500" r="1.800" fill="currentColor"/>'),
+    '\u03bf': SVG('<path d="M3.500 4.500c8.500 1 16 8.500 16 16" fill="none" stroke="currentColor" stroke-width="2.200" stroke-linecap="round"/><path d="M4 20L19 5M19 5h-6M19 5v6" fill="none" stroke="currentColor" stroke-width="2.200" stroke-linecap="round" stroke-linejoin="round"/>')
   });
 }
 Object.assign(GLYPH, { v:'♙', m:'ⓜ', R:'♖', B:'♗', N:'♘', j:'Ⓛ', d:'Ⓓ', E:'Ⓔ', X:'Ⓧ', H:'Ⓗ', g:'Ⓖ', h:'Ⓒ', u:'Ⓐ', s:'Ⓢ', t:'Ⓣ', });
@@ -419,17 +441,28 @@ Object.assign(FAIRY_SVG, {   // Prince / Princess: same build as King / Queen (b
 });
 const setGlyph = (el, t) => { if (game && game.imperial && IMP_KQ[t]) el.innerHTML = IMP_KQ[t]; else if (FAIRY_SVG[t]) el.innerHTML = FAIRY_SVG[t]; else el.textContent = GLYPH[t]; };
 const $ = id => document.getElementById(id);
+// In-page confirmation dialog (replaces the browser's confirm box). askConfirm(text, okLabel, danger) -> Promise<boolean>
+function askConfirm(text, okLabel, danger) {
+  return new Promise(res => {
+    const back = $('dlgBack'), ok = $('dlgOk'), no = $('dlgNo'), prevFocus = document.activeElement;
+    $('dlgMsg').textContent = text; ok.textContent = okLabel || 'OK'; ok.classList.toggle('danger', !!danger);
+    const done = v => { back.classList.add('hidden'); document.removeEventListener('keydown', key, true); ok.onclick = no.onclick = back.onclick = null; if (prevFocus && prevFocus.focus) prevFocus.focus(); res(v); };
+    const key = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(false); } else if (e.key === 'Enter' && document.activeElement !== no) { e.preventDefault(); e.stopPropagation(); done(true); } };
+    ok.onclick = () => done(true); no.onclick = () => done(false); back.onclick = e => { if (e.target === back) done(false); };
+    document.addEventListener('keydown', key, true); back.classList.remove('hidden'); (danger ? no : ok).focus();
+  });
+}
 let mode = 'standard', game = null, peer, conn, myColor = 'w', isHost = false, sel = null, over = null;
 let overRes = null, M = null, A4 = null, pal = 'p', setupMsg = '', centered = false;   // M = Austang match state
 const COST = { k: 0, p: 1, n: 3, b: 3, r: 5, q: 9 };
 // Austang modes: board size, army palette, prices, default settings and default piece limits (the host can change every limit; an empty box = no limit)
-const PNAMES = { k: 'King', p: 'Pawn', n: 'Knight', b: 'Bishop', r: 'Rook', q: 'Queen', '\u03b1': 'Cardinal', '\u03c7': 'Marshal', '\u03c9': 'Amazon', '\u03bd': 'Nightrider', '\u03b3': 'Camel', '\u03b6': 'Zebra', '\u03b4': 'Dragon King', '\u03b7': 'Dragon Horse', '\u03ba': 'Centaur', '\u03b2': 'Bison', '\u03c0': 'Cannon', '\u03b8': 'Grasshopper', '\u03c6': 'Ferz', '\u03c8': 'Wazir', '\u03be': 'Alfil', '\u03c4': 'Dabbaba', '\u03c1': 'Berolina Pawn', '\u03bc': 'Sacrificer', '\u03b9': 'Reviver', '\u03b5': 'Herald' };
+const PNAMES = { k: 'King', p: 'Pawn', n: 'Knight', b: 'Bishop', r: 'Rook', q: 'Queen', '\u03b1': 'Cardinal', '\u03c7': 'Marshal', '\u03c9': 'Amazon', '\u03bd': 'Nightrider', '\u03b3': 'Camel', '\u03b6': 'Zebra', '\u03b4': 'Dragon King', '\u03b7': 'Dragon Horse', '\u03ba': 'Centaur', '\u03b2': 'Bison', '\u03c0': 'Cannon', '\u03b8': 'Grasshopper', '\u03c6': 'Ferz', '\u03c8': 'Wazir', '\u03be': 'Alfil', '\u03c4': 'Dabbaba', '\u03c1': 'Berolina Pawn', '\u03bc': 'Sacrificer', '\u03b9': 'Reviver', '\u03b5': 'Herald', '\u03bb': 'Sniper', '\u03c5': 'Mortar', '\u03bf': 'Ballista' };
 const AUST_CFG = {
   austang: { w: 8, h: 8, palette: ['k', 'p', 'n', 'b', 'r', 'q'], cost: COST,
              def: { start: 20, base: 8, step: 2, catchup: 3, cap: 24, rounds: 5 }, lim: { q: 2 } },
-  austangGrand: { w: 10, h: 10, palette: ['k', 'p', 'n', 'b', 'r', 'q', '\u03b1', '\u03c7', '\u03c9', '\u03bd', '\u03b3', '\u03b6', '\u03b4', '\u03b7', '\u03ba', '\u03b2', '\u03c0', '\u03b8', '\u03c6', '\u03c8', '\u03be', '\u03c4', '\u03c1', '\u03bc', '\u03b9', '\u03b5'],
-                  cost: { k: 0, p: 1, n: 3, b: 3, r: 5, q: 9, '\u03b1': 7, '\u03c7': 8, '\u03c9': 13, '\u03bd': 5, '\u03b3': 2, '\u03b6': 2, '\u03b4': 7, '\u03b7': 5, '\u03ba': 6, '\u03b2': 5, '\u03c0': 5, '\u03b8': 4, '\u03c6': 1, '\u03c8': 2, '\u03be': 2, '\u03c4': 2, '\u03c1': 2, '\u03bc': 6, '\u03b9': 10, '\u03b5': 8 },
-                  def: { start: 30, base: 10, step: 2, catchup: 4, cap: 30, rounds: 5 }, lim: { q: 2, '\u03c9': 1, '\u03b1': 2, '\u03c7': 2, '\u03b4': 2, '\u03ba': 2, '\u03c0': 2, '\u03bc': 2, '\u03b9': 1, '\u03b5': 1 } }
+  austangGrand: { w: 10, h: 10, palette: ['k', 'p', 'n', 'b', 'r', 'q', '\u03b1', '\u03c7', '\u03c9', '\u03bd', '\u03b3', '\u03b6', '\u03b4', '\u03b7', '\u03ba', '\u03b2', '\u03c0', '\u03b8', '\u03c6', '\u03c8', '\u03be', '\u03c4', '\u03c1', '\u03bc', '\u03b9', '\u03b5', '\u03bb', '\u03c5', '\u03bf'],
+                  cost: { k: 0, p: 1, n: 3, b: 3, r: 5, q: 9, '\u03b1': 7, '\u03c7': 8, '\u03c9': 13, '\u03bd': 5, '\u03b3': 2, '\u03b6': 2, '\u03b4': 7, '\u03b7': 5, '\u03ba': 6, '\u03b2': 5, '\u03c0': 5, '\u03b8': 4, '\u03c6': 1, '\u03c8': 2, '\u03be': 2, '\u03c4': 2, '\u03c1': 2, '\u03bc': 6, '\u03b9': 10, '\u03b5': 8, '\u03bb': 6, '\u03c5': 5, '\u03bf': 4 },
+                  def: { start: 30, base: 10, step: 2, catchup: 4, cap: 30, rounds: 5 }, lim: { q: 2, '\u03c9': 1, '\u03b1': 2, '\u03c7': 2, '\u03b4': 2, '\u03ba': 2, '\u03c0': 2, '\u03bc': 2, '\u03b9': 1, '\u03b5': 1, '\u03bb': 2, '\u03c5': 2, '\u03bf': 2 } }
 };
 const AC = () => AUST_CFG[M.mode];
 AUST_CFG.austang4 = Object.assign({}, AUST_CFG.austangGrand, { w: 10, h: 5 });      // 4-player Austang: every player builds in their own 10x5 arm (same pieces, prices and limits as Austang Grand)
@@ -877,7 +910,7 @@ function initCylEvents() {
 
 // ---- zoomable board (used by both Infinite boards) ----
 const boardPx = () => { const m = $('gameMain'), w = m ? m.clientWidth : 0; return w > 100 ? w : Math.min(innerWidth - 32, 480); };      // pixel width of the board column
-$('menuBtn').onclick = () => { const live = game && !ended() && !spectating; if (live && !confirm('Leave this game and go back to the main menu? The game will be abandoned.')) return; location.href = location.pathname; };
+$('menuBtn').onclick = async () => { const live = game && !ended() && !spectating; if (live && !(await askConfirm('Leave this game and go back to the main menu? The game will be abandoned.', 'Leave game', true))) return; location.href = location.pathname; };
 new MutationObserver(() => { if (!$('game').classList.contains('hidden')) requestAnimationFrame(() => { if (game) render(); }); }).observe($('game'), { attributes: true, attributeFilter: ['class'] });
 let rzT = 0; addEventListener('resize', () => { clearTimeout(rzT); rzT = setTimeout(() => { if (game && !$('game').classList.contains('hidden')) render(); }, 150); });
 function layoutGame() {                         // tells CSS how tall the board is relative to its width, so it can fill the window height
@@ -1224,7 +1257,7 @@ const PIECE_GUIDE = [
   ['N', 'Grand Knight', 'Leaps to any square on the outer ring of the 5×5.'],
   ['g', 'Guard', 'King moves and captures; also steps 2 straight or onto empty squares around a nearby friend. Archers can’t hit it or its neighbours.'],
   ['h', 'Chariot', 'Slides 2 straight plus the knight squares beside each lane (a blocker cuts them off).'],
-  ['f', 'Jester', 'Never captures by itself. Hops to the opposite-colour squares of its 5×5 (light ↔ dark). Also copies the moves (and captures) of any piece within its 3×3 except Imperials, other Jesters and ranged pieces (Archer, Catapult, Lancer thrust, Princess shots). Pawns can promote to it.'],
+  ['f', 'Jester', 'Never captures by itself. Hops to the opposite-colour squares of its 5×5 (light ↔ dark). Also copies the moves (and captures) of any FRIENDLY piece within its 3×3 (never enemy pieces) except Imperials, other Jesters and ranged pieces (Archer, Catapult, Lancer thrust, Princess shots). Pawns can promote to it.'],
   ['u', 'Archer', 'Steps 1 straight. Shoots 16 squares around it without moving, can’t be blocked.'],
   ['s', 'Sapper', 'Leaps 1 diagonal or 2 straight; never captures. After moving it may place a wall next to itself (once per 2 turns).'],
   ['t', 'Catapult', 'Walks 1–2 straight. Fires on 7 squares ahead; hitting the middle of the far row splashes both sides. Reloads a turn after firing.'],
@@ -1236,28 +1269,43 @@ const PIECE_GUIDE = [
   ['#', 'Wall', 'Blocks movement and lines. Belongs to the Sapper’s player (shown in their colour): only enemies can capture it, by moving onto it. Ranged shots pass over it.']
 ];
 const GRAND_GUIDE = [
-  ['k', 'King', 'One step in any direction; castles with a rook that has not moved.'], ['q', 'Queen', 'Slides along ranks, files and diagonals.'],
-  ['r', 'Rook', 'Slides along ranks and files.'], ['b', 'Bishop', 'Slides diagonally.'], ['n', 'Knight', 'Leaps in an L.'], ['p', 'Pawn', 'Steps 1 (2 from its 2nd rank), captures diagonally, promotes on the last rank.'],
-  ['\u03b1', 'Cardinal', 'Bishop + knight: slides diagonally and also leaps like a knight (captures with both).'],
-  ['\u03c7', 'Marshal', 'Rook + knight: slides along ranks and files and also leaps like a knight (captures with both).'],
-  ['\u03c9', 'Amazon', 'Queen + knight: the strongest piece. Cannot be promoted to.'],
-  ['\u03bd', 'Nightrider', 'Repeats the knight jump in a straight line, as far as it likes; the first piece on the line stops it (it must be empty to jump on).'],
-  ['\u03b3', 'Camel', 'Leaps 3 squares one way and 1 the other. Always stays on the same colour of square.'],
-  ['\u03b6', 'Zebra', 'Leaps 3 squares one way and 2 the other. Changes square colour every move.'],
-  ['\u03b4', 'Dragon King', 'Rook + one diagonal step: slides along ranks and files and can also step 1 square diagonally.'],
-  ['\u03b7', 'Dragon Horse', 'Bishop + one orthogonal step: slides diagonally and can also step 1 square along a rank or file.'],
-  ['\u03ba', 'Centaur', 'King + knight: steps 1 in any direction and also leaps like a knight.'],
-  ['\u03b2', 'Bison', 'Camel + zebra: leaps (3,1) or (3,2). Reaches both square colours.'],
-  ['\u03c0', 'Cannon', 'Moves like a rook but cannot capture that way. It captures by jumping over exactly one piece (yours or theirs) on a rank or file and taking the first piece behind it. Needs a screen: with none, or two or more in the way, it cannot capture.'],
-  ['\u03b8', 'Grasshopper', 'Along any queen line it hops over the first piece it meets (either colour) and lands on the square right behind it: empty = a move, enemy = a capture. No piece to hop over, or a friend on the landing square: no move.'],
-  ['\u03c6', 'Ferz', 'Steps 1 square diagonally. Always stays on the same colour of square. A cheap blocker.'],
-  ['\u03c8', 'Wazir', 'Steps 1 square along a rank or file. A cheap blocker.'],
-  ['\u03be', 'Alfil', 'Leaps exactly 2 squares diagonally (over anything). Always stays on the same colour of square.'],
-  ['\u03c4', 'Dabbaba', 'Leaps exactly 2 squares along a rank or file (over anything).'],
-  ['\u03c1', 'Berolina Pawn', 'A pawn turned around: it steps diagonally forward (2 diagonal squares from its 2nd rank, if both are empty) but captures straight ahead. Promotes on the last rank. No en passant. Can’t start on your back rank.'],
-  ['\u03bc', 'Sacrificer', 'Walks like a king (1 step, captures too; not royal). Instead of moving it can sacrifice itself: select it, click it again and pick one of YOUR captured pieces (never the king). The Sacrificer is replaced by that piece, on the same square, and the turn ends. Pawns can’t be revived onto a back rank.'],
-  ['\u03b9', 'Reviver', 'Walks like a king (1 step, captures too; not royal). Instead of moving it can bring back one of YOUR captured pieces on an empty square next to it (select it, click an empty neighbouring square, choose “revive”). The Reviver stays, then needs to recharge for 4 of your turns (the piece shows its countdown). Never the king; no pawns onto a back rank.'],
-  ['\u03b5', 'Herald', 'Walks like a king (1 step, captures too; not royal) and can also move 2 squares straight forward (both squares empty, no capture). Your pawns (also Berolina) within 2 squares of it (a 5×5 area) can NOT capture or give check at all. In return, before your normal move you may take up to 5 free single steps with those pawns (moves only, no promotion, none may give check). A pawn that took a free step keeps its free steps and its no-capture state for the rest of that turn, even after it leaves the Herald’s area, so one pawn can march several squares. Select a pawn, click its forward square and choose “free step”. Free steps don’t end your turn.']
+  ['k', 'King', 'Steps 1 in any direction. Castles with a rook that hasn’t moved.'],
+  ['q', 'Queen', 'Slides any distance along ranks, files and diagonals.'],
+  ['r', 'Rook', 'Slides along ranks and files.'],
+  ['b', 'Bishop', 'Slides along diagonals.'],
+  ['n', 'Knight', 'Leaps in an L.'],
+  ['p', 'Pawn', 'Steps 1 (2 from its 2nd rank), captures diagonally, promotes on the last rank.'],
+  ['\u03b1', 'Cardinal', 'Bishop + knight.'],
+  ['\u03c7', 'Marshal', 'Rook + knight.'],
+  ['\u03c9', 'Amazon', 'Queen + knight. The strongest piece; pawns can’t promote to it.'],
+  ['\u03b4', 'Dragon King', 'Rook + a 1-step diagonal.'],
+  ['\u03b7', 'Dragon Horse', 'Bishop + a 1-step orthogonal.'],
+  ['\u03ba', 'Centaur', 'King + knight.'],
+  ['\u03bd', 'Nightrider', 'Repeats the knight jump in a straight line until something blocks it.'],
+  ['\u03b3', 'Camel', 'Leaps (3,1). Always stays on the same square colour.'],
+  ['\u03b6', 'Zebra', 'Leaps (3,2). Changes square colour every move.'],
+  ['\u03b2', 'Bison', 'Camel + zebra: leaps (3,1) or (3,2).'],
+  ['\u03be', 'Alfil', 'Leaps exactly 2 squares diagonally, over anything.'],
+  ['\u03c4', 'Dabbaba', 'Leaps exactly 2 squares straight, over anything.'],
+  ['\u03c6', 'Ferz', 'Steps 1 square diagonally.'],
+  ['\u03c8', 'Wazir', 'Steps 1 square straight.'],
+  ['\u03c1', 'Berolina Pawn', 'Steps diagonally forward (2 from its 2nd rank) but captures straight ahead. Promotes on the last rank. Can’t start on your back rank.'],
+  ['\u03c0', 'Cannon', 'Slides like a rook but can’t capture that way. It captures by jumping over exactly one piece (any colour) and taking the next piece behind it.'],
+  ['\u03b8', 'Grasshopper', 'Along any queen line, hops over the first piece and lands right behind it: an empty square is a move, an enemy is a capture.'],
+  ['\u03bb', 'Sniper', 'Ranged. Steps 1 diagonally. Shoots the first piece along any rank or file, at any distance, without moving. Any piece in between blocks the shot.'],
+  ['\u03c5', 'Mortar', 'Ranged. Leaps 2 squares straight. Lobs a shell onto the 8 squares exactly 3 away (straight and diagonal) without moving. Can’t be blocked.'],
+  ['\u03bf', 'Ballista', 'Ranged. Leaps 2 squares diagonally (moves only). Shoots the first piece along any diagonal, up to 4 squares, without moving.'],
+  ['\u03bc', 'Sacrificer', 'Walks like a king (not royal). Instead of moving, it can turn itself into one of your captured pieces: select it, click it again, pick the piece. Ends your turn.'],
+  ['\u03b9', 'Reviver', 'Walks like a king (not royal). Instead of moving, it can bring back a captured piece of yours onto an empty square next to it, then recharges for 4 of your turns.'],
+  ['\u03b5', 'Herald', 'Walks like a king (not royal) and can step 2 straight forward. Aura: your pawns within 2 squares can’t capture or give check, but may take up to 5 free single steps before your move (select a pawn, click its forward square, choose “Free step”).']
+];
+// how the piece picker groups the Austang Grand pieces (anything not listed lands in "Other")
+const GRAND_GROUPS = [
+  ['Standard', ['k', 'p', 'n', 'b', 'r', 'q']],
+  ['Compound', ['\u03b1', '\u03c7', '\u03c9', '\u03b4', '\u03b7', '\u03ba']],
+  ['Leapers & riders', ['\u03bd', '\u03b3', '\u03b6', '\u03b2', '\u03be', '\u03c4', '\u03c6', '\u03c8']],
+  ['Ranged', ['\u03bb', '\u03c5', '\u03bf']],
+  ['Special', ['\u03c1', '\u03c0', '\u03b8', '\u03bc', '\u03b9', '\u03b5']]
 ];
 let grandDone = false;
 function fillGrandGuide() {
@@ -1266,12 +1314,14 @@ function fillGrandGuide() {
   wireGuide($('grandGuide'), 'grand', Engine.AUSTANG_GRAND);
 }
 // ---- movement diagrams: tiny boards with the squares a piece reaches, computed from the real engines (diagrams.js) ----
-const MARK_TXT = { m: 'moves there (can’t capture)', c: 'captures only', b: 'moves or captures', s: 'shoots (captures without moving)' };
+const MARK_TXT = { m: 'moves there (can’t capture)', c: 'captures only', b: 'moves or captures', s: 'shoots (captures without moving)', x: 'moves there, or shoots a piece there' };
 function diagramEl(grid, iconHtml) {
   const d = document.createElement('div'); d.className = 'dg'; d.style.setProperty('--n', grid.N);
   const ex = {}; (grid.extras || []).forEach(e => { ex[e.j + ',' + e.i] = e; });
+  let oi = 0, oj = 0; grid.rows.forEach((row, j) => { const k = row.indexOf('o'); if (k >= 0) { oi = k; oj = j; } });
+  const au = grid.aura ? grid.aura.r : -1;
   grid.rows.forEach((row, j) => [...row].forEach((ch, i) => {
-    const c = document.createElement('div'); c.className = 'dgc ' + (((i + j) & 1) ? 'd' : 'l') + (ch === '#' ? ' cut' : '') + (ch === 'o' ? ' me' : '');
+    const c = document.createElement('div'); c.className = 'dgc ' + (((i + j) & 1) ? 'd' : 'l') + (ch === '#' ? ' cut' : '') + (ch === 'o' ? ' me' : '') + (ch !== '#' && Math.max(Math.abs(i - oi), Math.abs(j - oj)) <= au ? ' au' : '');
     if (ch === 'o') c.innerHTML = '<span class="dgp">' + iconHtml + '</span>';
     else if (ch === 'e' && ex[j + ',' + i]) c.innerHTML = '<span class="dgp dgx ' + (ex[j + ',' + i].c === 'w' ? '' : 'xb') + '">' + glyphHTML(ex[j + ',' + i].t) + '</span>';
     else if (ch !== '.' && ch !== '#' && ch !== 'e') c.innerHTML = '<i class="mk ' + ch + '"></i>';
@@ -1279,18 +1329,19 @@ function diagramEl(grid, iconHtml) {
   }));
   return d;
 }
+const auraLegend = (lg, seenAura) => { if (seenAura) { const sp = document.createElement('span'); sp.innerHTML = '<i class="mk au"></i>' + seenAura.label; lg.appendChild(sp); } };
 function diagramBlock(kind, t, iconHtml, variant) {          // kind 'imp' | 'grand'; returns a node with one diagram per situation worth showing, plus a legend
-  const box = document.createElement('div'); box.className = 'dgwrap'; const seen = new Set();
+  const box = document.createElement('div'); box.className = 'dgwrap'; const seen = new Set(); let aura = null;
   Diagrams.states(kind === 'imp' ? 'imp' : 'grand', t).forEach(st => {
     let g; try { g = kind === 'imp' ? Diagrams.gridImp(Imperial, t, Object.assign({ R: 5 }, st.o)) : Diagrams.grid2p(Engine, variant, t, Object.assign({ R: 5 }, st.o)); } catch (e) { return; }
-    g.rows.forEach(r => [...r].forEach(ch => { if (MARK_TXT[ch]) seen.add(ch); }));
+    g.rows.forEach(r => [...r].forEach(ch => { if (MARK_TXT[ch]) seen.add(ch); })); if (g.aura) aura = g.aura;
     const w = document.createElement('div'); w.className = 'dgstate';
     const cap = document.createElement('div'); cap.className = 'dgcap'; cap.textContent = st.label; w.appendChild(cap);
     w.appendChild(diagramEl(g, iconHtml)); box.appendChild(w);
   });
   const lg = document.createElement('div'); lg.className = 'dgl';
-  ['m', 'c', 'b', 's'].filter(k => seen.has(k)).forEach(k => { const sp = document.createElement('span'); sp.innerHTML = '<i class="mk ' + k + '"></i>' + MARK_TXT[k]; lg.appendChild(sp); });
-  box.appendChild(lg);
+  ['m', 'c', 'b', 's', 'x'].filter(k => seen.has(k)).forEach(k => { const sp = document.createElement('span'); sp.innerHTML = '<i class="mk ' + k + '"></i>' + MARK_TXT[k]; lg.appendChild(sp); });
+  auraLegend(lg, aura); box.appendChild(lg);
   return box;
 }
 function wireGuide(container, kind, variant) {                // 'Show moves' buttons under each guide row (diagrams are built on first click)
@@ -1330,7 +1381,7 @@ function mlText(g, e) {
   const at = (x, y) => (g.bug ? g.at(e.board, x, y) : g.layers ? g.at(x, y, e.fl) : g.at(x, y));
   const p = at(e.fx, e.fy), t = p ? (p.fx && p.fx.msk && !maskSeen(p) ? p.fx.msk : p.t) : '', dest = at(e.tx, e.ty);
   if (t === 'k' && (e.castle || (e.ty === e.fy && Math.abs(e.tx - e.fx) === 2) || (dest && dest.t === 'r' && dest.c === p.c))) return 'castle';
-  return mlLetter(t) + sq(e.fx, e.fy) + (e.cap ? 'x' : '–') + sq(e.tx, e.ty) + (e.promo ? '=' + mlLetter(e.promo) : '');
+  return mlLetter(t) + sq(e.fx, e.fy) + (e.shot ? '⌖' : e.cap ? 'x' : '–') + sq(e.tx, e.ty) + (e.promo ? '=' + mlLetter(e.promo) : '');
 }
 function canReplay() { return !!(game && !M && !draft && game.history().length > 0 && (ended() || !(gs.fog || MODES[mode].v.hidden))); }
 function updateMoveList() {
@@ -1682,8 +1733,9 @@ function render() {
 
 function renderCore() {
   layoutGame();
+  $('handBot').classList.remove('picker');
   $('rulesBox').classList.toggle('hidden', !MODES[mode].imperial); if (MODES[mode].imperial) fillPieceGuide();
-  $('grandBox').classList.toggle('hidden', !MODES[mode].grand); if (MODES[mode].grand) fillGrandGuide();
+  $('grandBox').classList.toggle('hidden', !MODES[mode].grand || !game); if (MODES[mode].grand) fillGrandGuide();      // (during army building the picker below the board already shows every piece)
   cylSetup(false);
   abValidate();
   $('boardWrap').classList.remove('zoomable'); $('boardWrap').style.height = ''; document.body.classList.remove('nopagescroll'); $('zoomCtl').classList.add('hidden'); $('board').style.transform = '';
@@ -1725,7 +1777,7 @@ function renderCore() {
     if (last && !hid && ((last.tx === x && last.ty === y) || (last.fx === x && last.fy === y))) d.classList.add('last');
     if (fogged) d.classList.add('fog');
     if (kingSq === x + ',' + y) d.classList.add('check');
-    if (hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (p) d.classList.add('cap'); }
+    { const hm = hints.find(m => m.tx === x && m.ty === y); if (hm) { d.classList.add('hint'); if (p) d.classList.add('cap'); if (hm.shot) d.classList.add('shot'); } }
     if (abSet && abSet.has(x + ',' + y)) d.classList.add('hint');
     if (mineSet && mineSet.has(x + ',' + y)) d.classList.add('mine');
     if (foeSet && foeSet.has(x + ',' + y)) d.classList.add('foe');
@@ -1867,6 +1919,31 @@ function placeAt(x, y) {
   render();
 }
 
+// Piece picker for the army builders: pieces grouped by kind, wrapping onto several rows instead of one endless line.
+// o = { cfg, lim (limit table), count (type -> how many placed), onPick }
+function buildPicker(hb, o) {
+  const c = o.cfg, mk = t => {
+    const b = document.createElement('button');
+    const lim = o.lim && o.lim[t], n = o.count(t);
+    b.innerHTML = glyphHTML(t) + '<span class="pc">' + (c.cost[t] ? c.cost[t] : '') + '</span>' + (lim != null ? '<small>' + n + '/' + lim + '</small>' : '');
+    b.title = PNAMES[t] + ' — ' + c.cost[t] + ' point' + (c.cost[t] === 1 ? '' : 's') + (lim != null ? ' (max ' + lim + ')' : '');
+    if (lim != null && n >= lim) b.classList.add('full');
+    if (pal === t) b.classList.add('on');
+    b.onclick = () => { pal = t; render(); };
+    return b;
+  };
+  const used = new Set(), groups = c.palette.length > 8 ? GRAND_GROUPS.map(([n, l]) => [n, l.filter(t => c.palette.includes(t))]) : [['', c.palette]];
+  groups.forEach(([name, list]) => list.forEach(t => used.add(t)));
+  const rest = c.palette.filter(t => !used.has(t)); if (rest.length) groups.push(['Other', rest]);
+  hb.classList.add('picker');
+  groups.filter(g => g[1].length).forEach(([name, list]) => {
+    const g = document.createElement('div'); g.className = 'pkg';
+    if (name) { const l = document.createElement('span'); l.className = 'pkl'; l.textContent = name; g.appendChild(l); }
+    list.forEach(t => g.appendChild(mk(t)));
+    if (name === 'Standard' || !name) { const x = document.createElement('button'); x.textContent = '✖'; x.title = 'Remove a piece'; if (pal === 'x') x.className = 'on'; x.onclick = () => { pal = 'x'; render(); }; g.appendChild(x); }
+    hb.appendChild(g);
+  });
+}
 function renderPieceDemo(ctx) {                    // what the selected piece does, drawn on a tiny board, before you place it
   const box = $('pieceDemo'); box.innerHTML = '';
   ctx = ctx || { cfg: AC(), locked: M.sentRound === M.round, s: M.s, v: MODES[M.mode].v };
@@ -1881,8 +1958,8 @@ function renderPieceDemo(ctx) {                    // what the selected piece do
   right.innerHTML = '<b>' + PNAMES[pal] + '</b> — ' + c.cost[pal] + ' point' + (c.cost[pal] === 1 ? '' : 's') + (lim != null ? ' · max ' + lim : '') + '<br>' + info[2];
   const lg = document.createElement('div'); lg.className = 'dgl'; const seen = new Set();
   g.rows.forEach(r => [...r].forEach(ch => { if (MARK_TXT[ch]) seen.add(ch); }));
-  ['m', 'c', 'b', 's'].filter(k => seen.has(k)).forEach(k => { const sp = document.createElement('span'); sp.innerHTML = '<i class="mk ' + k + '"></i>' + MARK_TXT[k]; lg.appendChild(sp); });
-  right.appendChild(lg);
+  ['m', 'c', 'b', 's', 'x'].filter(k => seen.has(k)).forEach(k => { const sp = document.createElement('span'); sp.innerHTML = '<i class="mk ' + k + '"></i>' + MARK_TXT[k]; lg.appendChild(sp); });
+  auraLegend(lg, g.aura); right.appendChild(lg);
   box.appendChild(left); box.appendChild(right); box.classList.remove('hidden');
 }
 function renderSetup() {
@@ -1913,19 +1990,8 @@ function renderSetup() {
     ' · pieces ' + st.n + '/' + M.s.cap + (setupMsg ? ' — ' + setupMsg : '') +
     (locked ? ' — waiting for opponent…' : (M.opp && M.opp.round === M.round ? ' — opponent is ready' : ''));
   $('handTop').innerHTML = '';
-  const hb = $('handBot'); hb.innerHTML = '';
-  if (!locked) c.palette.concat(['x']).forEach(t => {
-    const b = document.createElement('button');
-    if (t === 'x') b.textContent = '✖';
-    else {
-      const lim = M.s.lim && M.s.lim[t];
-      b.innerHTML = glyphHTML(t) + (c.cost[t] ? '·' + c.cost[t] : '') + (lim != null ? '<small> ' + countOf(m, t) + '/' + lim + '</small>' : '');
-      b.title = PNAMES[t] + ' — ' + c.cost[t] + ' point' + (c.cost[t] === 1 ? '' : 's') + limTxt(t);
-    }
-    if (pal === t) b.className = 'on';
-    b.onclick = () => { pal = t; render(); };
-    hb.appendChild(b);
-  });
+  const hb = $('handBot'); hb.innerHTML = ''; hb.classList.remove('picker');
+  if (!locked) buildPicker(hb, { cfg: c, lim: M.s.lim, count: t => countOf(m, t) });
   renderPieceDemo();
   const opp = myColor === 'w' ? 'b' : 'w';
   $('history').textContent = 'Score: you ' + M.scores[myColor] + ' – ' + M.scores[opp] + ' opponent';
@@ -2162,19 +2228,8 @@ function renderSetup4() {
   $('status').textContent = 'Round ' + A4.round + '/' + A4.s.rounds + ' — build your army (you are ' + CN[mySeat] + '). Points ' + st.s + '/' + A4.pool[mySeat] + ' · pieces ' + st.n + '/' + A4.s.cap +
     (setupMsg ? ' — ' + setupMsg : '') + (locked ? ' — waiting for the others…' : '') + (rd.length ? ' · Ready: ' + rd.join(', ') : '');
   $('handTop').innerHTML = '';
-  const hb = $('handBot'); hb.innerHTML = '';
-  if (!locked) c.palette.concat(['x']).forEach(t => {
-    const b = document.createElement('button');
-    if (t === 'x') b.textContent = '✖';
-    else {
-      const lim = A4.s.lim && A4.s.lim[t];
-      b.innerHTML = glyphHTML(t) + (c.cost[t] ? '·' + c.cost[t] : '') + (lim != null ? '<small> ' + countOf(m, t) + '/' + lim + '</small>' : '');
-      b.title = PNAMES[t] + ' — ' + c.cost[t] + ' point' + (c.cost[t] === 1 ? '' : 's') + (lim != null ? ' (max ' + lim + ')' : '');
-    }
-    if (pal === t) b.className = 'on';
-    b.onclick = () => { pal = t; render(); };
-    hb.appendChild(b);
-  });
+  const hb = $('handBot'); hb.innerHTML = ''; hb.classList.remove('picker');
+  if (!locked) buildPicker(hb, { cfg: c, lim: A4.s.lim, count: t => countOf(m, t) });
   renderPieceDemo({ cfg: c, locked, s: A4.s, v: Engine.AUSTANG_GRAND });
   $('history').textContent = a4ScoreLine();
 }
@@ -2569,7 +2624,7 @@ function drawBugBoard(el, bd, color, interactive, cellPx) {
     if (interactive && sel && sel.x === x && sel.y === y) d.classList.add('sel');
     if (last && ((last.tx === x && last.ty === y) || (last.fx === x && last.fy === y))) d.classList.add('last');
     if (kingSq === x + ',' + y) d.classList.add('check');
-    if (hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (p) d.classList.add('cap'); }
+    { const hm = hints.find(m => m.tx === x && m.ty === y); if (hm) { d.classList.add('hint'); if (p) d.classList.add('cap'); if (hm.shot) d.classList.add('shot'); } }
     if (p) { const sp = document.createElement('span'); sp.textContent = GLYPH[p.t]; if (p.c === 'w') sp.className = 'w-piece'; d.appendChild(sp); }
     if (interactive) d.onclick = () => clickBug(x, y);
     el.appendChild(d);
@@ -2636,7 +2691,7 @@ function renderMulti() {
     if (last && !hid && last.drop && last.tx === x && last.ty === y) d.classList.add('last');
     if (kp && kp.x === x && kp.y === y) d.classList.add('check');
     if (last && last.hits && last.hits.some(q => q.x === x && q.y === y)) d.classList.add('splash');
-    if (hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (shown) d.classList.add('cap'); }
+    { const hm = hints.find(m => m.tx === x && m.ty === y); if (hm) { d.classList.add('hint'); if (shown) d.classList.add('cap'); if (hm.shot) d.classList.add('shot'); } }
     if (abSet && abSet.has(x + ',' + y)) d.classList.add('hint');
     if (mineSet && mineSet.has(x + ',' + y)) d.classList.add('mine');
     if (foeSet && foeSet.has(x + ',' + y)) d.classList.add('foe');
@@ -2723,10 +2778,14 @@ function sendChat() {
 
 /* ============ BUTTONS ============ */
 $('hostBtn').onclick = host;
+Practice.init({ confirm: askConfirm, Engine, glyph: (el, t) => { el.textContent = GLYPH[t]; }, onExit: () => { $('lobby').classList.remove('hidden'); } });
+$('practiceBtn').onclick = () => { $('lobby').classList.add('hidden'); Practice.open(); };
 $('joinBtn').onclick = () => $('codeIn').value && join($('codeIn').value);
 $('chatBtn').onclick = sendChat;
 $('chatIn').onkeydown = e => { if (e.key === 'Enter') sendChat(); };
-$('resignBtn').onclick = () => {
+$('resignBtn').onclick = async () => {
+  const can = game && game.multi ? (!ended() && game.alive(mySeat)) : (inPlay() && !ended());
+  if (!can || !(await askConfirm('Resign this game? You will lose it.', 'Resign', true))) return;
   if (game && game.multi) {
     if (ended() || !game.alive(mySeat)) return;
     if (isHost) { logResign(mySeat); game.resign(mySeat); broadcast({ type: 'mresign', seat: mySeat }); announceMulti(); render(); }

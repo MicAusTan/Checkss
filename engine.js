@@ -182,6 +182,8 @@ const Engine = (() => {
   const CAMEL = [[3, 1], [3, -1], [-3, 1], [-3, -1], [1, 3], [1, -3], [-1, 3], [-1, -3]];
   const KN8 = [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]];
   const HOP4 = [[2, 0], [-2, 0], [0, 2], [0, -2]];
+  const ALFIL = [[2, 2], [2, -2], [-2, 2], [-2, -2]];
+  const LOB3 = [[3, 0], [-3, 0], [0, 3], [0, -3], [3, 3], [3, -3], [-3, 3], [-3, -3]];
   const HOP8 = [[2, 0], [-2, 0], [0, 2], [0, -2], [2, 2], [2, -2], [-2, 2], [-2, -2]];
   const ZEBRA = [[3, 2], [3, -2], [-3, 2], [-3, -2], [2, 3], [2, -3], [-2, 3], [-2, -3]];
   // Piece types only created by traits: a = Archbishop, l = Paladin.
@@ -210,7 +212,11 @@ const Engine = (() => {
     '\u03c1': {},                                  // Berolina pawn (own rule in the move generator: steps diagonally, captures straight ahead)
     '\u03bc': { leap: EDGE8 },                     // Sacrificer: king-step walker; instead of moving it can turn itself into one of your captured pieces (own rule)
     '\u03b9': { leap: EDGE8 },                     // Reviver: king-step walker; can place a captured piece on an empty square next to it, then recharges (own rule)
-    '\u03b5': { leap: EDGE8 }                      // Herald: king-step walker; pawns near it can't capture/attack but may take free steps (own rule)
+    '\u03b5': { leap: EDGE8 },                     // Herald: king-step walker; pawns near it can't capture/attack but may take free steps (own rule)
+    // ---- ranged pieces: a SHOT captures without moving (the shooter stays, the turn ends). shootRay = first piece along a line (blocked by anything), shootMax = range, shootLob = fixed squares (can't be blocked)
+    '\u03bb': { leap: BISHOP, shootRay: ROOK },                    // Sniper: steps 1 diagonally; shoots the first piece along any rank/file, any distance
+    '\u03c5': { leap: HOP4, shootLob: LOB3 },                      // Mortar: leaps 2 straight; lobs a shell onto the 8 squares exactly 3 away (straight + diagonal), over anything
+    '\u03bf': { leapNC: ALFIL, shootRay: BISHOP, shootMax: 4 }     // Ballista: leaps 2 diagonally (moves only); shoots the first piece along any diagonal, up to 4 squares
   };
   const GRAND_RULES = { sac: '\u03bc', rev: '\u03b9', her: '\u03b5', revCd: 4, herR: 2, herN: 5 };   // revCd = own turns a Reviver must wait after reviving; herR = Herald radius (2 = a 5x5 area); herN = free pawn steps per turn (total, any pawns)
   const AUSTANG_GRAND = Object.assign({}, STANDARD, {
@@ -573,6 +579,14 @@ const Engine = (() => {
         const t = B[idx(tx, ty)];
         if (!t) { if (!atk) add(tx, ty); } else if (can(t, tx, ty)) add(tx, ty);
       }
+      for (const [sx, sy] of def.shootRay || []) {                    // ranged shot along a line: the first piece it meets (any colour) stops it; an enemy there is shot
+        let tx = x + sx, ty = y + sy, n = 1;
+        while (valid(tx, ty) && n <= (def.shootMax || 99)) { const t = B[idx(tx, ty)]; if (t) { if (can(t, tx, ty)) add(tx, ty, { shot: true }); break; } tx += sx; ty += sy; n++; }
+      }
+      for (const [sx, sy] of def.shootLob || []) {                    // lobbed shot onto a fixed square (nothing can block it)
+        const tx = x + sx, ty = y + sy; if (!valid(tx, ty)) continue;
+        const t = B[idx(tx, ty)]; if (t && can(t, tx, ty)) add(tx, ty, { shot: true });
+      }
       if (!atk && v.austang && p.t === GRAND_RULES.her) {             // Herald: also 2 squares straight forward (both empty, no capture)
         const [dx, dy] = FWD[p.c];
         if (valid(x + dx, y + dy) && !B[idx(x + dx, y + dy)] && valid(x + 2 * dx, y + 2 * dy) && !B[idx(x + 2 * dx, y + 2 * dy)]) add(x + 2 * dx, y + 2 * dy);
@@ -659,6 +673,7 @@ const Engine = (() => {
         B[idx(m.kx, m.ky)] = { t: 'k', c: p.c, m: true }; B[idx(m.rtx, m.rty)] = { t: 'r', c: p.c, m: true };
         return B;
       }
+      if (m.shot) { B[idx(m.tx, m.ty)] = null; return B; }      // ranged shot: only the target disappears
       B[idx(m.tx, m.ty)] = { t: m.promo || p.t, c: p.c, m: true, champ: m.promo ? undefined : p.champ, fx: p.fx }; B[idx(m.fx, m.fy)] = null;
       if (m.castle) { B[idx(m.rx, m.ry)] = null; B[idx(m.rtx, m.rty)] = { t: 'r', c: p.c, m: true }; }
       return B;
@@ -954,12 +969,13 @@ const Engine = (() => {
           if (ok.c960) {
             b[idx(ok.fx, ok.fy)] = null; b[idx(ok.rx, ok.ry)] = null;
             b[idx(ok.kx, ok.ky)] = { t: 'k', c, m: true }; b[idx(ok.rtx, ok.rty)] = { t: 'r', c, m: true };
-          } else { b[idx(ok.tx, ok.ty)] = { t: ok.promo || p.t, c, m: true, pr: !!ok.promo || undefined, pt: ok.promo ? p.t : p.pt, rc: p.rc, champ: ok.promo ? undefined : p.champ, fx: p.fx }; b[idx(ok.fx, ok.fy)] = null; }
+          } else if (ok.shot) { b[idx(ok.tx, ok.ty)] = null; b[idx(ok.fx, ok.fy)] = Object.assign({}, p, { m: true }); }      // ranged shot: the target is removed, the shooter stays put
+          else { b[idx(ok.tx, ok.ty)] = { t: ok.promo || p.t, c, m: true, pr: !!ok.promo || undefined, pt: ok.promo ? p.t : p.pt, rc: p.rc, champ: ok.promo ? undefined : p.champ, fx: p.fx }; b[idx(ok.fx, ok.fy)] = null; }
           if (vic && vic.t === 'q' && !vic.dead && TR[vic.c] === 'martyr' && p.t !== 'k') {
             b[idx(ok.tx, ok.ty)] = null; rev.add(vic.c); events.push({ e: 'trait', c: vic.c, id: 'martyr' });
           }
           if (ok.castle && !ok.c960) { b[idx(ok.rx, ok.ry)] = null; b[idx(ok.rtx, ok.rty)] = { t: 'r', c, m: true }; }
-          hist.push({ c, fx: ok.fx, fy: ok.fy, tx: ok.tx, ty: ok.ty, promo: ok.promo || null, cap: vic ? vic.t : null, castle: !!ok.castle });
+          hist.push({ c, fx: ok.fx, fy: ok.fy, tx: ok.tx, ty: ok.ty, promo: ok.promo || null, shot: !!ok.shot, cap: vic ? vic.t : null, castle: !!ok.castle });
           if (v.austang) tick(c, -1);
           }
         }
@@ -1609,6 +1625,14 @@ const Engine = (() => {
         const t = S.b[idx(tx, ty)];
         if (!t) { if (!attackOnly) add(tx, ty); } else if (ok(t, tx, ty)) add(tx, ty);
       }
+      for (const [dx, dy] of def.shootRay || []) {                      // ranged shot along a line: the first piece it meets (any colour) stops it; an enemy there is shot
+        let tx = x + dx, ty = y + dy, n = 1;
+        while (inB(tx, ty) && n <= (def.shootMax || 99)) { const t = S.b[idx(tx, ty)]; if (t) { if (ok(t, tx, ty)) add(tx, ty, { shot: true }); break; } tx += dx; ty += dy; n++; }
+      }
+      for (const [dx, dy] of def.shootLob || []) {                      // lobbed shot onto a fixed square (nothing can block it)
+        const tx = x + dx, ty = y + dy; if (!inB(tx, ty)) continue;
+        const t = S.b[idx(tx, ty)]; if (t && ok(t, tx, ty)) add(tx, ty, { shot: true });
+      }
       if (!attackOnly && p.t === GRAND_RULES.her) {                    // Herald: also moves 2 squares straight forward (like a pawn's double step, but from any square; both squares must be empty, no capture)
         const d = p.c === 'w' ? 1 : -1;
         if (inB(x, y + d) && !S.b[idx(x, y + d)] && inB(x, y + 2 * d) && !S.b[idx(x, y + 2 * d)]) add(x, y + 2 * d);
@@ -1746,6 +1770,7 @@ const Engine = (() => {
       let yard = S.yard;
       if (victim && victim.t !== 'k' && !victim.wall) { yard = { w: S.yard.w.slice(), b: S.yard.b.slice() }; yard[victim.c].push(victim.pr ? (victim.pt || 'p') : victim.t); }
       if (v.drops && !v.bugBoard && victim) { copyHands(); const k = victim.pr ? 'p' : victim.t; hands[c][k] = (hands[c][k] || 0) + 1; }
+      if (m.shot) { b[idx(m.tx, m.ty)] = null; b[idx(m.fx, m.fy)] = Object.assign({}, p, { m: true }); return next(S, b, null, hands, { yard }); }      // ranged shot: the target is removed, the shooter stays put
       b[idx(m.fx, m.fy)] = null;
       if (m.ep) b[vx] = null;
       b[idx(m.tx, m.ty)] = { t: m.promo || p.t, c: p.c, m: true, pr: !!m.promo || !!p.pr, pt: m.promo ? p.t : p.pt, rc: p.rc, champ: m.promo ? undefined : p.champ, fx: p.fx };
@@ -1919,7 +1944,7 @@ const Engine = (() => {
           if (!baseMs.some(l => l.tx === ok.tx && l.ty === ok.ty && (l.promo || null) === (ok.promo || null))) { rev.add(mover); events.push({ e: 'trait', c: mover, id: TR[mover] }); }
         }
         if (vic && vic.t === 'q' && TR[vic.c] === 'martyr' && src.t !== 'k') { rev.add(vic.c); events.push({ e: 'trait', c: vic.c, id: 'martyr' }); }
-        S = apply(S, ok); hist.push({ fx: m.fx, fy: m.fy, tx: m.tx, ty: m.ty, promo: m.promo || null, rev: ok.rev || null, free: !!ok.free, cap: vic ? vic.t : null, capPr: !!(vic && vic.pr) });
+        S = apply(S, ok); hist.push({ fx: m.fx, fy: m.fy, tx: m.tx, ty: m.ty, promo: m.promo || null, rev: ok.rev || null, free: !!ok.free, shot: !!ok.shot, cap: vic ? vic.t : null, capPr: !!(vic && vic.pr) });
         trapCheck2();
         return true;
       },
@@ -2732,7 +2757,7 @@ const Engine = (() => {
   const AUSTANG4 = Object.assign({}, FOUR, { castling: false, austang: true, board: 'austang', promoteTo: AUSTANG_GRAND.promoteTo });
   const AUSTANG4_WIDE = Object.assign({}, FOUR, { castling: false, austang: true, board: 'wide', width: 20, height: 14, promoteTo: AUSTANG_GRAND.promoteTo });
 
-  return { create, STANDARD, AUSTANG_GRAND, AUSTANG4, AUSTANG4_WIDE, GRAND_PIECES, CRAZYHOUSE, MARSEILLAIS, INFINITE, ALICE, FOUR, THREE, BUGHOUSE, TRAITS, randomBack960, botChoose, CLASSES, CLASS_DEFAULTS, withClasses, classPass, ROOK, BISHOP, ALL, KNIGHT };
+  return { create, GRAND_RULES, STANDARD, AUSTANG_GRAND, AUSTANG4, AUSTANG4_WIDE, GRAND_PIECES, CRAZYHOUSE, MARSEILLAIS, INFINITE, ALICE, FOUR, THREE, BUGHOUSE, TRAITS, randomBack960, botChoose, CLASSES, CLASS_DEFAULTS, withClasses, classPass, ROOK, BISHOP, ALL, KNIGHT };
 })();
 
 if (typeof module !== 'undefined') module.exports = Engine;

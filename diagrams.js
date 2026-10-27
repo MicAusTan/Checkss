@@ -4,14 +4,25 @@
 
    Diagrams.grid2p(variant, type, opts)   2-player engine (Engine.create); `variant` = the mode's variant object (it carries the piece table)
    Diagrams.gridImp(type, opts)           Imperial engine (Imperial.create)
-   Both return { N, R, rows } where rows[0] is the TOP row (the side the piece moves towards) and every character is one square:
+   Both return { N, R, rows } where rows[0] is the TOP row (the side the piece moves towards) and `aura` = null or { r, label } (a zone drawn around the piece); every character is one square:
      .  nothing     o  the piece itself     m  can move there but not capture (e.g. a pawn's step, Grand Rook's knight squares)
-     c  can only capture there (e.g. a pawn's diagonal)     b  can move there or capture there     s  shoots it (captures without moving)
+     c  can only capture there (e.g. a pawn's diagonal)     b  can move there or capture there     s  shoots it (captures without moving)     x  can move there AND shoot it
    Method: put the piece on an otherwise empty board (kings / Imperials far outside the window so they never interfere) and ask for its moves;
    then, for every square of the window, put one enemy piece there and ask again - a move onto that square is a capture / a shot. */
 const Diagrams = (() => {
   const cache = new Map();
-  const classify = (empty, withTarget, shot) => (withTarget ? (shot ? 's' : (empty ? 'b' : 'c')) : (empty ? 'm' : '.'));
+  // Auras: a zone around the piece where something special is true for its side (drawn as a tinted square on the diagram). Radius 2 = 5x5.
+  function auraOf(kind, t, Mod) {
+    if (kind === 'grand') { const R = Mod && Mod.GRAND_RULES; return t === (R ? R.her : '\u03b5') ? { r: R ? R.herR : 2, label: 'Aura: friendly pawns in it can\u2019t capture or give check' } : null; }
+    const A = (Mod && Mod.AURA) || { k: 3, q: 2, y: 1, g: 1 };
+    return ({
+      k: { r: A.k, label: 'King aura: friendly pawns walk further; Rooks, Bishops and Knights in it can\u2019t be captured by pawns' },
+      q: { r: A.q, label: 'Queen aura: Pawns also capture straight; Guards, Archers, Chariots, Sappers and Catapults in it can\u2019t be captured by pawns' },
+      y: { r: A.y, label: 'Aura: a friendly Princess next to it can\u2019t be shot or captured' },
+      g: { r: A.g, label: 'Aura: Archers can\u2019t hit the Guard or the squares next to it' }
+    })[t] || null;
+  }
+  const classify = (empty, withTarget, shot) => (withTarget ? (shot ? (empty ? 'x' : 's') : (empty ? 'b' : 'c')) : (empty ? 'm' : '.'));
 
   function grid2p(Engine, V, t, o) {
     o = o || {};
@@ -27,7 +38,7 @@ const Diagrams = (() => {
       if (target) put(target[0], target[1], 'n');
       return Engine.create(Object.assign({}, V, { w: B, h: B, setup: rows.map(r => r.join('')), castling: false, first: 'w' }));
     };
-    const tos = g => { const s = new Set(); g.moves(cx, cy).forEach(m => s.add(m.tx + ',' + m.ty)); return s; };
+    const tos = g => { const s = new Map(); g.moves(cx, cy).forEach(m => { const k = m.tx + ',' + m.ty; if (!s.has(k) || !m.shot) s.set(k, !!m.shot); }); return s; };
     const empty = tos(build(null)), out = [];
     for (let j = N - 1; j >= 0; j--) {                    // top row first
       let row = '';
@@ -35,12 +46,12 @@ const Diagrams = (() => {
         const x = ox + i, y = oy + j;
         if (x === cx && y === cy) { row += 'o'; continue; }
         if ((o.extra || []).some(e => cx + e.dx === x && cy + e.dy === y)) { row += 'e'; continue; }      // a helper piece stands here (drawn by the page)
-        const hit = tos(build([x, y])).has(x + ',' + y);
-        row += classify(empty.has(x + ',' + y), hit, false);
+        const tg = tos(build([x, y])), hit = tg.has(x + ',' + y);
+        row += classify(empty.has(x + ',' + y), hit, hit && tg.get(x + ',' + y));
       }
       out.push(row);
     }
-    const res = { N, R, rows: out, extras: extrasOf(o, cx - ox, N - 1 - (cy - oy)) }; cache.set(key, res); return res;
+    const res = { N, R, rows: out, aura: auraOf('grand', t, Engine), extras: extrasOf(o, cx - ox, N - 1 - (cy - oy)) }; cache.set(key, res); return res;
   }
   const extrasOf = (o, ic, jc) => (o.extra || []).map(e => ({ i: ic + e.dx, j: jc - e.dy, t: e.t, c: e.c }));
 
@@ -74,7 +85,7 @@ const Diagrams = (() => {
       }
       out.push(row);
     }
-    const res = { N, R, rows: out, extras: extrasOf(o, cx - ox, N - 1 - (cy - oy)) }; cache.set(key, res); return res;
+    const res = { N, R, rows: out, aura: auraOf('imp', t, Imperial), extras: extrasOf(o, cx - ox, N - 1 - (cy - oy)) }; cache.set(key, res); return res;
   }
 
   // The different situations worth drawing for a piece: [{ label, o }] (o = options for grid2p / gridImp). The first one is the plain piece.
@@ -92,7 +103,7 @@ const Diagrams = (() => {
     if (t === 'H') st.push({ label: 'After the Emperor and Empress are lost', o: { keep: '' } });
     if (t === 'k') st.push({ label: 'With a friendly piece next to it (here a Pawn up-right)', o: { extra: [{ t: 'p', c: 'w', dx: 1, dy: 1 }] } });
     if ('pvm'.includes(t)) { st[0].label = 'First move'; st.push({ label: 'Later moves', o: { moved: true } }); st.push({ label: 'Later moves, near a friendly King (aura)', o: { moved: true, extra: [{ t: 'k', c: 'w', dx: 0, dy: -1 }] } }); }
-    if (t === 'f') st.push({ label: 'With a Knight next to it (it borrows its moves)', o: { extra: [{ t: 'n', c: 'b', dx: 1, dy: 0 }] } });
+    if (t === 'f') st.push({ label: 'With a friendly Knight next to it (it borrows its moves)', o: { extra: [{ t: 'n', c: 'w', dx: 1, dy: 0 }] } });
     return st;
   }
   return { grid2p, gridImp, states, clear: () => cache.clear() };

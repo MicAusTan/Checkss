@@ -199,12 +199,12 @@ const Imperial = (() => {
           for (const sx of [1, -1]) for (const sy of [1, -1]) add(3 * sx, sy);
           break;
         }
-        case 'f': {                                       // Jester: never captures by itself; hops to the opposite-colour squares of its 5x5; borrows the moves of any non-Imperial piece in its 3x3 (never ranged ones)
+        case 'f': {                                       // Jester: never captures by itself; hops to the opposite-colour squares of its 5x5; borrows the moves of any FRIENDLY (own side) non-Imperial piece in its 3x3 (never ranged ones)
           for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) if ((a + b) & 1) add(a, b, { cap: false });
           const seenT = new Set();
           for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
             if (!a && !b) continue; const q = at(B, x + a, y + b);
-            if (!q || q.wall || q.dead || q.t === 'f' || IMP.includes(q.t) || seenT.has(q.t)) continue; seenT.add(q.t);
+            if (!q || q.wall || q.dead || team(q.c) !== team(c) || q.t === 'f' || IMP.includes(q.t) || seenT.has(q.t)) continue; seenT.add(q.t);
             const B2 = B.slice(); B2[y * W + x] = { t: q.t, c, m: p.m, o: false };
             for (const r of gen(B2, x, y, inf)) if (!r.shoot && !r.castle && !r.swap && !r.ep) out.push(Object.assign({}, r, { via: q.t }));
           }
@@ -429,6 +429,6 @@ const Imperial = (() => {
     for (const e of ev) { const sc = e.gain - 0.9 * e.loss + e.bonus + Math.random() * 0.4; if (sc > bs) { bs = sc; best = e; } }
     return best.m;
   }
-  return { create, cut: (x, y) => !G2.valid(x, y), botChoose, G2, G4 };
+  return { create, AURA: { k: AURA_R, q: 2, y: 1, g: 1 }, cut: (x, y) => !G2.valid(x, y), botChoose, G2, G4 };
 })();
 if (typeof module !== 'undefined') module.exports = Imperial;
