@@ -14,10 +14,10 @@ const Imperial = (() => {
     rank: (c, x, y) => c === 'r' ? y : c === 'b' ? x : c === 'y' ? 28 - y : 28 - x, promo: 24 };
   const OR = [[1, 0], [-1, 0], [0, 1], [0, -1]], DG = [[1, 1], [1, -1], [-1, 1], [-1, -1]], K8 = OR.concat(DG);
   const sym = a => { const o = [], seen = new Set(); for (const [x, y] of a) for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { const k = [x * sx, y * sy], s = k + ''; if (!seen.has(s)) { seen.add(s); o.push(k); } } return o; };
-  const KN = sym([[1, 2], [2, 1]]), CAM = sym([[1, 3], [3, 1]]), EXT = sym([[2, 4], [4, 2]]);
+  const DIAG3 = [[3, 3], [3, -3], [-3, 3], [-3, -3]], KN = sym([[1, 2], [2, 1]]), CAM = sym([[1, 3], [3, 1]]), EXT = sym([[2, 4], [4, 2]]);
   const RING = []; for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) if (Math.max(Math.abs(a), Math.abs(b)) === 2) RING.push([a, b]);
   const SQ5 = []; for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) if (a || b) SQ5.push([a, b]);
-  const ARCH = SQ5.filter(([a, b]) => !(Math.abs(a) === 2 && Math.abs(b) === 2) && Math.abs(a) + Math.abs(b) !== 1);          // 16
+  const ARCH = SQ5.filter(([a, b]) => !(Math.abs(a) === 2 && Math.abs(b) === 2) && Math.abs(a) + Math.abs(b) !== 1 && !(Math.abs(a) === 1 && Math.abs(b) === 1));          // 12 (no corners, nothing directly beside it)
   const PR_CAP = SQ5.filter(([a, b]) => !(Math.abs(a) === 2 && Math.abs(b) === 2));                                           // 20
   const PR_MOV = [[2, 2], [2, -2], [-2, 2], [-2, -2], [3, 0], [-3, 0], [0, 3], [0, -3]];
   const PRS_CAP = RING.concat([[3, 0], [-3, 0], [0, 3], [0, -3]]);
@@ -144,11 +144,11 @@ const Imperial = (() => {
           if (S.ep && S.ep.c !== c) for (const dx of [1, -1]) { const [d, e] = R(dx, 1); if (S.ep.passed.some(q => q.x === x + d && q.y === y + e)) add(d, e, { cap: false, ep: true }); }
           break;
         }
-        case 'k': {                                       // King: one step, or onto any square beside a friend within RALLY_R (captures allowed when RALLY_CAP)
+        case 'k': {                                       // King: one step, or onto any square beside a friend within RALLY_R (capturing only inside its own 5x5, moving only beyond it)
           leap(K8);
           for (let a = -RALLY_R; a <= RALLY_R; a++) for (let b = -RALLY_R; b <= RALLY_R; b++) {
             if (!a && !b) continue; const q = at(B, x + a, y + b);
-            if (q && !q.wall && !q.dead && q.c === c) for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) add(a + i, b + j, { cap: RALLY_CAP });
+            if (q && !q.wall && !q.dead && q.c === c) for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) add(a + i, b + j, { cap: RALLY_CAP && Math.max(Math.abs(a + i), Math.abs(b + j)) <= RALLY_R });      // beside a friend: may capture only if that square is inside the King's own 5x5; further out it can only move there
           }
           break;
         }
@@ -161,7 +161,7 @@ const Imperial = (() => {
         case 'N': leap(RING); break;
         case 'E': imperial(OR, (a, b) => [[b, a], [-b, -a]], me.X ? 16 : 3); castle(OR, 'rR'); break;
         case 'X': imperial(DG, (a, b) => [[1, 0], [-1, 0], [0, 1], [0, -1]], me.E ? 16 : 3); castle(DG, 'bB'); break;
-        case 'H': { const L = KN.concat(CAM, me.E || me.X ? [] : EXT); leap(L); leap(L, { swap: true }); break; }
+        case 'H': { const L = KN.concat(CAM, me.E || me.X ? [] : EXT.concat(DIAG3)); leap(L); leap(L, { swap: true }); break; }
         case 'g': {
           leap(K8); leap([[2, 0], [-2, 0], [0, 2], [0, -2]], { cap: false });
           for (const [a, b] of NEAR) { const q = at(B, x + a, y + b); if (q && q.c === c && (a || b)) for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) add(a + i, b + j, { cap: false }); }
@@ -175,10 +175,10 @@ const Imperial = (() => {
           }
           break;
         }
-        case 'u': OR.forEach(([a, b]) => add(a, b, { cap: false })); ARCH.forEach(([a, b]) => add(a, b, { mv: false, shoot: true })); break;
+        case 'u': slide(OR, 2, { cap: false }); ARCH.forEach(([a, b]) => add(a, b, { mv: false, shoot: true })); break;
         case 's': leap(DG.concat([[2, 0], [-2, 0], [0, 2], [0, -2]]), { cap: false }); break;
         case 't': {
-          slide(OR, 2, { cap: false });
+          slide(OR, 3, { cap: false }); leap(DG, { cap: false });
           if (p.fired === undefined || S.ply - p.fired > NS) CAT.forEach(([a, b]) => addR(a, b, { mv: false, shoot: true }));
           break;
         }

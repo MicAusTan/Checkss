@@ -494,8 +494,8 @@ King's Indian Attack|Nf3 d5 g3`;
   function paintSetup() {
     root.innerHTML = '';
     const d = el('div', 'prset');
-    d.appendChild(el('h2', null, 'Practice vs Stockfish'));
-    d.appendChild(el('p', 'dim', 'Standard chess against Stockfish, only here to help you improve. During the game you can switch each help (ratings, evaluation bar, hints, …) on or off whenever you like.'));
+    d.appendChild(el('h2', null, 'Practice'));
+    d.appendChild(el('p', 'dim', 'Standard chess against Stockfish (the bot), only here to help you improve. During the game you can switch each help (ratings, evaluation bar, hints, …) on or off whenever you like.'));
     const eloBox = el('div'); const lab = el('div', null, ''); const rng = el('input'); rng.type = 'range'; rng.min = 400; rng.max = 3200; rng.step = 50; rng.value = prefs.elo;
     const upd = () => { prefs.elo = +rng.value; lab.innerHTML = 'Bot strength: <b>' + prefs.elo + ' Elo' + (prefs.elo >= 3200 ? ' (maximum: full strength)' : '') + '</b>'; pre.querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.e === prefs.elo)); savePrefs(); };
     const pre = el('div', 'pre'); PRESETS.forEach(([n, e]) => { const b = el('button', null, n + ' (' + (e >= 3200 ? 'max' : e) + ')'); b.dataset.e = e; b.onclick = () => { rng.value = e; upd(); }; pre.appendChild(b); });

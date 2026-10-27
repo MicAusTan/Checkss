@@ -70,7 +70,7 @@ const Diagrams = (() => {
       if (target) ps.push({ t: 'b', c: 'b', x: target[0], y: target[1] });      // a plain black bishop: no Imperial immunity, no aura or Guard protection, so every attacker can take it
       return Imperial.create({ pieces: ps });
     };
-    const info = g => { const s = new Map(); g.moves(cx, cy).forEach(m => { const k = m.tx + ',' + m.ty; if (!s.has(k) || !m.shoot) s.set(k, !!m.shoot); }); return s; };
+    const info = g => { const s = new Map(); (g.reach || g.moves)(cx, cy).forEach(m => { const k = m.tx + ',' + m.ty; if (!s.has(k) || !m.shoot) s.set(k, !!m.shoot); }); return s; };
     const empty = info(build(null)), out = [];
     for (let j = N - 1; j >= 0; j--) {
       let row = '';
@@ -101,7 +101,7 @@ const Diagrams = (() => {
     if (t === 'E') st.push({ label: 'After the Empress is lost', o: { keep: 'H' } });
     if (t === 'X') st.push({ label: 'After the Emperor is lost', o: { keep: 'H' } });
     if (t === 'H') st.push({ label: 'After the Emperor and Empress are lost', o: { keep: '' } });
-    if (t === 'k') st.push({ label: 'With a friendly piece next to it (here a Pawn up-right)', o: { extra: [{ t: 'p', c: 'w', dx: 1, dy: 1 }] } });
+    if (t === 'k') st.push({ label: 'With a friendly piece 2 squares away (here a Pawn up-right): it can step next to it; captures only inside its own 5×5', o: { extra: [{ t: 'p', c: 'w', dx: 2, dy: 2 }] } });
     if ('pvm'.includes(t)) { st[0].label = 'First move'; st.push({ label: 'Later moves', o: { moved: true } }); st.push({ label: 'Later moves, near a friendly King (aura)', o: { moved: true, extra: [{ t: 'k', c: 'w', dx: 0, dy: -1 }] } }); }
     if (t === 'f') st.push({ label: 'With a friendly Knight next to it (it borrows its moves)', o: { extra: [{ t: 'n', c: 'w', dx: 1, dy: 0 }] } });
     return st;
