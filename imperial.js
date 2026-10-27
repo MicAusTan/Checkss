@@ -177,9 +177,11 @@ const Imperial = (() => {
         }
         case 'u': slide(OR, 2, { cap: false }); ARCH.forEach(([a, b]) => add(a, b, { mv: false, shoot: true })); break;
         case 's': leap(DG.concat([[2, 0], [-2, 0], [0, 2], [0, -2]]), { cap: false }); break;
-        case 't': {
+        case 't': {      // after firing: locked completely for the first turn that follows, then it may walk again, and may fire again only after 2 full turns
+          const since = p.fired === undefined ? Infinity : S.ply - p.fired;
+          if (since <= NS) break;
           slide(OR, 3, { cap: false }); leap(DG, { cap: false });
-          if (p.fired === undefined || S.ply - p.fired > NS) CAT.forEach(([a, b]) => addR(a, b, { mv: false, shoot: true }));
+          if (since > 2 * NS) CAT.forEach(([a, b]) => addR(a, b, { mv: false, shoot: true }));
           break;
         }
         case 'j': {                                       // Lancer

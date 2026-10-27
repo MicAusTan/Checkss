@@ -247,7 +247,7 @@ King's Indian Attack|Nf3 d5 g3`;
         let defended = false;
         const g2 = cloneWith(gg, rows => { rowSet(rows, h.from[0], h.from[1], '.'); rowSet(rows, h.tx, h.ty, X === 'w' ? h.at : h.at.toUpperCase()); }, X);      // (the capturer now stands on the target; can X take it back?)
         for (let y = 0; y < 8 && !defended; y++) for (let x = 0; x < 8 && !defended; x++) { const q = g2.at(x, y); if (q && q.c === X && g2.moves(x, y).some(m => m.tx === h.tx && m.ty === h.ty)) defended = true; }
-        if (!defended || h.v < VAL[h.tt]) out.push([h.tx, h.ty]);
+        if (!defended || h.v < VAL[h.tt]) { const e = [h.tx, h.ty]; e.det = { victim: h.tt, attacker: h.at, defended }; out.push(e); }
       });
     } catch (e) { /* ignore: warnings are only a bonus */ }
     hangCache.set(key, out); if (hangCache.size > 300) hangCache.clear();
@@ -257,19 +257,48 @@ King's Indian Attack|Nf3 d5 g3`;
 
   // ====================== "why" text, accuracy, review ======================
   const pname = t => ({ p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' }[t] || 'piece');
-  function whyText(k, rt) {      // short template explanations (no deep chess understanding: engine facts only)
+  const sqName = (x, y) => FILES[x] + (y + 1);
+  function pvSan(k, uciList, n) {      // the engine's line from the position before ply k, as numbered SAN ("Nf3 Nc6 Bb5 ...")
+    try {
+      const g = gameAt(k), out = []; let ply = k;
+      for (const u of uciList.slice(0, n || 5)) {
+        const m = findUci(g, u); if (!m) break;
+        const s = sanOf(g, m); if (!g.move(m)) break;
+        out.push(ply % 2 === 0 ? (Math.floor(ply / 2) + 1) + '. ' + s : (out.length ? '' : (Math.floor(ply / 2) + 1) + '… ') + s); ply++;
+      }
+      return out.join(' ');
+    } catch (e) { return ''; }
+  }
+  function whyText(k, rt) {      // short template explanations (engine facts + simple board facts, no deep chess understanding)
+    if (rt === 'brilliant') return 'A sacrifice that works out: you give up material and the engine still rates the position well for you.';
+    if (rt === 'great') return 'The only move that holds the position together; every alternative loses a lot.';
     const A = S.ana[k], B = S.ana[k + 1]; if (!A || !B) return '';
-    const mover = S.moves[k].c, white = mover === 'w', bm = A.lines[0].pv[0] && findUciIn(k, A.lines[0].pv[0]);
+    const mover = S.moves[k].c, opp = mover === 'w' ? 'b' : 'w', white = mover === 'w', bm = A.lines[0].pv[0] && findUciIn(k, A.lines[0].pv[0]);
     const mateFor = l => l && l.mate != null && ((l.mate > 0) === white);
     if (B.lines[0].mate != null && !mateFor(B.lines[0])) return 'This allows checkmate in ' + Math.abs(B.lines[0].mate) + '.';
     if (A.lines[0].mate != null && mateFor(A.lines[0]) && rt !== 'best') return 'You had a forced checkmate in ' + Math.abs(A.lines[0].mate) + (bm ? ' (' + bm + ')' : '') + '.';
     try {
-      const g = gameAt(k + 1), pv = B.lines[0].pv, u = pv[0], m = u && findUci(g, u), t = m && g.at(m.tx, m.ty);
+      const g0 = gameAt(k), g1 = gameAt(k + 1), mv = S.moves[k].m;
+      // 1. the engine's reply wins one of your pieces
+      const pv = B.lines[0].pv, u = pv[0], m = u && findUci(g1, u), t = m && g1.at(m.tx, m.ty);
       if (m && t && t.c === mover && t.t !== 'k') {
-        const M0 = material(gameAt(k), mover); g.move(m); const g3 = g, m1 = pv[1] && findUci(g3, pv[1]); if (m1) g3.move(m1);
-        if (material(g3, mover) - M0 <= -2) return 'This loses your ' + pname(t.t) + '.';
+        const M0 = material(g0, mover), g3 = gameAt(k + 1); g3.move(findUci(g3, u)); const m1 = pv[1] && findUci(g3, pv[1]); if (m1) g3.move(m1);
+        if (material(g3, mover) - M0 <= -2) return 'This loses your ' + pname(t.t) + ' (' + (g1.at(m.fx, m.fy) ? 'taken by the ' + pname(g1.at(m.fx, m.fy).t) : '') + ').'.replace(' ()', '');
       }
-      const g0 = gameAt(k), b0 = A.lines[0].pv[0] && findUci(g0, A.lines[0].pv[0]), tt = b0 && g0.at(b0.tx, b0.ty);
+      // 2. your move leaves a piece en prise that was safe before
+      const before = new Set(hangingOf(g0, mover).map(q => q.join(','))), after = hangingOf(g1, mover);
+      const fresh = after.filter(q => !before.has(q.join(',')) && VAL[(g1.at(q[0], q[1]) || {}).t] >= 1);
+      if (fresh.length) {
+        const q = fresh.sort((a2, b2) => VAL[g1.at(b2[0], b2[1]).t] - VAL[g1.at(a2[0], a2[1]).t])[0], pc = g1.at(q[0], q[1]);
+        return 'This leaves your ' + pname(pc.t) + ' on ' + sqName(q[0], q[1]) + (q.det && !q.det.defended ? ' undefended.' : ' attacked by a cheaper ' + pname(q.det && q.det.attacker) + '.');
+      }
+      // 3. you ignored a threat that already existed
+      const old = hangingOf(g0, mover).filter(q => g1.at(q[0], q[1]) && g1.at(q[0], q[1]).c === mover && after.some(r => r.join(',') === q.join(',')));
+      if (old.length) { const q = old[0], pc = g1.at(q[0], q[1]); return 'Your ' + pname(pc.t) + ' on ' + sqName(q[0], q[1]) + ' was under threat and this move did not deal with it.'; }
+      // 4. a free piece was available (for you to take / the opponent left it hanging)
+      const free = hangingOf(g0, opp).filter(q => !(mv.tx === q[0] && mv.ty === q[1]));
+      if (free.length && ['mistake', 'blunder', 'miss'].includes(rt)) { const q = free.sort((a2, b2) => VAL[g0.at(b2[0], b2[1]).t] - VAL[g0.at(a2[0], a2[1]).t])[0]; return 'You could have won their ' + pname(g0.at(q[0], q[1]).t) + ' on ' + sqName(q[0], q[1]) + '.'; }
+      const b0 = A.lines[0].pv[0] && findUci(g0, A.lines[0].pv[0]), tt = b0 && g0.at(b0.tx, b0.ty);
       if (tt && VAL[tt.t] >= 3 && ['mistake', 'blunder', 'miss'].includes(rt)) return 'You could have won a ' + pname(tt.t) + ' with ' + bm + '.';
     } catch (e) { /* fall through */ }
     return '';      // (no specific reason found: the feedback line already names the best move)
@@ -452,7 +481,8 @@ King's Indian Attack|Nf3 d5 g3`;
   // ====================== UI ======================
   const el = (tag, cls, html) => { const d = document.createElement(tag); if (cls) d.className = cls; if (html != null) d.innerHTML = html; return d; };
   const css = `
-  #practice { max-width:980px; margin:0 auto; }
+  #practice { width:100%; max-width:980px; box-sizing:border-box; padding:0 8px; margin:0 auto; }      /* a fixed width: it must NOT depend on its content (a shrink-wrapped box flipped between layouts and made the scrollbar come and go) */
+  #practice .prleft { flex:1 1 380px; } #practice .prside { flex:1 1 300px; min-width:0; }
   #practice .prrow { display:flex; flex-wrap:wrap; gap:14px; align-items:flex-start; }
   #practice .prleft { display:flex; gap:6px; flex:1 1 360px; max-width:600px; min-width:260px; }
   #practice .prbar { width:34px; flex:none; background:#1b1a18; border:2px solid #111; position:relative; border-radius:3px; overflow:hidden; }
@@ -477,6 +507,8 @@ King's Indian Attack|Nf3 d5 g3`;
   #practice .prnav button { padding:4px 10px; font-size:.85rem; background:#3a3733; } #practice .prml .mv { cursor:pointer; } #practice .prml .mv.cur { background:#4a463f; border-radius:3px; }
   #practice .prrev { background:#2c2926; border-radius:8px; padding:8px 10px; margin:8px 0; font-size:.9rem; } #practice .prrev div { margin:3px 0; }
   #practice .prkey { cursor:pointer; padding:2px 4px; border-radius:4px; } #practice .prkey:hover { background:#3a3733; }
+  #practice .prboard { container-type:inline-size; } #practice .prboard .sq { font-size:9cqw; }
+  #prefs.inpractice { margin-top:14px; } #prefs.inpractice label:not(:first-child) { display:none; }      /* in Practice only the board colours apply */
   #practice .prcol { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; } #practice .prcol .prboard { flex:none; width:100%; }
   #practice .prbw { display:flex; gap:6px; align-items:stretch; } #practice .prcol .prbw .prboard { flex:1; width:auto; min-width:0; }
   #practice .prclk { font-variant-numeric:tabular-nums; font-weight:bold; font-size:1.15rem; background:#2c2926; border-radius:6px; padding:3px 12px; align-self:flex-start; } #practice .prclk.run { background:#4d6a30; } #practice .prclk.low { color:#ff9a9a; }
@@ -487,9 +519,8 @@ King's Indian Attack|Nf3 d5 g3`;
   function build() {
     if (built) return; built = true;
     const st = el('style'); st.textContent = css; document.head.appendChild(st);
-    new ResizeObserver(() => fit()).observe(root);
   }
-  function fit() { const b = root.querySelector('.prboard'); if (b) b.style.fontSize = (b.clientWidth / 8 * 0.72) + 'px'; }
+  function fit() { /* piece size is pure CSS now (container units), nothing to measure */ }
 
   function paintSetup() {
     root.innerHTML = '';
@@ -540,7 +571,8 @@ King's Indian Attack|Nf3 d5 g3`;
     // ---- board
     const board = el('div', 'prboard'), col = el('div', 'prcol');
     const clk = c => { const d = el('div', 'prclk'); d.dataset.c = c; d.textContent = s.tc ? fmtClock(remaining(c)) : ''; return d; };
-    if (s.tc) col.appendChild(clk(s.human === 'w' ? 'b' : 'w')); const bw = el('div', 'prbw'); if (barEl) bw.appendChild(barEl); bw.appendChild(board); col.appendChild(bw); if (s.tc) col.appendChild(clk(s.human));
+    if (s.tc) col.appendChild(clk(s.human === 'w' ? 'b' : 'w')); const bw = el('div', 'prbw'); if (!barEl) { barEl = el('div', 'prbar'); barEl.style.visibility = 'hidden'; barEl.style.border = '0'; }      // (hidden bar keeps its space, so switching it on/off never resizes the board)
+    bw.appendChild(barEl); bw.appendChild(board); col.appendChild(bw); if (s.tc) col.appendChild(clk(s.human));
     let kingSq = null; if (g.inCheck()) for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { const p = g.at(x, y); if (p && p.t === 'k' && p.c === g.turn) kingSq = x + ',' + y; }
     const hints = s.sel && (live || rt) ? g.moves(s.sel.x, s.sel.y) : [];
     const hintMv = ((live && s.hint && H('hint')) || (!live && (s.viewBest || (rt && rt.shown)))) && curAna && curAna.lines[0] && curAna.lines[0].pv[0];
@@ -602,7 +634,10 @@ King's Indian Attack|Nf3 d5 g3`;
         if (rt) {
           const R = RATE[rt], A = s.ana[lk], bm = A && A.lines[0] && A.lines[0].pv[0] && findUciIn(lk, A.lines[0].pv[0]);
           fb = '<b>' + mv.san + '</b> <span class="rt" style="background:' + R.col + '">' + R.sym + '</span> ' + R.name;
-          if (H('explain') && rt !== 'book') { const w = whyText(lk, rt); const bad = ['good', 'inaccuracy', 'mistake', 'miss', 'blunder'].includes(rt); fb += (bad && bm ? ' — the best move was <b>' + bm + '</b>' : '') + (bad && w ? '<br><span class="dim">' + w + '</span>' : ''); }
+          if (H('explain') && rt !== 'book') {
+            const w = whyText(lk, rt), bad = ['good', 'inaccuracy', 'mistake', 'miss', 'blunder'].includes(rt), line = bad && A && A.lines[0] ? pvSan(lk, A.lines[0].pv, 5) : '';
+            fb += (bad && bm ? ' — the best move was <b>' + bm + '</b>' : '') + (w ? '<br><span class="dim">' + w + '</span>' : '') + (line ? '<br><span class="dim">Engine line: ' + line + '</span>' : '');
+          }
         } else fb = '<b>' + mv.san + '</b> — checking…';
       }
       side.appendChild(el('div', 'prfb', fb || '<span class="dim">Your move ratings appear here.</span>'));
@@ -658,6 +693,11 @@ King's Indian Attack|Nf3 d5 g3`;
       box.appendChild(el('div', 'dim', 'Key moments (click a mistake to retry it, or a great move to see the best move):'));
       key.forEach(k => { const R = RATE[s.rate[k]], d = el('div', 'prkey'); d.innerHTML = (Math.floor(k / 2) + 1) + (k % 2 ? '…' : '.') + ' <b>' + s.moves[k].san + '</b> <span class="rt" style="background:' + R.col + '">' + R.sym + '</span> ' + R.name; d.onclick = () => (RETRY_CLS.includes(s.rate[k]) ? startRetry(k) : goView(k, true)); box.appendChild(d); });
     }
+    const ex = el('div', 'prbtn'); ex.style.marginTop = '8px';
+    const nl = el('label', null); const nc = el('input'); nc.type = 'checkbox'; nc.checked = s.pgnNotes !== false; nc.onchange = () => { s.pgnNotes = nc.checked; }; nl.append(nc, document.createTextNode(' include my ratings as comments')); nl.style.display = 'block'; nl.style.fontSize = '.85rem';
+    const cb = el('button', null, '📋 Copy PGN'); cb.onclick = () => copyText(buildPGN(s.pgnNotes !== false), cb);
+    const db = el('button', null, '⬇ Download PGN'); db.onclick = () => downloadText(buildPGN(s.pgnNotes !== false), 'practice-game.pgn');
+    ex.append(cb, db); box.append(nl, ex);
     return box;
   }
   function findUciIn(k, u) { try { const g = gameAt(k), m = findUci(g, u); return m ? sanOf(g, m) : null; } catch (e) { return null; } }
@@ -678,6 +718,33 @@ King's Indian Attack|Nf3 d5 g3`;
     s.sel = p && p.c === s.human ? { x, y } : null; paintAll();
   }
 
+
+
+  // ====================== PGN export ======================
+  function buildPGN(withNotes) {
+    const s = S, d = new Date(), pad = n => String(n).padStart(2, '0'), meta = s.pgnMeta || {};
+    const name = c => (s.imported ? (meta[c === 'w' ? 'White' : 'Black'] || '?') : (s.human === c ? 'You' : 'Stockfish (' + (s.elo >= 3200 ? 'max' : s.elo) + ')'));
+    const res = s.over ? (s.over.win === 'w' ? '1-0' : s.over.win === 'b' ? '0-1' : (s.imported && meta.Result) || '1/2-1/2') : '*';
+    const hdr = [['Event', s.imported ? (meta.Event || 'Imported game') : 'Practice game'], ['Site', 'Chess with Friends'], ['Date', d.getFullYear() + '.' + pad(d.getMonth() + 1) + '.' + pad(d.getDate())], ['Round', '-'], ['White', name('w')], ['Black', name('b')], ['Result', res]];
+    const parts = [];
+    s.moves.forEach((m, k) => {
+      if (k % 2 === 0) parts.push((k / 2 + 1) + '.'); else if (k === 0) parts.push('1...');
+      parts.push(m.san);
+      const r = s.rate[k];
+      if (withNotes && r && mine(m.c) && !['best', 'excellent', 'book'].includes(r)) {
+        const A = s.ana[k], bm = A && A.lines[0] && A.lines[0].pv[0] && findUciIn(k, A.lines[0].pv[0]);
+        parts.push('{' + RATE[r].name + (['good', 'inaccuracy', 'mistake', 'miss', 'blunder'].includes(r) && bm ? '; best was ' + bm : '') + '}');
+      } else if (withNotes && r && mine(m.c) && r === 'best' && false) parts.push('');
+    });
+    parts.push(res);
+    return hdr.map(h => '[' + h[0] + ' "' + String(h[1]).replace(/"/g, "'") + '"]').join('\n') + '\n\n' + parts.join(' ') + '\n';
+  }
+  function copyText(txt, btn) {
+    const ok = () => { if (btn) { const o = btn.textContent; btn.textContent = 'Copied ✓'; setTimeout(() => { btn.textContent = o; }, 1500); } };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok, () => legacyCopy(txt, ok)); else legacyCopy(txt, ok);
+  }
+  function legacyCopy(txt, ok) { const t = document.createElement('textarea'); t.value = txt; t.style.position = 'fixed'; t.style.opacity = '0'; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); ok(); } catch (e) { /* ignore */ } t.remove(); }
+  function downloadText(txt, fname) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'application/x-chess-pgn' })); a.download = fname; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); }
 
   // ====================== review a pasted game ======================
   function parseGameText(text) {      // PGN (headers, comments, variations, NAGs are ignored) or a plain list of SAN / UCI moves -> { moves:[move objects], meta } or { error }
@@ -709,6 +776,7 @@ King's Indian Attack|Nf3 d5 g3`;
     S.keys.push(posKey(S.game));
     moves.forEach(m => applyMove(m));
     if (!S.over) { const r = meta && meta.Result; S.over = { text: r === '1-0' ? 'White won (1-0)' : r === '0-1' ? 'Black won (0-1)' : r === '1/2-1/2' ? 'Drawn (½-½)' : 'End of the moves', win: r === '1-0' ? 'w' : r === '0-1' ? 'b' : null }; }
+    S.pgnMeta = meta || {};
     const nm = meta && (meta.White || meta.Black) ? (meta.White || '?') + ' vs ' + (meta.Black || '?') : '';
     if (nm) S.msg = nm;
     for (let i = 0; i <= S.moves.length; i++) requestAna(i);
@@ -732,14 +800,15 @@ King's Indian Attack|Nf3 d5 g3`;
 
   // ====================== public ======================
   function init(o) { if (o.confirm) ask = o.confirm; E = o.Engine; glyph = o.glyph; onExit = o.onExit; root = document.getElementById('practice'); build(); }
-  function open() { root.classList.remove('hidden'); S = null; sid++; screen = 'setup'; paintAll(); SF.start().catch(e => { root.insertBefore(el('p', null, '⚠ ' + e.message), root.firstChild); }); }
-  function close() { if (S) { S = null; sid++; } stopTicker(); SF.stop(); root.classList.add('hidden'); if (onExit) onExit(); }
+  function movePrefs(into) { const pf = document.getElementById('prefs'); if (!pf) return; if (into) { root.after(pf); pf.classList.add('inpractice'); } else { const h1 = document.querySelector('h1'); if (h1) h1.after(pf); pf.classList.remove('inpractice'); } }
+  function open() { movePrefs(true); root.classList.remove('hidden'); S = null; sid++; screen = 'setup'; paintAll(); SF.start().catch(e => { root.insertBefore(el('p', null, '⚠ ' + e.message), root.firstChild); }); }
+  function close() { if (S) { S = null; sid++; } stopTicker(); SF.stop(); movePrefs(false); root.classList.add('hidden'); if (onExit) onExit(); }
   function _load(uci, human, elo) {      // test hook: load a finished game from UCI moves and analyse every position
     startSession(elo || 1000, human); S.thinking = false; SF.stop(); S.moves.length = 0; S.game = newGame(); S.keys = [posKey(S.game)]; S.clocks = [0]; S.ana = [null]; S.rate = []; S.anaQ = new Set();
     uci.forEach(u => { if (!applyMove(findUci(S.game, u))) throw new Error('bad move ' + u); });
     if (!S.over) S.over = { text: 'Loaded game', win: null };
     for (let i = 0; i <= S.moves.length; i++) requestAna(i); paintAll(); return S;
   }
-  return { init, open, close, _load, _s: () => S, _SF: SF, _wp: wpOf, _pickWeak: pickWeak, _t: { parseGameText, isSacrifice, lossOf, cloneWith, hangingOf, rowSet, openingAt, inBook, whyText } };
+  return { init, open, close, _load, _s: () => S, _SF: SF, _wp: wpOf, _pickWeak: pickWeak, _t: { buildPGN, pvSan, parseGameText, isSacrifice, lossOf, cloneWith, hangingOf, rowSet, openingAt, inBook, whyText } };
 })();
 if (typeof module !== 'undefined') module.exports = Practice;
