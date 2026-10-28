@@ -22,8 +22,8 @@ const Practice = (() => {
   const PRESETS = [['Beginner', 600], ['Casual', 1000], ['Improver', 1400], ['Club', 1800], ['Strong', 2200], ['Max', 3200]];
   let E = null, glyph = null, onExit = null, root = null, built = false, ask = m => Promise.resolve(window.confirm(m));
   const HELPS = [['ratings', 'Move ratings'], ['bar', 'Evaluation bar'], ['hint', 'Hints (💡 button)'], ['takeback', 'Take backs'], ['explain', 'Explain mistakes (best move + why)'], ['opening', 'Opening names'], ['warn', 'Warn about my hanging pieces'], ['free', 'Show the opponent’s hanging pieces']];
-  let prefs = { elo: 1000, pick: 'w', clock: null, help: { ratings: true, bar: true, hint: true, takeback: true, explain: true, opening: true, warn: true, free: false } };
-  try { const o = JSON.parse(localStorage.getItem(PREF_KEY) || '{}'); if (o.elo) prefs.elo = o.elo; if (o.pick) prefs.pick = o.pick; if (o.help) Object.assign(prefs.help, o.help); if (o.clock) prefs.clock = o.clock; } catch (e) { /* no storage: fine */ }
+  let prefs = { elo: 1000, pick: 'w', clock: null, delay: 1.2, auto: true, help: { ratings: true, bar: true, hint: true, takeback: true, explain: true, opening: true, warn: true, free: false } };
+  try { const o = JSON.parse(localStorage.getItem(PREF_KEY) || '{}'); if (o.elo) prefs.elo = o.elo; if (o.pick) prefs.pick = o.pick; if (typeof o.delay === 'number') prefs.delay = o.delay; if (typeof o.auto === 'boolean') prefs.auto = o.auto; if (o.help) Object.assign(prefs.help, o.help); if (o.clock) prefs.clock = o.clock; } catch (e) { /* no storage: fine */ }
   const H = k => !!prefs.help[k];
   const savePrefs = () => { try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch (e) { /* ignore */ } };
 
@@ -272,6 +272,7 @@ King's Indian Attack|Nf3 d5 g3`;
   function whyText(k, rt) {      // short template explanations (engine facts + simple board facts, no deep chess understanding)
     if (rt === 'brilliant') return 'A sacrifice that works out: you give up material and the engine still rates the position well for you.';
     if (rt === 'great') return 'The only move that holds the position together; every alternative loses a lot.';
+    if (['best', 'excellent', 'good'].includes(rt)) return '';      // small losses get no blame
     const A = S.ana[k], B = S.ana[k + 1]; if (!A || !B) return '';
     const mover = S.moves[k].c, opp = mover === 'w' ? 'b' : 'w', white = mover === 'w', bm = A.lines[0].pv[0] && findUciIn(k, A.lines[0].pv[0]);
     const mateFor = l => l && l.mate != null && ((l.mate > 0) === white);
@@ -286,14 +287,16 @@ King's Indian Attack|Nf3 d5 g3`;
         if (material(g3, mover) - M0 <= -2) return 'This loses your ' + pname(t.t) + ' (' + (g1.at(m.fx, m.fy) ? 'taken by the ' + pname(g1.at(m.fx, m.fy).t) : '') + ').'.replace(' ()', '');
       }
       // 2. your move leaves a piece en prise that was safe before
+      let bestHang = [];      // piece types that the ENGINE'S move leaves hanging too: blaming your move for those would contradict the best move
+      try { const gb = gameAt(k), bmv = A.lines[0].pv[0] && findUci(gb, A.lines[0].pv[0]); if (bmv && gb.move(bmv)) bestHang = hangingOf(gb, mover).map(q => (gb.at(q[0], q[1]) || {}).t); } catch (e2) { /* ignore */ }
       const before = new Set(hangingOf(g0, mover).map(q => q.join(','))), after = hangingOf(g1, mover);
-      const fresh = after.filter(q => !before.has(q.join(',')) && VAL[(g1.at(q[0], q[1]) || {}).t] >= 1);
+      const fresh = after.filter(q => !before.has(q.join(',')) && VAL[(g1.at(q[0], q[1]) || {}).t] >= 1 && !bestHang.includes((g1.at(q[0], q[1]) || {}).t));
       if (fresh.length) {
         const q = fresh.sort((a2, b2) => VAL[g1.at(b2[0], b2[1]).t] - VAL[g1.at(a2[0], a2[1]).t])[0], pc = g1.at(q[0], q[1]);
         return 'This leaves your ' + pname(pc.t) + ' on ' + sqName(q[0], q[1]) + (q.det && !q.det.defended ? ' undefended.' : ' attacked by a cheaper ' + pname(q.det && q.det.attacker) + '.');
       }
       // 3. you ignored a threat that already existed
-      const old = hangingOf(g0, mover).filter(q => g1.at(q[0], q[1]) && g1.at(q[0], q[1]).c === mover && after.some(r => r.join(',') === q.join(',')));
+      const old = hangingOf(g0, mover).filter(q => g1.at(q[0], q[1]) && g1.at(q[0], q[1]).c === mover && after.some(r => r.join(',') === q.join(',')) && !bestHang.includes(g1.at(q[0], q[1]).t));
       if (old.length) { const q = old[0], pc = g1.at(q[0], q[1]); return 'Your ' + pname(pc.t) + ' on ' + sqName(q[0], q[1]) + ' was under threat and this move did not deal with it.'; }
       // 4. a free piece was available (for you to take / the opponent left it hanging)
       const free = hangingOf(g0, opp).filter(q => !(mv.tx === q[0] && mv.ty === q[1]));
@@ -357,7 +360,8 @@ King's Indian Attack|Nf3 d5 g3`;
     if (inBook(k + 1)) return 'book';
     const A = S.ana[k], B = S.ana[k + 1], pw = c => (L.white ? wpOf(c) : 1 - wpOf(c));
     let cls;
-    if (L.isBest || L.loss <= 0.0005) cls = 'best';
+    const tie = !!L.mine && Math.abs(A.lines[0].stm - L.mine.stm) <= 12;      // an equal-scoring alternative counts as best too
+    if (L.isBest || tie) cls = 'best';
     else if (L.loss <= 0.02) cls = 'excellent'; else if (L.loss <= 0.05) cls = 'good';
     else if (L.loss <= 0.10) cls = 'inaccuracy'; else if (L.loss <= 0.20) cls = 'mistake'; else cls = 'blunder';
     if (cls === 'best' || cls === 'excellent') {
@@ -428,27 +432,36 @@ King's Indian Attack|Nf3 d5 g3`;
     paintAll();
     botMaybe();
   }
-  function botMaybe() {
+  const ELO_SHIFT = 300;      // the Elo shown is a human-style scale; Stockfish's own Elo scale reads about this much higher for the same strength
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const manualMode = () => !prefs.auto && !(S && S.tc);      // (with a clock the bot's clock would burn while you wait, so a clock forces automatic replies)
+  function botMaybe(manual) {
     const s = S; if (!botTurn() || s.thinking) return;
-    s.thinking = true; paintAll();
-    const mv = s.moves.map(x => uciOf(x.m)), elo = s.elo;
-    const low = elo < 1320, max = elo >= 3190;
+    if (!manual && manualMode()) { s.waiting = true; paintAll(); return; }      // the bot waits until you press "Bot move"
+    s.waiting = false; s.thinking = true; paintAll();
+    const mv = s.moves.map(x => uciOf(x.m)), elo = s.elo, eff = elo - ELO_SHIFT;      // eff = Stockfish-scale Elo to imitate
+    const low = eff < 1320, max = elo >= 3190, t0 = performance.now();
     const botC = s.game.turn, cap = s.tc ? Math.max(40, remaining(botC) / 25) : 1e9;      // with a clock, never think for more than ~1/25 of the time left
-    const job = low ? SF.search(mv, { multipv: 5, depth: s.tc && cap < 150 ? 4 : 7, elo: 1320 })
-      : SF.search(mv, { multipv: 1, movetime: Math.round(Math.min(cap, max ? 1000 : elo >= 2000 ? 600 : 300)), elo: max ? null : elo });
-    job.then(r => {
+    const job = low ? SF.search(mv, { multipv: 6, depth: eff < 700 ? 5 : 7, elo: 1320 })
+      : SF.search(mv, { multipv: 1, movetime: Math.round(Math.min(cap, max ? 1000 : eff >= 1700 ? 600 : 300)), elo: max ? null : Math.min(3190, eff) });
+    job.then(async r => {
       if (S !== s || !s.thinking) return;
       let u = r.best;
-      if (low && r.lines.length) u = pickWeak(r.lines, elo) || u;
+      if (low && r.lines.length) u = pickWeak(r.lines, eff) || u;
+      // don't answer instantly: give the player time to read their own move (and its rating) first
+      const lk = s.moves.length - 1, d = manual ? 0 : s.tc ? Math.min(prefs.delay, 0.3) : prefs.delay;
+      await sleep(Math.max(0, d * 1000 - (performance.now() - t0)));
+      if (!manual && S === s && s.thinking && H('ratings') && lk >= 0 && s.rate[lk] === undefined) for (let i = 0; i < 12 && S === s && s.thinking && s.rate[lk] === undefined; i++) await sleep(120);      // wait (briefly) for the rating of your move
+      if (S !== s || !s.thinking) return;
       const m = u && findUci(s.game, u);
       s.thinking = false;
       if (!m) { s.msg = 'Stockfish returned no move.'; paintAll(); return; }
       applyMove(m); afterMove();
     }).catch(fail);
   }
-  function pickWeak(lines, elo) {      // below Stockfish's own Elo floor (1320): look at its top lines and sometimes pick a worse one, more often the lower the Elo
-    const t = Math.max(0, Math.min(1, (1320 - elo) / 920));      // 0 at 1320 .. 1 at 400
-    const T = 70 + 280 * t, bl = 0.32 * t * t + 0.06 * t;      // softness (centipawns) and extra chance of a plain "random one of the top lines"
+  function pickWeak(lines, eff) {      // below Stockfish's own Elo floor (1320 on its scale): look at its top lines and often pick a worse one, more often the lower the Elo
+    const t = Math.max(0, Math.min(1, (1320 - eff) / 920));      // 0 at 1320 .. 1 at 400 (and below)
+    const T = 60 + 420 * t, bl = 0.45 * t * t + 0.08 * t;      // softness (centipawns) and extra chance of a plain "random one of the top lines"
     const top = lines[0].stm;
     if (Math.random() < bl) return lines[Math.floor(Math.random() * lines.length)].pv[0];
     const w = lines.map(l => Math.exp(-(Math.max(-1500, top) - Math.max(-1500, Math.min(l.stm, top + 1500))) / T));
@@ -470,6 +483,11 @@ King's Indian Attack|Nf3 d5 g3`;
     const s = S, n = s.over ? s.moves.length - (s.moves[s.moves.length - 1].c === s.human ? 1 : 2)      // game ended: undo down to your last move
       : s.game.turn === s.human ? s.moves.length - 2 : s.moves.length - 1;      // bot already replied -> undo 2 plies; still thinking -> undo 1
     rewindTo(n);
+  }
+  function redoBot() {      // take the bot's last move back and let it choose again (a weaker bot may choose differently)
+    const s = S; if (!s || s.over || s.both || s.imported || s.thinking || !H('takeback') || !s.moves.length) return;
+    if (s.game.turn !== s.human || s.moves[s.moves.length - 1].c === s.human) return;
+    rewindTo(s.moves.length - 1);
   }
   function playFromHere() {      // from any earlier position you are looking at: throw away the rest and play on (the bot moves if it is its turn)
     if (!S || !H('takeback') || S.both || S.view == null) return;
@@ -502,7 +520,11 @@ King's Indian Attack|Nf3 d5 g3`;
   #practice .prset input[type=range] { width:min(420px,90%); padding:0; } #practice .prset .pre button { padding:6px 10px; font-size:.85rem; }
   #practice .prset .on { background:#4d6a30; outline:2px solid #aac07c; }
   #practice .prpro { display:flex; gap:6px; margin:6px 0; } #practice .prpro button { font-size:1.6rem; padding:2px 12px; background:#3a3733; }
-  #practice .sq.pbad { box-shadow:inset 0 0 0 3px #e03030, inset 0 0 14px 2px rgba(224,48,48,.75); } #practice .sq.pfree { box-shadow:inset 0 0 0 3px #3fa0ff, inset 0 0 14px 2px rgba(63,160,255,.7); }
+  #practice .sq.pbad { background-image:linear-gradient(135deg,#e8a020 0 24%,transparent 24.5%); } #practice .sq.pfree { background-image:linear-gradient(225deg,#3fa0ff 0 24%,transparent 24.5%); }      /* small corner flags instead of loud rings */
+  #practice .sq.last2 { box-shadow:inset 0 0 0 100px rgba(255,214,70,.2); } #practice .sq.pbest2 { box-shadow:inset 0 0 0 100px rgba(60,190,90,.5); } #practice .sq.pbest2f { box-shadow:inset 0 0 0 100px rgba(60,190,90,.25); }
+  #practice .coord { position:absolute; font-size:1.7cqw; font-weight:700; pointer-events:none; line-height:1; z-index:2; } #practice .coord.rk { left:3%; top:3%; } #practice .coord.fl { right:4%; bottom:3%; }
+  #practice .sq.l .coord { color:rgba(60,40,20,.7); } #practice .sq.d .coord { color:rgba(255,245,230,.85); }
+  #practice .prauto { display:block; margin:0 0 8px; font-size:.9rem; }
   #practice .prcoach summary { cursor:pointer; margin-bottom:4px; } #practice .prall button { padding:3px 10px; font-size:.8rem; background:#555; }
   #practice .prnav button { padding:4px 10px; font-size:.85rem; background:#3a3733; } #practice .prml .mv { cursor:pointer; } #practice .prml .mv.cur { background:#4a463f; border-radius:3px; }
   #practice .prrev { background:#2c2926; border-radius:8px; padding:8px 10px; margin:8px 0; font-size:.9rem; } #practice .prrev div { margin:3px 0; }
@@ -539,15 +561,17 @@ King's Indian Attack|Nf3 d5 g3`;
       const on = v ? !!prefs.clock && prefs.clock.base === v[0] && prefs.clock.inc === v[1] : !prefs.clock;
       const b = el('button', on ? 'on' : '', n); b.title = v ? v[0] + ' minute(s) each, +' + v[1] + ' s per move' : 'No clock'; b.onclick = () => { prefs.clock = v ? { base: v[0], inc: v[1] } : null; savePrefs(); paintSetup(); }; ck.appendChild(b);
     });
+    const dl = el('div', 'prchips', '<p style="margin:12px 0 4px">Bot replies <span class="dim">(a pause so you can read your own move, or press a button yourself; manual needs the clock off):</span></p>');
+    [[-1, 'Manual (press a button)'], [0, 'Instant'], [0.6, 'Quick'], [1.2, 'Normal'], [2.5, 'Slow']].forEach(([v, n]) => { const on = v < 0 ? !prefs.auto : prefs.auto && prefs.delay === v; const b = el('button', on ? 'on' : '', n); b.onclick = () => { if (v < 0) prefs.auto = false; else { prefs.auto = true; prefs.delay = v; } savePrefs(); paintSetup(); }; dl.appendChild(b); });
     const cm = el('input'), ci = el('input'); cm.type = ci.type = 'number'; cm.min = 0.1; cm.step = 0.5; ci.min = 0; ci.max = 60; cm.value = prefs.clock ? prefs.clock.base : ''; ci.value = prefs.clock ? prefs.clock.inc : '';
     const setCustom = () => { const m = parseFloat(cm.value), i = parseFloat(ci.value) || 0; prefs.clock = m > 0 ? { base: Math.min(180, m), inc: Math.max(0, Math.min(60, i)) } : null; savePrefs(); };
     cm.onchange = ci.onchange = () => { setCustom(); paintSetup(); };
     ck.append(document.createTextNode('  custom: '), cm, document.createTextNode(' min + '), ci, document.createTextNode(' s'));
-    d.appendChild(ck);
+    d.appendChild(ck); d.appendChild(dl);
     const go = el('button', null, 'Start game'); go.style.marginTop = '14px'; go.onclick = () => { savePrefs(); startSession(prefs.elo, prefs.pick); };
     const back = el('button', null, 'Back to menu'); back.style.background = '#555'; back.onclick = () => close();
     const imp = el('button', null, '📋 Review a game…'); imp.title = 'Paste a PGN or a list of moves and get the full analysis'; imp.onclick = () => { screen = 'import'; paintAll(); };
-    d.append(el('br'), go, imp, back, el('div', 'dim', '<p>Below about 1300 Elo, Stockfish plays its normal moves most of the time but deliberately picks weaker ones now and then (more often the lower you set it). Those low settings are approximate.</p>'));
+    d.append(el('br'), go, imp, back, el('div', 'dim', '<p>The Elo here is on a human-style scale (Stockfish’s own scale reads about 300 higher for the same strength). Below about 1600 it plays its normal moves most of the time but deliberately picks weaker ones now and then, more often the lower you set it. Those low settings are approximate.</p>'));
     root.appendChild(d);
   }
 
@@ -578,6 +602,8 @@ King's Indian Attack|Nf3 d5 g3`;
     const hintMv = ((live && s.hint && H('hint')) || (!live && (s.viewBest || (rt && rt.shown)))) && curAna && curAna.lines[0] && curAna.lines[0].pv[0];
     const lk = s.both ? v - 1 : v - 1 - (last && last.c !== s.human ? 1 : 0), lmine = lk >= 0 ? s.moves[lk] : null;      // your latest move (as of the position shown) gets the badge unless the bot just moved onto that square
     const lastRate = lmine && mine(lmine.c) && H('ratings') && !(last !== lmine && last.m.tx === lmine.m.tx && last.m.ty === lmine.m.ty) ? s.rate[lk] : undefined;
+    const prevMv = last && last.c !== s.human && !s.both && v >= 2 ? s.moves[v - 2] : null;
+    const bestA = lmine && H('ratings') && lastRate && !['best', 'great', 'brilliant', 'book'].includes(lastRate) ? s.ana[lk] : null, bestU = bestA && bestA.lines[0] && bestA.lines[0].pv[0];      // where the engine would have played instead
     const myTurn = !s.over && live && g.turn === s.human;
     const bad = H('warn') && !s.over && (live ? myTurn : true) ? hangingOf(g, s.human).map(q => q.join(',')) : [], free = H('free') && !s.over && (live ? myTurn : true) ? hangingOf(g, s.human === 'w' ? 'b' : 'w').map(q => q.join(',')) : [];
     for (let i = 0; i < 64; i++) {
@@ -585,10 +611,13 @@ King's Indian Attack|Nf3 d5 g3`;
       const d = el('div', 'sq ' + ((x + y) % 2 === 1 ? 'l' : 'd')), p = g.at(x, y);
       if (s.sel && (live || rt) && s.sel.x === x && s.sel.y === y) d.classList.add('sel');
       if (last && ((last.m.tx === x && last.m.ty === y) || (last.m.fx === x && last.m.fy === y))) d.classList.add('last');
+      else if (prevMv && ((prevMv.m.tx === x && prevMv.m.ty === y) || (prevMv.m.fx === x && prevMv.m.fy === y))) d.classList.add('last2');      // your own move stays visible after the bot replied
+      if (bestU && bestU.slice(2, 4) === sqName(x, y)) d.classList.add('pbest2'); else if (bestU && bestU.slice(0, 2) === sqName(x, y)) d.classList.add('pbest2f');
       if (kingSq === key) d.classList.add('check');
       const hm = hints.find(m => m.tx === x && m.ty === y); if (hm) { d.classList.add('hint'); if (p || (g.at(s.sel.x, s.sel.y).t === 'p' && s.sel.x !== x)) d.classList.add('cap'); }
       if (hintMv && (hintMv.slice(0, 2) === FILES[x] + (y + 1) || hintMv.slice(2, 4) === FILES[x] + (y + 1))) d.classList.add('pbest');
-      if (bad.includes(key)) d.classList.add('pbad'); if (free.includes(key)) d.classList.add('pfree');
+      if (bad.includes(key)) { d.classList.add('pbad'); d.title = 'This piece may be capturable'; } if (free.includes(key)) { d.classList.add('pfree'); d.title = 'The opponent may have left this piece capturable'; }
+      if (c === 0) d.appendChild(el('span', 'coord rk', String(y + 1))); if (r === 7) d.appendChild(el('span', 'coord fl', FILES[x]));
       if (p) { const sp = el('span'); glyph(sp, p.t); sp.className = p.c === 'w' ? 'w-piece' : ''; d.appendChild(sp); }
       if (lastRate && lmine.m.tx === x && lmine.m.ty === y) { const b = el('span', 'badge', RATE[lastRate].sym); b.style.background = RATE[lastRate].col; d.appendChild(b); }
       d.onclick = () => clickSq(x, y);
@@ -597,7 +626,7 @@ King's Indian Attack|Nf3 d5 g3`;
     left.appendChild(col); row.appendChild(left);
     // ---- side panel
     const side = el('div', 'prside');
-    const status = s.over ? (s.imported ? 'Imported game — ' : '') + s.over.text + '.' : s.thinking ? 'Stockfish is thinking…' : g.turn === s.human && live ? 'Your move (' + (s.human === 'w' ? 'White' : 'Black') + ')' + (g.inCheck() ? ' — check!' : '') : live ? '…' : 'Looking at move ' + v + ' of ' + s.moves.length;
+    const status = s.over ? (s.imported ? 'Imported game — ' : '') + s.over.text + '.' : s.thinking ? 'Stockfish is thinking…' : s.waiting && botTurn() ? 'Your move is in. Press ▶ Bot move when you are ready.' : g.turn === s.human && live ? 'Your move (' + (s.human === 'w' ? 'White' : 'Black') + ')' + (g.inCheck() ? ' — check!' : '') : live ? '…' : 'Looking at move ' + v + ' of ' + s.moves.length;
     side.appendChild(el('div', null, '<b>' + status + '</b> ' + (s.imported ? '<span class="dim">(analysis)</span>' : '<span class="dim">vs Stockfish ' + (s.elo >= 3200 ? '(max)' : s.elo) + '</span>')));
     if (rt) {
       const mv = s.moves[rt.k], R = RATE[s.rate[rt.k]], A = s.ana[rt.k], bm = A && A.lines[0] && findUciIn(rt.k, A.lines[0].pv[0]), nx = retryList().find(k => k > rt.k);
@@ -626,6 +655,11 @@ King's Indian Attack|Nf3 d5 g3`;
       l.append(c, document.createTextNode(' ' + n)); cp.appendChild(l);
     });
     side.appendChild(cp);
+    if (!s.imported) {
+      const al = el('label', 'prauto'); const ac = el('input'); ac.type = 'checkbox'; ac.checked = prefs.auto || !!s.tc; ac.disabled = !!s.tc;
+      ac.onchange = () => { prefs.auto = ac.checked; savePrefs(); if (prefs.auto && S && botTurn() && !S.thinking) botMaybe(); else paintAll(); };
+      al.append(ac, document.createTextNode(' Bot replies automatically' + (s.tc ? ' (always with a clock)' : ''))); side.appendChild(al);
+    }
     // ---- feedback on your latest move
     if (H('ratings')) {
       let fb = '';
@@ -650,10 +684,12 @@ King's Indian Attack|Nf3 d5 g3`;
     // ---- buttons (a help that is off has no button at all)
     const bt = el('div', 'prbtn');
     const mk = (txt, fn, dis, bg) => { const b = el('button', null, txt); b.disabled = !!dis; b.onclick = fn; if (bg) b.style.background = bg; bt.appendChild(b); };
+    if (!s.over && !s.thinking && botTurn() && s.waiting && live) mk('▶ Bot move', () => botMaybe(true));
     if (H('hint') && !s.imported) mk('💡 Hint', () => { s.hint = true; requestAna(s.moves.length); paintAll(); }, s.over || !live || botTurn() || s.thinking);
     if (H('takeback') && !s.both) mk('↶ Take back', takeback, !s.moves.length);
     const inProgress = !s.over && s.moves.length > 0 && !s.imported;      // only a game in progress needs a "are you sure?"
     const leave = (msg, okLabel, fn) => async () => { if (inProgress && !(await ask(msg, okLabel, true))) return; fn(); };
+    if (H('takeback') && !s.both && !s.imported && !s.over && !s.thinking && live && s.moves.length && s.game.turn === s.human && s.moves[s.moves.length - 1].c !== s.human) { mk('↻ Redo bot move', redoBot); bt.lastChild.title = 'Take back the bot’s move and let it choose again (a weaker bot may choose differently)'; }
     if (!s.imported) mk('Resign', async () => { if (await ask('Resign this game? You will lose it.', 'Resign', true)) resign(); }, s.over, '#8b3a3a');
     mk('New game', leave('Start a new game? The current game will be abandoned.', 'New game', () => { S = null; sid++; screen = 'setup'; SF.stop(); paintAll(); }), false, '#555');
     mk(s.imported ? 'Back' : 'Menu', leave('Leave this game and go back to the menu? The game will be abandoned.', 'Leave game', () => close()), false, '#555');

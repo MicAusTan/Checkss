@@ -14,7 +14,7 @@ const Imperial = (() => {
     rank: (c, x, y) => c === 'r' ? y : c === 'b' ? x : c === 'y' ? 28 - y : 28 - x, promo: 24 };
   const OR = [[1, 0], [-1, 0], [0, 1], [0, -1]], DG = [[1, 1], [1, -1], [-1, 1], [-1, -1]], K8 = OR.concat(DG);
   const sym = a => { const o = [], seen = new Set(); for (const [x, y] of a) for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { const k = [x * sx, y * sy], s = k + ''; if (!seen.has(s)) { seen.add(s); o.push(k); } } return o; };
-  const DIAG3 = [[3, 3], [3, -3], [-3, 3], [-3, -3]], KN = sym([[1, 2], [2, 1]]), CAM = sym([[1, 3], [3, 1]]), EXT = sym([[2, 4], [4, 2]]);
+  const DIAG2 = [[2, 2], [2, -2], [-2, 2], [-2, -2]], KN = sym([[1, 2], [2, 1]]), CAM = sym([[1, 3], [3, 1]]), EXT = sym([[2, 4], [4, 2]]);
   const RING = []; for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) if (Math.max(Math.abs(a), Math.abs(b)) === 2) RING.push([a, b]);
   const SQ5 = []; for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) if (a || b) SQ5.push([a, b]);
   const ARCH = SQ5.filter(([a, b]) => !(Math.abs(a) === 2 && Math.abs(b) === 2) && Math.abs(a) + Math.abs(b) !== 1 && !(Math.abs(a) === 1 && Math.abs(b) === 1));          // 12 (no corners, nothing directly beside it)
@@ -161,7 +161,7 @@ const Imperial = (() => {
         case 'N': leap(RING); break;
         case 'E': imperial(OR, (a, b) => [[b, a], [-b, -a]], me.X ? 16 : 3); castle(OR, 'rR'); break;
         case 'X': imperial(DG, (a, b) => [[1, 0], [-1, 0], [0, 1], [0, -1]], me.E ? 16 : 3); castle(DG, 'bB'); break;
-        case 'H': { const L = KN.concat(CAM, me.E || me.X ? [] : EXT.concat(DIAG3)); leap(L); leap(L, { swap: true }); break; }
+        case 'H': { const L = KN.concat(CAM, me.E || me.X ? [] : EXT.concat(DIAG2)); leap(L); leap(L, { swap: true }); break; }
         case 'g': {
           leap(K8); leap([[2, 0], [-2, 0], [0, 2], [0, -2]], { cap: false });
           for (const [a, b] of NEAR) { const q = at(B, x + a, y + b); if (q && q.c === c && (a || b)) for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) add(a + i, b + j, { cap: false }); }
@@ -401,6 +401,7 @@ const Imperial = (() => {
         S = N; settle(S);
       },
       drainEvents() { const e = events; events = []; return e; },
+      kingPos: c => { const seat = c === undefined ? S.turn : c; for (let i = 0; i < S.B.length; i++) { const q = S.B[i]; if (q && q.c === seat && !q.dead && IMP.includes(q.t)) return { x: i % W, y: (i / W) | 0 }; } return null; },      // where the (lone) Imperial stands: the board marks it like a King in check
       inCheck: c => { const seat = c === undefined ? S.turn : c; return (!MULTI || !!S.alive[seat]) && loneAttacked(S.B, seat, S.ply); },
       status: () => status().r,
       history: () => hist.slice(), hand: () => ({}), drops: () => [], sees: () => null, canSwap: () => false, traits: MULTI ? {} : null,

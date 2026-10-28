@@ -1247,7 +1247,7 @@ const mlLetter = t => ({ k: 'K', q: 'Q', r: 'R', b: 'B', n: 'N', p: '', c: 'C', 
 const PIECE_GUIDE = [
   ['E', 'Emperor (Imperial)', 'Rook lines plus the squares beside the line; a piece on the line blocks the side squares at and beyond it. Reach 3 if the Empress dies. Immune to pawns and Rooks. Can castle over a Rook.'],
   ['X', 'Empress (Imperial)', 'Diagonals plus the 4 orthogonal neighbours of each line square. Reach 3 if the Emperor dies. Immune to pawns and Bishops. Can castle over a Bishop.'],
-  ['H', 'Heir (Imperial)', 'Leaps to the 16 knight and camel squares (28 once Emperor and Empress are gone: also 2-4 / 4-2 squares and the 4 squares 3 away diagonally). Immune to pawns and Knights. Can swap with a friendly Knight.'],
+  ['H', 'Heir (Imperial)', 'Leaps to the 16 knight and camel squares (28 once Emperor and Empress are gone: also 2-4 / 4-2 squares and the 4 squares 2 away diagonally). Immune to pawns and Knights. Can swap with a friendly Knight.'],
   ['k', 'King', 'One step any direction, or onto any square next to a friendly piece within 2 squares of it. It can capture there only inside its own 5×5; further out it can only move there. Aura (7×7): friendly pawns walk one step further (and keep that for one more turn after leaving it); Rooks, Bishops, Knights and Grands can’t be captured by pawns.'],
   ['q', 'Queen', 'Moves like a standard queen. Aura (5×5): Pawns also capture straight; Archers, Guards, Chariots, Sappers, Catapults can’t be captured by pawns.'],
   ['y', 'Prince', 'Captures on the 5×5 around it (no corners); also steps to the 4 corners and 3 squares straight. Blockable. One at a time, promotion only.'],
@@ -1762,8 +1762,9 @@ function renderCore() {
   const hid = MODES[mode].v.hidden && !ended() && !replay && !spectating;
   const hints = sel && !hid ? (sel.drop ? g.drops().filter(m => m.drop === sel.drop) : selMoves()) : [];
   let kingSq = null;
-  if (g.inCheck()) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const p = g.at(x, y); if (p && p.t === 'k' && p.c === g.turn) kingSq = x + ',' + y;
+  if (g.inCheck()) {
+    if (g.imperial && g.kingPos) { const kp0 = g.kingPos(g.turn); if (kp0) kingSq = kp0.x + ',' + kp0.y; }      // Imperial Chess: the lone Imperial under attack glows like a King in check
+    else for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const p = g.at(x, y); if (p && p.t === 'k' && p.c === g.turn) kingSq = x + ',' + y; }
   }
   const seen = gs.fog && !ended() && !replay && !spectating ? g.sees(myColor) : null;
   for (let i = 0; i < Wd * H; i++) {
