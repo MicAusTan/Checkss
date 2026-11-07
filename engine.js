@@ -291,31 +291,91 @@ const Engine = (() => {
     return { back, pawns };
   };
 
+
+  // ---- Octo (8-player) board: 24x24, 3x3 corners cut, and a 2x2 notch in the middle of every side (between the two armies of that side) ----
+  const OCT_ORDER = ['r', 'o', 'b', 'p', 'y', 't', 'g', 'm'];                  // ring order = turn order: bottom (right, left), left (bottom, top), top (left, right), right (top, bottom)
+  // Codes of the new wild/neutral pieces. Armenian on purpose: Latin letters are taken by other pieces (Paladin 'l', Imperial 'h','u','j', ...), Greek by Austang Grand, Cyrillic by Promotion Chess. test_octo.js checks that nothing else uses these code points.
+  const NEUTRAL_T = { boar: '\u0532', hound: '\u0540', burrower: '\u0534', golem: '\u0533', boss: '\u054d' };
+  const OCT_SIDE = { r: 0, o: 0, b: 1, p: 1, y: 2, t: 2, g: 3, m: 3 };       // which side of the board each seat sits on (0 bottom, 1 left, 2 top, 3 right)
+  const OCT_FIRST = { r: 1, b: 1, y: 1, g: 1 };                               // the first seat of each side takes the files 13..20 (the other one 3..10)
+  const OCT_TEAMS = {
+    pairs: { r: 0, y: 0, o: 1, t: 1, b: 2, g: 2, p: 3, m: 3 },                // 2v2v2v2: every seat is teamed with the army opposite it
+    halves: { r: 0, b: 0, y: 0, g: 0, o: 1, p: 1, t: 1, m: 1 }                // 4v4: alternate seats around the board
+  };
+  const octShape = (x, y) => x >= 0 && y >= 0 && x < 24 && y < 24 && !((x < 3 || x > 20) && (y < 3 || y > 20))
+    && !((y < 2 || y > 21) && (x === 11 || x === 12)) && !((x < 2 || x > 21) && (y === 11 || y === 12));
+  const mulberry = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  // Holes are squares that do not exist (nothing can enter them, sliders stop in front of them, leapers jump over them). spec = [[x,y],..] or
+  // { preset: 'none'|'four'|'big'|'scatter', seed, balanced (scatter: mirrored in all 8 ways, default true), count, block (1 or 2) }.
+  function octoHoles(spec) {
+    if (!spec) return [];
+    if (Array.isArray(spec)) return spec.map(h => [h[0], h[1]]);
+    const P = spec.preset || 'none';
+    const blk = (x0, y0, w, h) => { const o = []; for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) o.push([x, y]); return o; };
+    if (P === 'none') return [];
+    if (P === 'four') return [].concat(blk(7, 7, 2, 2), blk(15, 7, 2, 2), blk(7, 15, 2, 2), blk(15, 15, 2, 2));
+    if (P === 'big') return blk(9, 9, 6, 6);
+    const LO = 6, HI = 17, bal = spec.balanced !== false, bs = spec.block === 2 ? 2 : 1, n = spec.count || (bal ? 3 : 20);
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const rnd = mulberry((spec.seed | 0) + attempt * 7919), set = new Map();
+      const put = (x, y) => set.set(y * 24 + x, [x, y]);
+      for (let k = 0; k < n; k++) {
+        const x0 = LO + Math.floor(rnd() * (HI - LO + 2 - bs)), y0 = LO + Math.floor(rnd() * (HI - LO + 2 - bs));
+        for (let dy = 0; dy < bs; dy++) for (let dx = 0; dx < bs; dx++) {
+          const x = x0 + dx, y = y0 + dy;
+          if (!bal) { put(x, y); continue; }
+          const ax = 2 * x - 23, ay = 2 * y - 23;                             // doubled coordinates around the board's centre
+          for (const sx of [1, -1]) for (const sy of [1, -1]) { put((sx * ax + 23) / 2, (sy * ay + 23) / 2); put((sx * ay + 23) / 2, (sy * ax + 23) / 2); }
+        }
+      }
+      const holes = [...set.values()];
+      if (octConnected(holes)) return holes;                                   // never wall an army in: every playable square must stay reachable
+    }
+    return octoHoles({ preset: 'four' });
+  }
+  function octConnected(holes) {
+    const hs = new Set(holes.map(h => h[1] * 24 + h[0])), seen = new Set(), st = [[3, 11]];   // (3,11) is always playable
+    let total = 0;
+    for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) if (octShape(x, y) && !hs.has(y * 24 + x)) total++;
+    while (st.length) {
+      const [x, y] = st.pop(), k = y * 24 + x;
+      if (seen.has(k) || !octShape(x, y) || hs.has(k)) continue;
+      seen.add(k); st.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+    }
+    return seen.size === total;
+  }
+
   // Geometry shared by the 4-seat engines. 'wide' = 16 x height team board, 'infinite' = the 14x14 cross sitting in
   // the middle of an open 32x32 board (corners are no longer cut off), otherwise the plain cross board.
   function multiGeom(v) {
     const aus = v.board === 'austang';                    // Austang 4-player: 20x20 cross, 5x5 corners cut = 10x10 centre + four 10x5 arms
-    const wide = v.board === 'wide', inf = v.board === 'infinite';
-    const BW = aus ? 20 : wide ? (v.width || 16) : inf ? 32 : 14, BH = aus ? 20 : wide ? (v.height || 10) : inf ? 32 : 14, SZ = BW * BH, O = inf ? 9 : 0;
-    const CUT = aus ? 5 : 3, LAST = aus ? 19 : 13;       // corner size / last file of the cross
+    const wide = v.board === 'wide', inf = v.board === 'infinite', oct = v.board === 'octo';
+    const BW = oct ? 24 : aus ? 20 : wide ? (v.width || 16) : inf ? 32 : 14, BH = oct ? 24 : aus ? 20 : wide ? (v.height || 10) : inf ? 32 : 14, SZ = BW * BH, O = inf ? 9 : 0;
+    const CUT = aus ? 5 : 3, LAST = oct ? 23 : aus ? 19 : 13;       // corner size / last file of the cross
     const cyl = wide && !!v.cylinder;                     // cylinder chess: the left and right edges of the wide board touch
     const idx = (x, y) => y * BW + (cyl ? ((x % BW) + BW) % BW : x);
-    const valid = (x, y) => y >= 0 && y < BH && (cyl || (x >= 0 && x < BW)) && (wide || inf || !((x < CUT || x > LAST - CUT) && (y < CUT || y > LAST - CUT)));
-    const FWD = wide ? { r: [0, 1], y: [0, 1], b: [0, -1], g: [0, -1] } : { r: [0, 1], b: [1, 0], y: [0, -1], g: [-1, 0] };
-    const rankOf = wide
+    const holes = oct ? octoHoles(v.holes) : [], holeSet = new Set(holes.map(h => h[1] * 24 + h[0])), dyn = new Map();      // dyn: temporary holes (Burrower) -> rounds left
+    const isHole = (x, y) => oct && octShape(x, y) && (holeSet.has(y * 24 + x) || (!!v.burrowPromote && dyn.has(y * 24 + x)));
+    const valid = oct ? (x, y) => octShape(x, y) && !holeSet.has(y * 24 + x) && !dyn.has(y * 24 + x)
+      : (x, y) => y >= 0 && y < BH && (cyl || (x >= 0 && x < BW)) && (wide || inf || !((x < CUT || x > LAST - CUT) && (y < CUT || y > LAST - CUT)));
+    const FWD = oct ? { r: [0, 1], o: [0, 1], b: [1, 0], p: [1, 0], y: [0, -1], t: [0, -1], g: [-1, 0], m: [-1, 0] } : wide ? { r: [0, 1], y: [0, 1], b: [0, -1], g: [0, -1] } : { r: [0, 1], b: [1, 0], y: [0, -1], g: [-1, 0] };
+    const rankOf = oct ? (c, x, y) => { const sd = OCT_SIDE[c]; return sd === 0 ? y : sd === 1 ? x : sd === 2 ? 23 - y : 23 - x; } : wide
       ? (c, x, y) => (c === 'r' || c === 'y' ? y : BH - 1 - y)
       : (c, x, y) => { x -= O; y -= O; return c === 'r' ? y : c === 'b' ? x : c === 'y' ? LAST - y : LAST - x; };
-    const promoRank = wide ? BH - 1 : LAST - CUT;
+    const promoRank = oct ? 10 : wide ? BH - 1 : LAST - CUT;
     // place(c, u, r): own-frame file u (0..7 along the back rank; 0..9 on the Austang boards) and rank r -> board square
     const HALF = BW / 2;
-    const place = wide
+    const place = oct ? (c, u, r) => {
+      const bx = OCT_FIRST[c] ? 13 + u : 3 + u, by = r, sd = OCT_SIDE[c];
+      return sd === 0 ? [bx, by] : sd === 1 ? [by, 23 - bx] : sd === 2 ? [23 - bx, 23 - by] : [23 - by, bx];
+    } : wide
       ? (c, u, r) => (c === 'r' ? [u, r] : c === 'y' ? [HALF + u, r] : c === 'b' ? [BW - 1 - u, BH - 1 - r] : [HALF - 1 - u, BH - 1 - r])
       : (c, u, r) => {
         const q = ({ r: (x, y) => [x, y], b: (x, y) => [y, LAST - x], y: (x, y) => [LAST - x, LAST - y], g: (x, y) => [LAST - y, x] })[c](CUT + u, r);
         return [q[0] + O, q[1] + O];
       };
     const isCenter = (x, y) => x - O >= CUT && x - O <= LAST - CUT && y - O >= CUT && y - O <= LAST - CUT;
-    return { wide, inf, cyl, BW, BH, SZ, idx, valid, FWD, rankOf, promoRank, place, isCenter };
+    return { wide, inf, oct, cyl, BW, BH, SZ, idx, valid, FWD, rankOf, promoRank, place, isCenter, isHole, holes, holeSet, dyn, ORDER: oct ? OCT_ORDER : ['r', 'b', 'y', 'g'] };
   }
 
   /*
@@ -326,9 +386,9 @@ const Engine = (() => {
    * can be captured, kings included); a stalemated player just skips. The game ends when one team is left.
    */
   function createMulti(v) {
-    const { wide, cyl, BW, BH, SZ, idx, valid, FWD, rankOf, promoRank, place, isCenter } = multiGeom(v);
+    const { wide, oct, cyl, BW, BH, SZ, idx, valid, FWD, rankOf, promoRank, place, isCenter, isHole, holes, holeSet, dyn, ORDER } = multiGeom(v);
     const dX = (a, b) => { const d = Math.abs(a - b); return cyl ? Math.min(d, BW - d) : d; };      // file distance (wraps on a cylinder)
-    const ORDER = ['r', 'b', 'y', 'g'], seats = v.seats, per = () => v.movesPerTurn || 1;
+    const seats = v.seats, per = () => v.movesPerTurn || 1;
     const teamOf = c => (v.teams ? v.teams[c] : c);
     // Neutral-piece fairy types: c commoner (king step), i imp (knight leap), w wraith (<=2 diagonal), o ox (<=2 straight).
     const baseDefs = Object.assign({}, STANDARD.pieces, {
@@ -368,7 +428,7 @@ const Engine = (() => {
       return false;
     };
     const pflags = (c, nt) => (nt || c === 'n' ? {} : CPm(c) && CPm(c).pawn ? Object.assign({}, traitOf(c) ? traitOf(c).pawn : null, CPm(c).pawn) : (traitOf(c) ? traitOf(c).pawn || {} : {}));
-    const NEU = !!v.neutral || Object.values(TR).includes('lastStand');
+    const NEU = !!v.neutral || !!v.boss || Object.values(TR).includes('lastStand');
     const b = new Array(SZ).fill(null), alive = {}, events = [], hist = [], hands = {};
     ORDER.forEach(c => {
       hands[c] = {};
@@ -388,14 +448,29 @@ const Engine = (() => {
     // Neutral pieces (colour 'n') belong to nobody. They move by themselves after every full round of turns.
     let nid = 0;
     if (NEU) alive.n = true;
-    if (v.neutral) {
-      const orbits = [[[5, 5], [5, 8], [8, 8], [8, 5]], [[6, 4], [4, 7], [7, 9], [9, 6]]];
+    if (v.neutral && v.neutralSet !== 'wild' && v.neutralSet !== 'none') {
+      const orbits = oct ? [[[11, 5], [12, 5], [5, 11], [5, 12], [11, 18], [12, 18], [18, 11], [18, 12]], [[8, 11], [8, 12], [15, 11], [15, 12], [11, 8], [12, 8], [11, 15], [12, 15]]]      // octo: a ring just in front of the gap between each side's two armies, and an inner ring around the middle
+        : [[[5, 5], [5, 8], [8, 8], [8, 5]], [[6, 4], [4, 7], [7, 9], [9, 6]]];
       const kinds = v.neutralSet === 'mixed' ? ['w', 'i'] : v.neutralSet === 'oxen' ? ['o', 'c'] : ['c', 'c'];
-      orbits.forEach((orb, k) => orb.forEach(([x, y]) => { b[idx(x, y)] = { t: kinds[k], c: 'n', id: ++nid }; }));
+      orbits.forEach((orb, k) => orb.forEach(([x, y]) => { if (valid(x, y)) b[idx(x, y)] = { t: kinds[k], c: 'n', id: ++nid }; }));
     }
-    const S = { turn: (v.first && seats.includes(v.first)) ? v.first : seats[0], left: v.firstSingle ? 1 : per(), drawn: false, moved: new Set(), nmoved: new Set(), pending: false, needSettle: false, fr: null, fn: 0 };
+    // ---- new neutral pieces: Boar, Hound, Burrower, Golem, Boss (a 2x2 body made of four boss cells that share one id / bid). Codes: NEUTRAL_T ----
+    const T = NEUTRAL_T;
+    Object.assign(baseDefs, { [T.golem]: { leap: EDGE8 }, [T.burrower]: { leap: EDGE8 }, [T.boar]: { leap: EDGE8, slideCap: EDGE8 } });      // what these are when a player owns one (dropped from a hand)
+    const NEWN = { [T.boar]: 1, [T.hound]: 1, [T.burrower]: 1, [T.golem]: 1, [T.boss]: 1 };
+    let nest = null;                                   // squares of the centre hole the Boss starts in; they turn into normal squares when it first moves
+    const BOSS_SQ = [[11, 11], [12, 11], [11, 12], [12, 12]];
+    if (oct && v.neutral && v.neutralSet === 'wild') [T.boar, T.hound, T.golem, T.burrower, T.boar, T.hound, T.golem, T.burrower].forEach((t, k) => { const [x, y] = [[11, 5], [12, 5], [5, 11], [5, 12], [11, 18], [12, 18], [18, 11], [18, 12]][k]; if (valid(x, y) && !b[idx(x, y)]) b[idx(x, y)] = { t, c: 'n', id: ++nid }; });
+    if (oct && v.boss) {
+      const id = ++nid; BOSS_SQ.forEach(([x, y]) => { b[idx(x, y)] = { t: T.boss, c: 'n', id, bid: id, m: true, part: [x - 11, y - 11] }; });
+      const seen = new Set(), st = BOSS_SQ.map(([x, y]) => y * 24 + x).filter(k => holeSet.has(k));
+      while (st.length) { const k = st.pop(); if (seen.has(k) || !holeSet.has(k)) continue; seen.add(k); const x = k % 24, y = (k / 24) | 0; st.push(k + 1, k - 1, k + 24, k - 24); }
+      if (seen.size) nest = seen;
+    }
+    (v.place || []).forEach(e => { b[idx(e.x, e.y)] = e.p ? Object.assign({ m: true }, e.p, e.p.c === 'n' && !e.p.id ? { id: ++nid } : {}) : null; });      // scenario pieces (tests, puzzles): [{ x, y, p: { t, c, ... } }]
+    const S = { turn: (v.first && seats.includes(v.first)) ? v.first : seats[0], round: 0, bcd: {}, left: v.firstSingle ? 1 : per(), drawn: false, moved: new Set(), nmoved: new Set(), pending: false, needSettle: false, fr: null, fn: 0 };
     // ---- Austang pieces (v.austang): captured-piece lists (Sacrificer / Reviver), Herald aura and free steps. Same rules as the 2-player engine, with every seat's own "forward".
-    const yard = { r: [], b: [], y: [], g: [] };
+    const yard = {}; ORDER.forEach(c => { yard[c] = []; });
     const PAWNLIKE = t => t === 'p' || t === '\u03c1', HERALD = !!v.austang, promoList = v.promoteTo || STANDARD.promoteTo;
     const aura = (B, x, y, c) => {                     // a friendly Herald within herR squares quiets this pawn
       for (let dx = -GRAND_RULES.herR; dx <= GRAND_RULES.herR; dx++) for (let dy = -GRAND_RULES.herR; dy <= GRAND_RULES.herR; dy++) {
@@ -414,8 +489,88 @@ const Engine = (() => {
       for (let n = 0; n < seats.length; n++) { i = (i + 1) % seats.length; if (alive[seats[i]]) return seats[i]; }
       return c;
     }
+
+    // ---------- Boar / Hound / Burrower / Golem / Boss ----------
+    const HASH = (a, c) => { let h = Math.imul((a | 0) ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul((c | 0) + 0x7f4a7c15, 0xc2b2ae35); h ^= h >>> 13; h = Math.imul(h, 0x27d4eb2f); h ^= h >>> 15; return (h >>> 0) / 4294967296; };
+    const golemKiller = (p, nt) => { if (p.t === 'r' || p.t === 'q') return true; const d = D(p.c, nt)[p.t]; return !!(d && d.slide && d.slide.some(q => q[0] === 0 || q[1] === 0)); };
+    const takeable = q => !!q && q.t !== 'k' && q.t !== T.golem && q.t !== T.boss && q.c !== 'n' && !q.dead && !!alive[q.c];      // what a wild Boar / Golem / Burrower may capture
+    const foeOf = (p, q) => takeable(q) && (p.c === 'n' || teamOf(q.c) !== teamOf(p.c));
+    function newMoves(B, x, y, p) {                    // moves of the wild pieces z, u, l (the Hound and the Boss have their own functions)
+      const out = [], add = (tx, ty, e) => out.push(Object.assign({ fx: x, fy: y, tx, ty }, e));
+      if (p.c !== 'n') return out;
+      if (p.t === T.golem && (S.round % 2) === 1) return out;                       // the Golem only moves every second round
+      if (p.t === T.golem || p.t === T.burrower) { for (const [dx, dy] of EDGE8) { const tx = x + dx, ty = y + dy; if (!valid(tx, ty)) continue; const q = B[idx(tx, ty)]; if (!q || takeable(q)) add(tx, ty); } return out; }
+      // Boar: wanders; now and then it stops and aims (shows an arrow); on its next turn it charges in that line
+      const run = (dx, dy) => { let tx = x + dx, ty = y + dy, last = null; while (valid(tx, ty)) { const q = B[idx(tx, ty)]; if (!q) { last = [tx, ty]; tx += dx; ty += dy; continue; } if (takeable(q)) last = [tx, ty]; break; } return last; };
+      if (p.aim) { const e = run(p.aim[0], p.aim[1]); if (e) { add(e[0], e[1], { charge: true }); return out; } }
+      if (HASH((v.seed | 0) * 131 + p.id, S.round) < (v.boarChance == null ? 0.25 : v.boarChance)) {
+        for (const d of EDGE8) if (run(d[0], d[1])) add(x, y, { aim: d });
+        if (out.length) return out;
+      }
+      for (const [dx, dy] of EDGE8) { const tx = x + dx, ty = y + dy; if (valid(tx, ty) && !B[idx(tx, ty)]) add(tx, ty); }
+      return out;
+    }
+    function houndMoves(B, x, y, p) {                   // the Hound hunts the nearest enemy piece: up to 2 king steps towards it, capturing what it lands on
+      let tgt = -1, bd = 1e9;
+      for (let i = 0; i < SZ; i++) { const q = B[i]; if (!q || !foeOf(p, q)) continue; const d = Math.max(Math.abs((i % BW) - x), Math.abs(((i / BW) | 0) - y)); if (d < bd) { bd = d; tgt = i; } }
+      if (tgt < 0) return [];
+      const gx = tgt % BW, gy = (tgt / BW) | 0;
+      let cx = x, cy = y, cap = false;
+      for (let st = 0; st < 2 && !cap; st++) {
+        let best = null, bdd = Math.max(Math.abs(gx - cx), Math.abs(gy - cy));
+        for (const [dx, dy] of EDGE8) {
+          const nx = cx + dx, ny = cy + dy; if (!valid(nx, ny)) continue;
+          const q = B[idx(nx, ny)]; if (q && !foeOf(p, q)) continue;
+          const d = Math.max(Math.abs(gx - nx), Math.abs(gy - ny)); if (d < bdd || (best && d === bdd && dx && dy && !(best[0] && best[1]))) { bdd = d; best = [nx, ny, !!q]; }
+        }
+        if (!best) break;
+        cx = best[0]; cy = best[1]; cap = best[2];
+      }
+      if (cx === x && cy === y) return [];
+      if (p.c !== 'n') { const B2 = B.slice(); B2[idx(cx, cy)] = p; B2[idx(x, y)] = null; if (kingAttacked(B2, p.c)) return []; }      // never leave its owner's king in check
+      return [{ fx: x, fy: y, tx: cx, ty: cy }];
+    }
+    const bossCells = bid => { const a = []; for (let i = 0; i < SZ; i++) { const q = b[i]; if (q && q.t === T.boss && q.bid === bid) a.push(i); } return a; };
+    const bossOk = (x, y, B) => (valid(x, y) || (nest && nest.has(y * 24 + x))) && !(B[idx(x, y)] && B[idx(x, y)].t === 'k' && true);
+    function bossSteps(cells, dx, dy, maxn, B) {         // how many steps (1..maxn) the footprint can slide in one direction: every new square must exist and not hold a king
+      const res = [], own = new Set(cells);
+      for (let n = 1; n <= maxn; n++) {
+        const ok = cells.every(i => { const x = (i % BW) + dx * n, y = ((i / BW) | 0) + dy * n; if (!bossOk(x, y, B)) return false; const q = B[idx(x, y)]; return !(q && q.t === 'k'); });
+        if (!ok) break; res.push(n);
+      }
+      return res;
+    }
+    function bossMoves(i) {                             // moves of the Boss, from the point of view of one of its cells (owner = the cell's colour; 'n' = wild)
+      const p = b[i], x = i % BW, y = (i / BW) | 0, cells = bossCells(p.bid), k = cells.length, wild = p.c === 'n';
+      if (!wild && k >= 3 && S.bcd[p.bid] && S.bcd[p.bid].n > 0) return [];       // a big owned Boss needs a turn to recover after it moves
+      const dirs = wild ? (k >= 3 ? ROOK : EDGE8) : ROOK, maxn = wild ? (k >= 3 ? 1 : k === 2 ? 2 : 3) : 2, out = [];
+      for (const [dx, dy] of dirs) bossSteps(cells, dx, dy, maxn, b).forEach(n => out.push({ fx: x, fy: y, tx: x + dx * n, ty: y + dy * n, boss: true, bid: p.bid, dx, dy, n }));
+      return out;
+    }
+    function bossBoard(m) {                             // the board after a Boss move (everything the footprint rolls over is crushed)
+      const B2 = b.slice(), cells = bossCells(m.bid), objs = cells.map(i => b[i]), crushed = [];
+      cells.forEach(i => { B2[i] = null; });
+      for (let st = 1; st <= m.n; st++) cells.forEach(i => { const k = idx((i % BW) + m.dx * st, ((i / BW) | 0) + m.dy * st), q = B2[k]; if (q) { crushed.push(q); B2[k] = null; } });
+      cells.forEach((i, j) => { B2[idx((i % BW) + m.dx * m.n, ((i / BW) | 0) + m.dy * m.n)] = objs[j]; });
+      return { B2, crushed };
+    }
+    function openNest() { if (!nest) return; nest.forEach(k => holeSet.delete(k)); nest = null; events.push({ e: 'nest' }); }
+    function applyBoss(m, c) {
+      const r = bossBoard(m), wild = b[idx(m.fx, m.fy)].c === 'n', k = bossCells(m.bid).length;
+      for (let i = 0; i < SZ; i++) b[i] = r.B2[i];
+      openNest();
+      if (!wild && k >= 3) S.bcd[m.bid] = { c, n: 2 };
+      hist.push({ c: wild ? 'n' : c, fx: m.fx, fy: m.fy, tx: m.tx, ty: m.ty, boss: true, cap: r.crushed.length ? r.crushed.map(q => q.t).join('') : null, promo: null, shot: false, castle: false });
+    }
+    function spawnBoss(c) {                             // a claimed Boss re-enters in the middle and crushes everything there, kings included
+      const id = ++nid, kings = [];
+      BOSS_SQ.forEach(([x, y]) => { const q = b[idx(x, y)]; if (q && q.t === 'k' && !q.dead) kings.push(q.c); b[idx(x, y)] = { t: T.boss, c, id, bid: id, m: true, part: [x - 11, y - 11] }; });
+      openNest();
+      kings.forEach(kc => { if (alive[kc]) eliminate(kc, 'crush'); });
+    }
     const pass = c => {
       S.fr = null; S.fn = 0;
+      for (const k in S.bcd) if (S.bcd[k].c === c && --S.bcd[k].n <= 0) delete S.bcd[k];
       S.turn = nextActive(c); S.left = per();
       if (NEU) {
         S.moved.add(c);
@@ -434,6 +589,7 @@ const Engine = (() => {
     function pseudoRaw(B, x, y, atk, nt) {
       // Kings never give check beyond their normal 3x3 (so extended-reach kings can't check or box in other kings).
       const p = B[idx(x, y)], out = [], def = (atk && p.t === 'k') ? baseDefs.k : D(p.c, nt)[p.t];
+      if (NEWN[p.t] && (p.c === 'n' || p.t === T.hound || p.t === T.boss)) return (atk || p.dead || p.t === T.hound || p.t === T.boss) ? [] : newMoves(B, x, y, p);
       if (p.dead) return out;
       if (p.fx && p.fx.frz) return out;                 // frozen (class ability): can't move or attack
       const mx = HAUNT ? hauntMax(B, x, y, p, def.max) : def.max;
@@ -448,7 +604,7 @@ const Engine = (() => {
         }
         return false;
       };
-      const can = (t, tx, ty) => !t.wall && !(p.fx && (p.fx.dis || p.fx.phn)) && !(!atk && guarded(B, p, t, tx, ty)) && (t.dead || (teamOf(t.c) !== teamOf(p.c) && (atk || t.t !== 'k') && !blocked(t, tx, ty)) ||
+      const can = (t, tx, ty) => !(t.t === T.golem && !golemKiller(p, nt)) && !(t.t === T.boss && p.t === 'k') && !t.wall && !(p.fx && (p.fx.dis || p.fx.phn)) && !(!atk && guarded(B, p, t, tx, ty)) && (t.dead || (teamOf(t.c) !== teamOf(p.c) && (atk || t.t !== 'k') && !blocked(t, tx, ty)) ||
         (!atk && !nt && t.c === p.c && t.t !== 'k' && TR[p.c] === 'friendlyFire'));      // Friendly Fire trait (a disarmed piece can't capture)
       if (p.t === '\u03c1') {                              // Berolina pawn: steps diagonally forward (2 diagonal squares from its own 2nd rank), captures straight ahead, promotes on the promotion rank
         const [dx, dy] = FWD[p.c], pp = dx === 0 ? [1, 0] : [0, 1];
@@ -480,6 +636,7 @@ const Engine = (() => {
           return out;
         }
         const fx = x + dx, fy = y + dy;
+        if (!atk && oct && p.c !== 'n' && isHole(fx, fy) && !(F.nopromo && !p.champ)) promoList.forEach(t => add(x, y, { promo: t, inplace: true }));      // a hole right ahead: the pawn promotes where it stands
         if (!atk && valid(fx, fy) && !B[idx(fx, fy)]) {
           push(fx, fy);
           if (((rankOf(oc, x, y) === 1 || F.charge) && !F.single) && valid(fx + dx, fy + dy) && !B[idx(fx + dx, fy + dy)]) add(fx + dx, fy + dy);
@@ -557,6 +714,11 @@ const Engine = (() => {
           if (!t) add(tx, ty); else { if (can(t, tx, ty)) add(tx, ty); if (!(p.fx && p.fx.jmp)) break; }
           tx += sx; ty += sy; n++;
         }
+      }
+      for (const [sx, sy] of def.slideCap || []) {                    // owned Boar's charge: runs over empty squares and can only land on the first piece it meets, capturing it
+        let tx = x + sx, ty = y + sy;
+        while (valid(tx, ty) && !B[idx(tx, ty)]) { tx += sx; ty += sy; }
+        if (valid(tx, ty)) { const t = B[idx(tx, ty)]; if (t && can(t, tx, ty)) add(tx, ty); }
       }
       if (!atk) for (const [sx, sy] of def.slideNC || []) {           // Cannon: slides over empty squares, never captures
         let tx = x + sx, ty = y + sy;
@@ -666,6 +828,7 @@ const Engine = (() => {
       return false;
     }
     function sim(m, p) {
+      if (m.boss) return bossBoard(m).B2;
       const B = b.slice();
       if (m.drop) { B[idx(m.tx, m.ty)] = { t: m.drop, c: m.c, m: true }; return B; }
       if (m.c960) {
@@ -674,7 +837,7 @@ const Engine = (() => {
         return B;
       }
       if (m.shot) { B[idx(m.tx, m.ty)] = null; return B; }      // ranged shot: only the target disappears
-      B[idx(m.tx, m.ty)] = { t: m.promo || p.t, c: p.c, m: true, champ: m.promo ? undefined : p.champ, fx: p.fx }; B[idx(m.fx, m.fy)] = null;
+      B[idx(m.tx, m.ty)] = { t: m.promo || p.t, c: p.c, m: true, champ: m.promo ? undefined : p.champ, fx: p.fx }; if (!m.inplace) B[idx(m.fx, m.fy)] = null;
       if (m.castle) { B[idx(m.rx, m.ry)] = null; B[idx(m.rtx, m.rty)] = { t: 'r', c: p.c, m: true }; }
       return B;
     }
@@ -696,8 +859,10 @@ const Engine = (() => {
     function legalAt(x, y, withFree) {
       const p = b[idx(x, y)];
       if (!p || p.dead || !alive[p.c]) return [];
+      if (p.t === T.boss) return p.c === S.turn ? bossMoves(idx(x, y)).filter(m => !kingAttacked(bossBoard(m).B2, p.c)) : [];
       const ms = pseudo(b, x, y);       // (an extended-reach king in check may use its full reach: the 'must not end attacked' test below is enough)
-      const out = ms.filter(m => !kingAttacked(sim(m, p), p.c));
+      let out = ms.filter(m => !kingAttacked(sim(m, p), p.c));
+      if (v.boss) out = out.reduce((a, m) => { const q = !m.rev && !m.drop && b[idx(m.tx, m.ty)]; if (q && q.t === T.boss && bossCells(q.bid).length === 1) { const kinds = v.drops ? [] : [...new Set(yard[p.c] || [])]; (kinds.length ? kinds : [null]).forEach(t => a.push(Object.assign({}, m, { claim: false, ret: t }))); a.push(Object.assign({}, m, { claim: true })); } else a.push(m); return a; }, []);
       return withFree ? out.concat(freeSteps(x, y)) : out;      // (free Herald steps never count as "having a move")
     }
     // Crazyhouse-style drops. dropZone 'own' = your own arm + the centre (cross) / your own half (wide).
@@ -745,8 +910,10 @@ const Engine = (() => {
       const taker = reason === 'checkmate' ? (takers || []).find(t => t !== 'n' && TR[t] === 'conqueror' && alive[t]) : null;
       const fallen = !taker && NEU && (!!v.fallen || TR[c] === 'lastStand');
       for (let i = 0; i < SZ; i++) if (b[i] && b[i].c === c) {
+        if (b[i].auto || (b[i].t === T.boss && !fallen)) { b[i] = null; continue; }
+        const bx = b[i].bid ? { bid: b[i].bid } : null;
         b[i] = taker ? { t: b[i].t === 'k' ? 'c' : b[i].t, c: taker, m: true }
-          : fallen ? { t: b[i].t === 'k' ? 'c' : b[i].t, c: 'n', o: c, id: ++nid, m: true } : Object.assign({}, b[i], { dead: true });
+          : fallen ? { t: b[i].t === 'k' ? 'c' : b[i].t, c: 'n', o: c, id: bx ? bx.bid : ++nid, m: true, bid: bx ? bx.bid : undefined, part: b[i].part } : Object.assign({}, b[i], { dead: true });
       }
       events.push({ e: 'elim', c, reason, fallen, taken: taker || null });
       if (taker) { rev.add(taker); events.push({ e: 'trait', c: taker, id: 'conqueror' }); }
@@ -786,17 +953,18 @@ const Engine = (() => {
     }
     // ---- neutral phase: each neutral piece (by id) moves once after every full round ----
     function finishNeutral() {
-      S.pending = false; S.nmoved.clear();
+      S.pending = false; S.nmoved.clear(); S.round++;
+      dyn.forEach((n, k) => { if (n <= 1) dyn.delete(k); else dyn.set(k, n - 1); });
       if (S.needSettle) { S.needSettle = false; settle(); }
     }
     function nextNeutral() {
       if (!NEU || !S.pending) return null;
       if (over()) { finishNeutral(); return null; }
-      const list = [];
-      for (let i = 0; i < SZ; i++) { const p = b[i]; if (p && p.c === 'n' && !S.nmoved.has(p.id)) list.push([p.id, i]); }
+      const list = [], seen = new Set();
+      for (let i = 0; i < SZ; i++) { const p = b[i]; if (p && (p.c === 'n' || (p.auto && alive[p.c])) && !S.nmoved.has(p.id) && !seen.has(p.id)) { seen.add(p.id); list.push([p.id, i]); } }
       list.sort((a, c2) => a[0] - c2[0]);
       for (const [id, i] of list) {
-        const x = i % BW, y = Math.floor(i / BW), moves = pseudo(b, x, y, false);
+        const x = i % BW, y = Math.floor(i / BW), q0 = b[i], moves = q0.t === T.boss ? bossMoves(i) : q0.t === T.hound ? houndMoves(b, x, y, q0) : pseudo(b, x, y, false);
         if (moves.length) return { id, x, y, moves };
         S.nmoved.add(id);                         // no legal move: this neutral piece is skipped
       }
@@ -806,10 +974,14 @@ const Engine = (() => {
     function neutralApply(m) {
       const nx = nextNeutral();
       if (!nx || nx.x !== m.fx || nx.y !== m.fy) return false;
-      const ok = nx.moves.find(l => l.tx === m.tx && l.ty === m.ty && (l.promo || null) === (m.promo || null));
+      const ok = nx.moves.find(l => l.tx === m.tx && l.ty === m.ty && (l.promo || null) === (m.promo || null) && String(l.aim || '') === String(m.aim || '') && (!l.boss || (l.dx === m.dx && l.dy === m.dy && l.n === m.n)));
       if (!ok) return false;
-      const p = b[idx(m.fx, m.fy)], vic = b[idx(ok.tx, ok.ty)];
-      b[idx(ok.tx, ok.ty)] = { t: ok.promo || p.t, c: 'n', o: p.o, id: p.id, m: true }; b[idx(ok.fx, ok.fy)] = null;
+      const p = b[idx(m.fx, m.fy)];
+      if (ok.boss) { S.nmoved.add(p.id); applyBoss(ok, 'n'); trapCheck(); nextNeutral(); return true; }
+      const vic = b[idx(ok.tx, ok.ty)];
+      b[idx(ok.tx, ok.ty)] = { t: ok.promo || p.t, c: p.auto ? p.c : 'n', auto: p.auto, once: p.once, aim: ok.aim, o: p.o, id: p.id, m: true };
+      if (ok.tx !== ok.fx || ok.ty !== ok.fy) b[idx(ok.fx, ok.fy)] = null;
+      if (p.t === T.burrower && octShape(ok.fx, ok.fy) && (ok.tx !== ok.fx || ok.ty !== ok.fy)) dyn.set(ok.fy * 24 + ok.fx, 4);      // the Burrower leaves a hole that lasts 3 rounds
       S.nmoved.add(p.id);
       hist.push({ c: 'n', fx: ok.fx, fy: ok.fy, tx: ok.tx, ty: ok.ty, promo: ok.promo || null, cap: vic ? vic.t : null, capc: vic ? vic.c : null });
       trapCheck();
@@ -818,7 +990,14 @@ const Engine = (() => {
     }
 
     return {
-      w: BW, h: BH, multi: true, neutral: NEU, cyl, seats, teams: v.teams || null, wide,
+      w: BW, h: BH, multi: true, neutral: NEU, cyl, seats, teams: v.teams || null, wide, oct, holes, isHole, order: ORDER,
+      fwd: c => FWD[c],
+      movesFor: (x, y) => { const p = b[idx(x, y)]; return p && !p.dead && alive[p.c] ? legalAt(x, y) : []; },      // legal moves of any piece whoever's turn it is (used to advise teammates)
+      bossCooldown: bid => (S.bcd[bid] ? S.bcd[bid].n : 0),
+      holeList: () => [...holeSet].map(k => [k % 24, (k / 24) | 0]),
+      tempHoles: () => [...dyn.entries()].map(([k, n]) => ({ x: k % 24, y: (k / 24) | 0, left: n - 1 })),
+      bossCells: bid => bossCells(bid).map(i => ({ x: i % BW, y: (i / BW) | 0 })),
+      get round() { return S.round; },
       get turn() { return S.turn; },
       get left() { return S.left; },
       perTurn: v.movesPerTurn || 1,
@@ -907,7 +1086,7 @@ const Engine = (() => {
         remove: (x, y) => { b[idx(x, y)] = null; },
         take: (x, y, by) => {
           const vic = b[idx(x, y)];
-          if (v.drops && vic && vic.t !== 'k' && (!NEU || vic.c === 'n')) { const k = vic.pr ? 'p' : ((vic.fx && vic.fx.xt) || vic.t); hands[by][k] = (hands[by][k] || 0) + 1; }
+          if (v.drops && vic && vic.t !== 'k' && vic.t !== T.boss && (!NEU || vic.c === 'n')) { const k = vic.pr ? 'p' : ((vic.fx && vic.fx.xt) || vic.t); hands[by][k] = (hands[by][k] || 0) + 1; }
           b[idx(x, y)] = null;
         },
         clearEp: () => {},
@@ -936,13 +1115,13 @@ const Engine = (() => {
           if (!v.drops || !(hands[c][m.drop] > 0)) return false;
           const ok = legalDrops(c).find(l => l.drop === m.drop && l.tx === m.tx && l.ty === m.ty);
           if (!ok) return false;
-          b[idx(ok.tx, ok.ty)] = { t: ok.drop, c, m: true }; hands[c][ok.drop]--;
+          b[idx(ok.tx, ok.ty)] = ok.drop === T.hound ? { t: ok.drop, c, auto: true, once: true, id: ++nid, m: true } : { t: ok.drop, c, m: true }; hands[c][ok.drop]--;
           hist.push({ c, drop: ok.drop, tx: ok.tx, ty: ok.ty, cap: null });
         } else {
           if (!valid(m.fx, m.fy)) return false;
           const p = b[idx(m.fx, m.fy)];
           if (!p || p.c !== c) return false;
-          const ok = legalAt(m.fx, m.fy, true).find(l => l.tx === m.tx && l.ty === m.ty && (l.promo || null) === (m.promo || null) && (l.rev || null) === (m.rev || null) && !!l.free === !!m.free);
+          const ok = legalAt(m.fx, m.fy, true).find(l => l.tx === m.tx && l.ty === m.ty && (l.promo || null) === (m.promo || null) && (l.rev || null) === (m.rev || null) && !!l.free === !!m.free && !!l.claim === !!m.claim && (l.ret || null) === (m.ret || null));
           if (!ok) return false;
           if (ok.free) {                                // Herald free step: the turn does not pass
             const from = idx(ok.fx, ok.fy), to = idx(ok.tx, ok.ty);
@@ -951,7 +1130,9 @@ const Engine = (() => {
             hist.push({ c, fx: ok.fx, fy: ok.fy, tx: ok.tx, ty: ok.ty, free: true, cap: null });
             return true;
           }
-          if (ok.rev) {                                 // Sacrificer (target = own square) / Reviver (empty neighbouring square, then it recharges)
+          if (ok.boss) {
+            applyBoss(ok, c);
+          } else if (ok.rev) {                                 // Sacrificer (target = own square) / Reviver (empty neighbouring square, then it recharges)
             const yl = yard[c], k = yl.indexOf(ok.rev); if (k >= 0) yl.splice(k, 1);
             const self = ok.fx === ok.tx && ok.fy === ok.ty;
             b[idx(ok.tx, ok.ty)] = { t: ok.rev, c, m: true };
@@ -959,23 +1140,31 @@ const Engine = (() => {
             tick(c, self ? -1 : idx(ok.fx, ok.fy));
             hist.push({ c, fx: ok.fx, fy: ok.fy, tx: ok.tx, ty: ok.ty, rev: ok.rev, cap: null });
           } else {
-          const vic = ok.c960 ? null : b[idx(ok.tx, ok.ty)];
-          if (vic && vic.t !== 'k' && v.austang && yard[vic.c]) yard[vic.c].push(vic.pr ? (vic.pt || 'p') : vic.t);
+          const vic = ok.c960 || ok.inplace ? null : b[idx(ok.tx, ok.ty)];
+          if (vic && vic.t !== 'k' && (v.austang || v.boss) && yard[vic.c]) yard[vic.c].push(vic.pr ? (vic.pt || 'p') : vic.t);
           if (traitOf(c) && !rev.has(c) && !traitOf(c).setup) {     // first move that only the trait allows reveals it
             const baseMs = pseudo(b, ok.fx, ok.fy, false, true);
             if (!baseMs.some(l => l.tx === ok.tx && l.ty === ok.ty && (l.promo || null) === (ok.promo || null))) { rev.add(c); events.push({ e: 'trait', c, id: TR[c] }); }
           }
-          if (v.drops && vic && vic.t !== 'k' && (!NEU || vic.c === 'n')) hands[c][vic.pr ? 'p' : ((vic.fx && vic.fx.xt) || vic.t)] = (hands[c][vic.pr ? 'p' : ((vic.fx && vic.fx.xt) || vic.t)] || 0) + 1;
-          if (ok.c960) {
+          if (v.drops && vic && vic.t !== 'k' && vic.t !== T.boss && (!NEU || vic.c === 'n')) hands[c][vic.pr ? 'p' : ((vic.fx && vic.fx.xt) || vic.t)] = (hands[c][vic.pr ? 'p' : ((vic.fx && vic.fx.xt) || vic.t)] || 0) + 1;
+          if (vic && vic.t === T.boss) {                   // taking a cell of the Boss costs the capturing piece too; the last cell can be killed (and a captured piece returns) or claimed
+            const left = bossCells(vic.bid).length - 1;
+            b[idx(ok.tx, ok.ty)] = null; b[idx(ok.fx, ok.fy)] = null;
+            if (left === 0) {
+              if (ok.claim) spawnBoss(c);
+              else if (ok.ret) { const yl = yard[c], k = yl ? yl.indexOf(ok.ret) : -1; if (k >= 0) { yl.splice(k, 1); b[idx(ok.fx, ok.fy)] = { t: ok.ret, c, m: true }; } }
+            }
+          } else if (ok.c960) {
             b[idx(ok.fx, ok.fy)] = null; b[idx(ok.rx, ok.ry)] = null;
             b[idx(ok.kx, ok.ky)] = { t: 'k', c, m: true }; b[idx(ok.rtx, ok.rty)] = { t: 'r', c, m: true };
           } else if (ok.shot) { b[idx(ok.tx, ok.ty)] = null; b[idx(ok.fx, ok.fy)] = Object.assign({}, p, { m: true }); }      // ranged shot: the target is removed, the shooter stays put
-          else { b[idx(ok.tx, ok.ty)] = { t: ok.promo || p.t, c, m: true, pr: !!ok.promo || undefined, pt: ok.promo ? p.t : p.pt, rc: p.rc, champ: ok.promo ? undefined : p.champ, fx: p.fx }; b[idx(ok.fx, ok.fy)] = null; }
+          else { b[idx(ok.tx, ok.ty)] = { t: ok.promo || p.t, c, m: true, pr: !!ok.promo || undefined, pt: ok.promo ? p.t : p.pt, rc: p.rc, champ: ok.promo ? undefined : p.champ, fx: p.fx }; if (!ok.inplace) b[idx(ok.fx, ok.fy)] = null; }
           if (vic && vic.t === 'q' && !vic.dead && TR[vic.c] === 'martyr' && p.t !== 'k') {
             b[idx(ok.tx, ok.ty)] = null; rev.add(vic.c); events.push({ e: 'trait', c: vic.c, id: 'martyr' });
           }
+          if (p.t === T.burrower && !ok.shot && (ok.tx !== ok.fx || ok.ty !== ok.fy) && octShape(ok.fx, ok.fy)) dyn.set(ok.fy * 24 + ok.fx, 4);
           if (ok.castle && !ok.c960) { b[idx(ok.rx, ok.ry)] = null; b[idx(ok.rtx, ok.rty)] = { t: 'r', c, m: true }; }
-          hist.push({ c, fx: ok.fx, fy: ok.fy, tx: ok.tx, ty: ok.ty, promo: ok.promo || null, shot: !!ok.shot, cap: vic ? vic.t : null, castle: !!ok.castle });
+          hist.push({ c, fx: ok.fx, fy: ok.fy, tx: ok.tx, ty: ok.ty, promo: ok.promo || null, shot: !!ok.shot, cap: vic ? vic.t : null, castle: !!ok.castle, inplace: !!ok.inplace });
           if (v.austang) tick(c, -1);
           }
         }
@@ -2752,12 +2941,13 @@ const Engine = (() => {
   const ALICE = Object.assign({}, STANDARD, { alice: true, castling: false });
   const BUGHOUSE = { bug: true, multi: true };
   const FOUR = { multi: true, seats: ['r', 'b', 'y', 'g'], dead: [], castling: true };
+  const OCTO = { multi: true, board: 'octo', seats: OCT_ORDER.slice(), dead: [], castling: false, holes: null };
   const THREE = { multi: true, hex: true, seats: ['r', 'b', 'y'], dead: [] };
   // Austang 4-player (armies are filled in by the match layer through `armies`): 'austang' = 20x20 cross free-for-all, wide = 20 x 14 (use with teams {r:0,y:0,b:1,g:1})
   const AUSTANG4 = Object.assign({}, FOUR, { castling: false, austang: true, board: 'austang', promoteTo: AUSTANG_GRAND.promoteTo });
   const AUSTANG4_WIDE = Object.assign({}, FOUR, { castling: false, austang: true, board: 'wide', width: 20, height: 14, promoteTo: AUSTANG_GRAND.promoteTo });
 
-  return { create, GRAND_RULES, STANDARD, AUSTANG_GRAND, AUSTANG4, AUSTANG4_WIDE, GRAND_PIECES, CRAZYHOUSE, MARSEILLAIS, INFINITE, ALICE, FOUR, THREE, BUGHOUSE, TRAITS, randomBack960, botChoose, CLASSES, CLASS_DEFAULTS, withClasses, classPass, ROOK, BISHOP, ALL, KNIGHT };
+  return { create, OCTO, NEUTRAL_T, OCT_ORDER, OCT_TEAMS, octoHoles, GRAND_RULES, STANDARD, AUSTANG_GRAND, AUSTANG4, AUSTANG4_WIDE, GRAND_PIECES, CRAZYHOUSE, MARSEILLAIS, INFINITE, ALICE, FOUR, THREE, BUGHOUSE, TRAITS, randomBack960, botChoose, CLASSES, CLASS_DEFAULTS, withClasses, classPass, ROOK, BISHOP, ALL, KNIGHT };
 })();
 
 if (typeof module !== 'undefined') module.exports = Engine;

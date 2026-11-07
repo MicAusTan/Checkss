@@ -88,9 +88,39 @@ const Diagrams = (() => {
     const res = { N, R, rows: out, aura: auraOf('imp', t, Imperial), extras: extrasOf(o, cx - ox, N - 1 - (cy - oy)) }; cache.set(key, res); return res;
   }
 
+  // 8-player board: the OWNED version of a piece (what you get by dropping one from your hand) alone on an empty board; kings far outside the window.
+  function gridOct(Engine, t, o) {
+    o = o || {};
+    const R = o.R || 5, N = 2 * R + 1, cx = 11, cy = 11, ox = cx - R, oy = cy - R;
+    const key = 'oct|' + t + '|' + JSON.stringify(o) + '|' + R;
+    if (cache.has(key)) return cache.get(key);
+    const build = target => Engine.create(Object.assign({}, Engine.OCTO, { seats: ['r', 'y'], dead: [], armies: { r: [], y: [] }, holes: { preset: 'none' }, first: 'r', teams: null,
+      place: [{ x: 3, y: 3, p: { t: 'k', c: 'r' } }, { x: 20, y: 20, p: { t: 'k', c: 'y' } }, { x: cx, y: cy, p: { t, c: 'r' } }].concat(target ? [{ x: target[0], y: target[1], p: { t: 'b', c: 'y' } }] : []) }));
+    const tos = g => { const s = new Map(); g.moves(cx, cy).forEach(m => { const k = m.tx + ',' + m.ty; if (!s.has(k) || !m.shot) s.set(k, !!m.shot); }); return s; };
+    const empty = tos(build(null)), out = [];
+    for (let j = N - 1; j >= 0; j--) {
+      let row = '';
+      for (let i = 0; i < N; i++) {
+        const x = ox + i, y = oy + j;
+        if (x === cx && y === cy) { row += 'o'; continue; }
+        const tg = tos(build([x, y])), hit = tg.has(x + ',' + y);
+        row += classify(empty.has(x + ',' + y), hit, hit && tg.get(x + ',' + y));
+      }
+      out.push(row);
+    }
+    const res = { N, R, rows: out, aura: null, extras: [] }; cache.set(key, res); return res;
+  }
+
   // The different situations worth drawing for a piece: [{ label, o }] (o = options for grid2p / gridImp). The first one is the plain piece.
-  function states(kind, t) {
+  function states(kind, t, Mod) {
     const st = [{ label: '', o: {} }];
+    if (kind === 'oct') {
+      const N = (Mod && Mod.NEUTRAL_T) || {}, L = {};
+      L[N.boar] = 'Steps 1 square in any direction. Its charge can only land on the first piece along a line (8 directions), capturing it.';
+      L[N.golem] = 'Steps 1 square in any direction. Only rooks, queens and other straight sliders can capture it.';
+      L[N.burrower] = 'Steps 1 square in any direction; the square it leaves becomes a hole for 3 rounds.';
+      st[0].label = L[t] || ''; return st;
+    }
     if (kind === 'grand') {
       if (t === 'p' || t === '\u03c1') st.push({ label: 'Anywhere except its starting rank', o: { mid: true } });
       const scr = ds => ds.map(([dx, dy]) => ({ t: 'p', c: 'w', dx, dy }));      // friendly pawns used as hurdles / screens
@@ -106,6 +136,6 @@ const Diagrams = (() => {
     if (t === 'f') st.push({ label: 'With a friendly Knight next to it (it borrows its moves)', o: { extra: [{ t: 'n', c: 'w', dx: 1, dy: 0 }] } });
     return st;
   }
-  return { grid2p, gridImp, states, clear: () => cache.clear() };
+  return { grid2p, gridImp, gridOct, states, clear: () => cache.clear() };
 })();
 if (typeof module !== 'undefined') module.exports = Diagrams;
