@@ -299,18 +299,27 @@ const Imperial = (() => {
       return fin(B, St, cap, { ep });
     }
 
-    function loneAttacked(B, c, ply) {
-      const inf = info(B); if (nImp(inf[c]) !== 1) return false;
+    // Who attacks seat c's lone Imperial? [{x, y, imp}] (imp = the attacker is itself an Imperial).
+    // exempt = true: an enemy LONE Imperial that this Imperial attacks back is not counted (the side that just moved in "has the initiative": Imperial vs Imperial check).
+    function attackers(B, c, ply, exempt) {
+      const out = [], inf = info(B); if (nImp(inf[c]) !== 1) return out;
       let tx = -1, ty = -1, t = null;
       for (let i = 0; i < B.length; i++) if (B[i] && B[i].c === c && !B[i].dead && IMP.includes(B[i].t)) { tx = i % W; ty = (i / W) | 0; t = B[i]; }
       const St = { B, turn: c, ply: ply === undefined ? S.ply : ply, ep: null };
+      const hits = (i, q, tgt, gx, gy) => {                       // can piece q (on square i) take tgt on (gx, gy)?
+        const saveS = S; S = St; let list; try { list = gen(B, i % W, (i / W) | 0, inf); } finally { S = saveS; }
+        return list.some(r => { const aq = r.via ? Object.assign({}, q, { t: r.via }) : q; return r.cap && r.tx === gx && r.ty === gy && canTake(B, aq, tgt, inf) && !protectedFrom(B, aq, tgt, gx, gy, inf); });
+      };
       for (let i = 0; i < B.length; i++) {
         const q = B[i]; if (!q || team(q.c) === team(c) || q.wall || q.dead) continue;
-        const saveS = S; S = St; let list; try { list = gen(B, i % W, (i / W) | 0, inf); } finally { S = saveS; }
-        if (list.some(r => { const aq = r.via ? Object.assign({}, q, { t: r.via }) : q; return r.cap && r.tx === tx && r.ty === ty && canTake(B, aq, t, inf) && !protectedFrom(B, aq, t, tx, ty, inf); })) return true;
+        if (!hits(i, q, t, tx, ty)) continue;
+        const imp = IMP.includes(q.t);
+        if (imp && exempt && nImp(inf[q.c]) === 1 && hits(ty * W + tx, t, q, i % W, (i / W) | 0)) continue;     // mutual Imperial reach: the mover is the checker, so this Imperial cannot hit back
+        out.push({ x: i % W, y: (i / W) | 0, imp });
       }
-      return false;
+      return out;
     }
+    const loneAttacked = (B, c, ply) => attackers(B, c, ply, false).length > 0;
     function legal(St, x, y) {
       const p = at(St.B, x, y); if (!p || p.dead || p.wall || p.c !== St.turn) return [];
       if (St.pend) {
@@ -319,8 +328,13 @@ const Imperial = (() => {
         for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) if ((a || b) && empty(St.B, x + a, y + b)) o.push({ fx: x, fy: y, tx: x + a, ty: y + b, wall: true });
         return o;
       }
-      const pre = loneAttacked(St.B, p.c, St.ply);
-      return pseudo(St, x, y).filter(m => { if (m.castle && pre) return false; const n = apply(St, m); return !loneAttacked(n.B, p.c, n.ply); });
+      const att = attackers(St.B, p.c, St.ply, false), pre = att.length > 0, byImp = att.filter(a => a.imp);
+      return pseudo(St, x, y).filter(m => {
+        if (m.castle && pre) return false;
+        if (byImp.length && IMP.includes(p.t) && byImp.some(a => a.x === m.tx && a.y === m.ty)) return false;     // checked by an Imperial: your Imperial may not simply take it, you must get out of danger
+        const n = apply(St, m);
+        return attackers(n.B, p.c, n.ply, !byImp.length).length === 0;                                          // (the Imperial-vs-Imperial exemption only applies if you were not already in Imperial check)
+      });
     }
     function anyLegal(St) {
       for (let i = 0; i < St.B.length; i++) { const p = St.B[i]; if (p && !p.dead && !p.wall && p.c === St.turn && legal(St, i % W, (i / W) | 0).length) return true; }
@@ -402,7 +416,7 @@ const Imperial = (() => {
       },
       drainEvents() { const e = events; events = []; return e; },
       kingPos: c => { const seat = c === undefined ? S.turn : c; for (let i = 0; i < S.B.length; i++) { const q = S.B[i]; if (q && q.c === seat && !q.dead && IMP.includes(q.t)) return { x: i % W, y: (i / W) | 0 }; } return null; },      // where the (lone) Imperial stands: the board marks it like a King in check
-      inCheck: c => { const seat = c === undefined ? S.turn : c; return (!MULTI || !!S.alive[seat]) && loneAttacked(S.B, seat, S.ply); },
+      inCheck: c => { const seat = c === undefined ? S.turn : c; return (!MULTI || !!S.alive[seat]) && attackers(S.B, seat, S.ply, seat !== S.turn).length > 0; },
       status: () => status().r,
       history: () => hist.slice(), hand: () => ({}), drops: () => [], sees: () => null, canSwap: () => false, traits: MULTI ? {} : null,
       evalMoves() {                                    // for bots: every legal move with its material gain and the best enemy reply capture
