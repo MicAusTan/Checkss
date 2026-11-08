@@ -38,6 +38,32 @@
   h1 { font-size:1.3rem; margin:0 0 12px; }
   #lobby { width:100%; max-width:480px; }
   #lobbyMsg { white-space:pre-line; }
+  #lobby.hosting #startCtl { display:none; }
+  #lobby.hosting #lobbyMsg { margin:6px 0 8px; padding:12px 14px; background:var(--panel); border:1px solid var(--line); border-radius:10px; white-space:normal; }
+  #lobbyMsg .rcode { display:flex; align-items:baseline; gap:12px; } #lobbyMsg .rl { opacity:.7; font-size:.8rem; text-transform:uppercase; letter-spacing:.06em; }
+  #lobbyMsg .rcode b { font:700 1.9rem/1.1 ui-monospace, Menlo, Consolas, monospace; letter-spacing:.1em; }
+  #lobbyMsg .rlink { margin-top:6px; font-size:.8rem; opacity:.75; word-break:break-all; } #lobbyMsg .rwait { margin-top:10px; }
+  #copyRow .ghost { background:none; border:1px solid var(--line); color:inherit; opacity:.8; }
+  #botLobby { margin:14px 0 4px; padding:10px 14px; border:1px dashed var(--line); border-radius:10px; } #botLobby button { margin:8px 8px 0 0; }
+  #gsNote:empty { display:none; } #gsNote { font-size:.8rem; }
+  #hostCtl #gsBox { max-width:none; margin:8px 0 0; padding-top:6px; border-top:1px solid var(--line); }
+  #turnStrip.compact { flex-wrap:nowrap; gap:4px; margin:2px 0 4px; overflow-x:auto; scrollbar-width:none; }
+  #turnStrip.compact .tchip { flex:none; } #turnStrip.compact .tchip:not(.now):not(.next) { padding:3px; } #turnStrip.compact .tchip:not(.now):not(.next) .tn { display:none; }
+  #gameMain.nohands .hand:empty { display:none; }
+  #pieceDemo.hidden { display:none; }
+  .rpick, #seatPick { display:inline-flex; align-items:center; gap:5px; margin-left:8px; vertical-align:middle; }
+  #seatPick { display:flex; margin:6px 0; flex-wrap:wrap; } #seatPick.hidden { display:none; } #seatPick .dim { flex-basis:100%; }
+  .swt { width:18px; height:18px; min-width:0; padding:0; border-radius:50%; border:2px solid transparent; cursor:pointer; opacity:.95; }
+  .swt.mine { border-color:#fff; box-shadow:0 0 0 1px #000; cursor:default; } .swt.taken { opacity:.35; } .swt:hover:not(.mine) { transform:scale(1.15); }
+  #ctlGuide .ctl { display:flex; flex-direction:column; gap:8px; margin:8px 0 12px; font-size:.9rem; }
+  .clkrow { display:flex; justify-content:flex-end; margin:4px 0; }
+  .clkp { display:inline-flex; align-items:baseline; gap:10px; padding:3px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); font-variant-numeric:tabular-nums; font-size:1.15rem; opacity:.8; }
+  .clkp b { font-weight:600; font-size:.75rem; opacity:.75; } .clkp.on { opacity:1; border-color:#ffe26a; box-shadow:0 0 0 1px #ffe26a55; } .clkp.low { color:#ff8a80; } .clkp.out { color:#ff5252; }
+  .tchip .tclk { margin-left:6px; font-variant-numeric:tabular-nums; font-size:.8rem; opacity:.9; } .tchip.now .tclk { font-weight:700; } .tchip .tclk.low { color:#ff8a80; } .tchip .tclk.out { color:#ff5252; }
+  #board { position:relative; }
+  .flyer { pointer-events:none; } .flyer.dragghost { filter:drop-shadow(0 8px 6px rgba(0,0,0,.55)); will-change:transform; }
+  body.dragging, body.dragging .sq { cursor:grabbing !important; } .sq.dragover { outline:3px solid rgba(255,255,255,.6); outline-offset:-3px; }
+  .animdot { position:fixed; width:10px; height:10px; margin:-5px 0 0 -5px; border-radius:50%; background:#fff3b0; box-shadow:0 0 10px 4px #ffb300; pointer-events:none; z-index:41; }
   #topRight { position:fixed; top:10px; right:14px; display:flex; gap:8px; align-items:center; z-index:50; }
   .iconbtn { margin:0; padding:6px 11px; font-size:1.05rem; line-height:1; } .iconbtn.dclose { background:var(--line); }
   .profchip { margin:0; padding:3px 12px 3px 4px; display:flex; align-items:center; gap:7px; background:var(--panel); border:1px solid var(--line); border-radius:20px; max-width:190px; }
@@ -99,6 +125,7 @@
   #game { width:100%; max-width:1560px; display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,390px); gap:18px; align-items:start; }
   #game.hidden { display:none; }
   #gameMain { width:100%; max-width:calc((100vh - 190px) / var(--asp, 1)); min-width:300px; margin:0 auto; }
+  #gameMain.hasclk2 { max-width:calc((100vh - 250px) / var(--asp, 1)); }      /* (two clock rows above and below a 2-player board) */
   #gameSide { min-width:0; }
   @media (max-width: 900px) { #game { display:block; max-width:640px; } #gameMain { max-width:none; min-width:0; } }
   body.nopagescroll { overflow:hidden; height:100vh; }
@@ -273,13 +300,18 @@
   <div class="dhead"><b>Settings</b><button class="iconbtn dclose" data-close="settingsDrawer" title="Close">✕</button></div>
   <div class="dsec"><div class="dlabel">Your profile</div>
     <div class="profrow"><span class="av big" id="profAv2"></span><div class="profcol"><input id="nameIn" maxlength="24" placeholder="Your name" autocomplete="off"><div class="profbtns"><label class="filebtn">Choose picture<input type="file" id="pfpIn" accept="image/*" hidden></label><button id="pfpClear" class="small">Remove</button></div></div></div>
-    <div class="dim">Other players see this. It is saved only in this browser — you can change it any time.</div></div>
+    <div class="dim">Other players see this. It is saved only in this browser. You can change it any time.</div></div>
   <div class="dsec"><div class="dlabel">Chat</div><label><input type="checkbox" id="showImgChk" checked> Show pictures and GIFs in chat</label></div>
   <div class="dsec"><div class="dlabel">Sound</div>
   <label><input type="checkbox" id="soundChk" checked> Sounds on</label>
   <label><input type="checkbox" id="pieceSndChk" checked> Piece sounds (moves, captures, check, promotions…)</label>
   <label><input type="checkbox" id="chimeChk" checked> Chime when it is your turn (and flash the tab title if you are away)</label>
   <label>Volume <input type="range" id="volRange" min="0" max="100" value="100" style="vertical-align:middle"> <button id="sndTest" class="small" type="button">Test</button></label></div>
+  <div class="dsec"><div class="dlabel">Board feel</div>
+  <label><input type="checkbox" id="animChk" checked> Slide pieces when they move</label>
+  <label><input type="checkbox" id="dragChk" checked> Drag pieces to move them (clicking still works)</label>
+  <label><input type="checkbox" id="preChk" checked> Premoves: queue a move while it is not your turn (not in hidden-move modes)</label>
+  <div class="dim">Right-click and drag draws an arrow, right-click a square draws a circle (Shift = red, Alt = yellow). They are only on your screen. Ctrl + right-drag suggests a move to your team.</div></div>
   <div class="dsec"><div class="dlabel">Board</div>
   <label>Board colours <select id="themeSel"><option value="classic">Classic</option><option value="green">Green</option><option value="blue">Blue</option><option value="slate">Slate</option><option value="rose">Rose</option></select></label>
   <label>Interface <select id="uiSel"><option value="dark">Dark</option><option value="midnight">Midnight</option><option value="light">Light</option><option value="contrast">High contrast</option></select></label>
@@ -290,7 +322,17 @@
 </div>
 <div id="helpDrawer" class="drawer hidden">
   <div class="dhead"><b>Rules &amp; piece guide</b><button class="iconbtn dclose" data-close="helpDrawer" title="Close">✕</button></div>
-  <div id="helpNone" class="dim">This mode has no special rules to explain — it plays like the usual chess, with the changes named in its title. Start a game to see its guide here.</div>
+  <details id="ctlGuide" open><summary><b>Controls</b></summary>
+    <div class="ctl">
+      <div><b>Move:</b> click a piece, then a square. Or drag the piece there (Esc puts it back).</div>
+      <div><b>Premove:</b> while it is not your turn, click or drag one of your pieces to a square. It is played when your turn comes, if it is still legal. Esc or a click on an empty square cancels it. Not available in hidden-move modes.</div>
+      <div><b>Arrows and circles:</b> right-drag draws an arrow, right-click a square draws a circle. Shift = red, Alt = yellow. Only you see them; a click on the board, Esc or the next move clears them.</div>
+      <div><b>Suggest a move to your team:</b> the Suggest button, or Ctrl + right-drag from the piece to the square. Ctrl + right-click clears your suggestions.</div>
+      <div><b>Big boards:</b> mouse wheel zooms, dragging empty space pans, <i>Fit all</i> shows everything.</div>
+      <div><b>Turning things off:</b> the gear at the top right has switches for sliding pieces, dragging, premoves and sounds.</div>
+    </div>
+  </details>
+  <div id="helpNone" class="dim">This mode has no special rules to explain. It plays like the usual chess, with the changes named in its title. Start a game to see its guide here.</div>
   <div id="helpBody"></div>
 </div>
 <div id="toasts"></div>
@@ -299,16 +341,19 @@
 <div id="lobby">
   <button id="modeBtn" type="button" title="Choose a game mode"></button>
   <select id="modeSel"></select>
-  <button id="hostBtn">Create game</button>
-  <button id="practiceBtn" title="Standard chess against Stockfish, with an optional Coach">Practice</button>
-  <div style="margin-top:8px">
-    <input id="codeIn" placeholder="Room code" style="width:140px">
-    <button id="joinBtn">Join game</button>
+  <div id="startCtl">
+    <button id="hostBtn">Create game</button>
+    <button id="practiceBtn" title="Standard chess against Stockfish, with an optional Coach">Practice</button>
+    <div style="margin-top:8px">
+      <input id="codeIn" placeholder="Room code" style="width:140px">
+      <button id="joinBtn">Join game</button>
+    </div>
   </div>
   <p id="lobbyMsg"></p>
-  <div id="copyRow" class="hidden"><button id="copyCodeBtn">Copy code</button><button id="copyLinkBtn">Copy link</button><button id="copySpecBtn">Copy spectator link</button></div>
+  <div id="seatPick" class="hidden"></div>
+  <div id="copyRow" class="hidden"><button id="copyCodeBtn">Copy code</button><button id="copyLinkBtn">Copy link</button><button id="copySpecBtn">Copy spectator link</button><button id="leaveRoomBtn" class="ghost" title="Close this room and go back to the start screen">Cancel room</button></div>
   <canvas id="roomPreview" class="hidden"></canvas><div id="roomPreviewNote" class="hidden"></div>
-  <div id="botLobby" class="hidden">Or play on your own: <button id="botEasy">Play a bot (Easy)</button> <button id="botNormal">Play a bot (Normal)</button></div>
+  <div id="botLobby" class="hidden"><span class="dim">Nobody to play with? Start against a bot:</span><div><button id="botEasy">Easy bot</button> <button id="botNormal">Normal bot</button></div></div>
   <div id="lobbyCtl" class="hidden">
     <div id="roster"></div>
     <div id="botAdd">Fill empty seats with bots: <button id="addBotEasy">+ Bot (Easy)</button> <button id="addBotNormal">+ Bot (Normal)</button></div>
@@ -317,7 +362,7 @@
   </div>
 </div>
 <details id="gsBox" class="hidden" open>
-  <summary><b>Game options</b> <span id="gsNote" style="opacity:.7"></span></summary>
+  <summary><b>Game options</b></summary><div id="gsNote" class="dim"></div>
   <div class="optgrp" id="grpRules"><div class="gh">Rules</div>
   <div id="gsDrop">Crazyhouse drops:
     <select id="dropSel"><option value="any">Anywhere empty (standard)</option><option value="own">Own side only (4-player: own arm + centre)</option></select>
@@ -329,6 +374,16 @@
   <div id="wideNote" class="hidden dim">This mode has only one board shape, so 2v2 teams play on it as it is (a wide board exists only for the standard-board modes and Imperial).</div>
   <div id="gsBoard"><span id="boardKindWrap">Team board: <select id="boardSel"><option value="cross">Cross board (partners sit opposite)</option><option value="wide">Wide board (teams face each other)</option></select></span>
     <span id="heightWrap">Height: <select id="heightSel"><option>8</option><option selected>10</option><option>12</option><option>16</option></select></span>
+  </div>
+  </div>
+  <div class="optgrp" id="grpColor"><div class="gh">Colour</div>
+  <div id="gsColor">You play: <select id="colSel"><option value="w">White</option><option value="b">Black</option><option value="r">Random</option></select>
+    <div class="dim">Your friend gets the other colour. (After the first game, the “swap colours” box in Host controls takes over.)</div></div>
+  </div>
+  <div class="optgrp" id="grpClock"><div class="gh">Clock</div>
+  <div id="gsClock">Time control: <select id="tcSel"></select>
+    <span id="tcCustom" class="hidden"><input id="tcMin" type="number" min="0.5" max="180" step="0.5" value="10" style="width:64px"> min + <input id="tcInc" type="number" min="0" max="60" value="0" style="width:52px"> s per move</span>
+    <div class="dim">Bots never use time. Running out of time counts as resigning.</div>
   </div>
   </div>
   <div class="optgrp" id="grpOct"><div class="gh">8-player board</div>
@@ -379,12 +434,14 @@
   <div id="promo" class="hidden"></div>
   <div id="voidTray" class="hidden"></div>
   <div id="stackPick" class="hidden"></div>
+  <div id="clkTopRow" class="clkrow hidden"></div>
   <div id="handTop" class="hand"></div>
   <div id="capA" class="lbl hidden">Board A</div>
   <div id="boardWrap"><div id="zoomCtl" class="hidden"><button id="zIn" title="Zoom in">+</button><button id="zOut" title="Zoom out">−</button><button id="zFit" title="Show the whole board">Fit all</button><button id="zMid" title="Back to the starting area">Centre</button></div><div id="cylCtl" class="hidden"><button id="cylL" title="Spin the cylinder left">◀ Spin</button><button id="cylR" title="Spin the cylinder right">Spin ▶</button><button id="cylReset" title="Back to the normal view">Reset</button></div><div id="board"></div></div>
   <div id="cylNote" class="hidden">Cylinder chess: the a-file and the last file touch, so rooks, bishops, knights, kings and pawns can all wrap around the sides. The faded strips show the files just beyond each edge. Drag the board, or use Spin, to turn the cylinder.</div>
   <div id="board2Wrap" class="hidden"><div class="lbl">Board B</div><div id="board2"></div></div>
   <div id="handBot" class="hand"></div>
+  <div id="clkBotRow" class="clkrow hidden"></div>
   <div id="pieceDemo" class="hidden"></div>
  </div>
  <div id="gameSide">
@@ -401,20 +458,20 @@
 <div id="grandGuide"></div></div></details>
   <details id="octBox" class="hidden"><summary>8-Player Chess rules &amp; new pieces</summary><div id="octBody">
 <h4>Board</h4><ul><li>24×24 cross: a 18×18 centre with a 3-deep arm on every side. Each arm holds <b>two armies</b> side by side, separated by a 2-square gap with a notch cut 2 deep, so neighbours can't slide along each other's back ranks. 524 squares.</li><li>Turn order goes around the board: Red → Orange → Blue → Pink → Yellow → Teal → Green → Purple. With fewer than 8 players the seats are spread evenly and empty seats have no army.</li><li>Teams: <b>2v2v2v2</b> (you and the army opposite you) or <b>4v4</b> (seats alternate around the board). A team is out when all its kings are.</li></ul>
-<h4>Promotion &amp; holes</h4><ul><li>Pawns promote 10 ranks from their start (halfway across the board).</li><li><b>Holes</b> are squares that don't exist: nothing can enter them, sliders stop in front of them, knights jump over them. A pawn with a hole directly in front of it <b>promotes where it stands</b> — select the pawn and click the hole.</li><li>Hole layouts: none, four small, one big, or random (mirrored for fairness, or truly random). Random layouts are revealed when the game starts and never wall anybody in.</li></ul>
-<h4>Neutral pieces &amp; the Boss</h4><ul><li>Neutrals (dashed ring) move by themselves once after every full round. Nothing here gives check. Only the first owner counts: a piece that has been owned and is captured again is gone for good.</li><li>With <b>neutral drops</b> on, capturing a wild Boar, Hound, Burrower or Golem puts it in your hand and you can drop it as your own piece.</li><li><b>Boss</b>: a 2×2 monster that starts in the middle. It rolls over what it moves onto, crushing everything but kings, and gets faster as it loses cells. <b>Capturing one of its cells also costs the piece that captured it.</b> Taking the last cell lets you <b>kill</b> it (with drops off, a captured piece of yours comes back) or <b>claim</b> it: it re-enters in the middle as your own 2×2 piece, crushing everything there — kings included. An owned Boss moves up to 2 squares in straight lines, and with 3 or 4 cells it must rest a turn after moving.</li></ul>
+<h4>Promotion &amp; holes</h4><ul><li>Pawns promote 10 ranks from their start (halfway across the board).</li><li><b>Holes</b> are squares that don't exist: nothing can enter them, sliders stop in front of them, knights jump over them. A pawn with a hole directly in front of it <b>promotes where it stands</b>. Select the pawn and click the hole.</li><li>Hole layouts: none, four small, one big, or random (mirrored for fairness, or truly random). Random layouts are revealed when the game starts and never wall anybody in.</li></ul>
+<h4>Neutral pieces &amp; the Boss</h4><ul><li>Neutrals (dashed ring) move by themselves once after every full round. Nothing here gives check. Only the first owner counts: a piece that has been owned and is captured again is gone for good.</li><li>With <b>neutral drops</b> on, capturing a wild Boar, Hound, Burrower or Golem puts it in your hand and you can drop it as your own piece.</li><li><b>Boss</b>: a 2×2 monster that starts in the middle. It rolls over what it moves onto, crushing everything but kings, and gets faster as it loses cells. <b>Capturing one of its cells also costs the piece that captured it.</b> Taking the last cell lets you <b>kill</b> it (with drops off, a captured piece of yours comes back) or <b>claim</b> it: it re-enters in the middle as your own 2×2 piece, crushing everything there, kings included. An owned Boss moves up to 2 squares in straight lines, and with 3 or 4 cells it must rest a turn after moving.</li></ul>
 <h4>Piece guide</h4><div id="octGuide"></div></div></details>
   <details id="promoBox" class="hidden"><summary>Promotion Chess rules</summary><div id="promoBody"></div></details>
   <details id="promoGuide" class="hidden"><summary>Piece guide (every form)</summary><div id="promoGuideBody"></div></details>
   <details id="rulesBox" class="hidden"><summary>Imperial Chess rules</summary><div id="rulesBody">
 <h4>Goal</h4><ul><li>Destroy the enemy army. The <b>Imperials</b> (Emperor Ⓔ, Empress Ⓧ, Heir Ⓗ) are special: with 2 or more alive there is <b>no check</b>. When exactly one is left it is the check target (normal check/checkmate). <b>Imperials can check each other:</b> if your move puts your Imperial and a lone enemy Imperial in each other's reach, you are the checker and are safe from that Imperial. It may not capture yours and must get out of danger; any other piece covering the square still makes the move illegal.</li><li>You <b>lose immediately</b> if only Imperials remain (no other pieces). Stalemate is a draw. Losing the King or Queen is never a loss.</li></ul>
-<h4>Board</h4><ul><li>17×16. The corner squares of each army's 3 ranks are cut away: nothing lands there or slides through. Pawns promote on the first full-width rank in front of the enemy (and deeper) — promotion is compulsory. <b>Select an original Rook, Bishop or Knight and the zone where it would be promoted is tinted gold.</b> One that reaches it is promoted automatically into its Grand version (Grand Rook / Bishop / Knight, which glow gold on the board and in the chat); pawns get a choice of pieces.</li></ul>
+<h4>Board</h4><ul><li>17×16. The corner squares of each army's 3 ranks are cut away: nothing lands there or slides through. Pawns promote on the first full-width rank in front of the enemy (and deeper). Promotion is compulsory. <b>Select an original Rook, Bishop or Knight and the zone where it would be promoted is tinted gold.</b> One that reaches it is promoted automatically into its Grand version (Grand Rook / Bishop / Knight, which glow gold on the board and in the chat); pawns get a choice of pieces.</li></ul>
 <h4>Imperials</h4><ul><li>Immune to pawn-family captures (Pawn, Pikeman, Skirmisher). Emperor also immune to Rooks, Empress to Bishops, Heir to Knights (Grand pieces ignore this).</li><li><b>Emperor</b>: rook lines plus the squares beside the line. <b>Empress</b>: diagonals plus the 4 orthogonal neighbours of each line square. A piece on the line cuts off the side squares at and beyond it. Lose your Empress → the Emperor reaches only 3 squares and loses Rook immunity (and vice-versa). <b>Heir</b>: 16 knight + camel leaps; when both Emperor and Empress are gone he also gets (±2,±4),(±4,±2) and loses Knight immunity.</li><li><b>Castle</b>: Emperor hops a friendly Rook/Grand Rook, Empress a friendly Bishop/Grand Bishop, landing on an empty square beyond it (max 6 away, cooldown 3 of your turns, not while in check). <b>Swap</b>: the Heir may swap with a friendly Knight/Grand Knight in his reach.</li></ul>
 <h4>King &amp; Queen auras</h4><ul><li>King (aura 7×7): friendly pawn-family walk one step further (2 on the 2-player and wide boards, 3 on the 4-player cross board); a pawn that leaves the aura by its own move keeps that bonus for its next turn only; Rooks, Bishops, Knights and Grands can't be captured by pawn-family pieces. The King can also move or capture onto any square beside a friendly piece within 2 squares of him (a bigger Guard hop).</li><li>Queen (aura 5×5): ordinary Pawns also capture straight ahead; Archers, Guards, Chariots, Sappers, Catapults can't be captured by pawn-family pieces.</li></ul>
 <h4>Royals</h4><ul><li><b>Prince</b> / <b>Princess</b> (promotion only, one each): Prince captures on the 5×5 (no corners) and also steps to corners and 3 straight; blockable. Princess moves 1, <b>shoots</b> the outer ring and 3 straight without moving; she can't be captured while the Prince is next to her.</li></ul>
 <h4>Pieces</h4><ul><li><b>Grand Rook ♖</b> rook + knight moves (move only). <b>Grand Bishop ♗</b> bishop + 1–2 straight. <b>Grand Knight ♘</b> the whole outer ring of the 5×5. Only original Rooks/Bishops/Knights become Grands (automatically on reaching the promotion rank).</li><li><b>Guard Ⓖ</b> king moves, plus steps 2 straight or onto squares around a nearby friend; Archers can't hit it or its neighbours. <b>Chariot Ⓒ</b> slides 2 straight with knight squares off each lane. <b>Archer Ⓐ</b> steps 1–2 straight; shoots 12 squares around it (the 5×5 ring without corners or the squares right beside it) without moving. <b>Sapper Ⓢ</b> leaps, never captures; after moving it may place a wall next to itself (once per 2 turns). <b>Catapult Ⓣ</b> walks to any of the 8 squares around it or 1–3 straight; fires on 7 squares ahead (hitting (0,4) also splashes (±1,4)), then reloads for 2 turns (it cannot move at all on the first turn after firing).</li><li><b>Jester Ⓙ</b> (replaces the middle Guard; pawns can promote to it) never captures by itself; hops to the opposite-colour squares of its 5×5 and borrows the moves of any non-Imperial piece of its OWN side in its 3×3 (never enemies, never ranged ones, never another Jester). <b>Pawn ♟</b> 1 step (up to 3 on its first move; 2 in the King's aura), captures diagonally; on the 4-player cross board 2 steps (3 in the aura); the wide 2v2 board is like the 2-player board. The Pikeman still captures only the single square straight ahead. <b>Pikeman ♙</b> also captures straight. <b>Skirmisher ⓜ</b> also steps sideways. Pikeman → <b>Lancer Ⓛ</b>, Skirmisher → <b>Raider Ⓓ</b> on promotion.</li></ul>
 <h4>Piece guide</h4><div id="pieceGuide"></div>
-<h4>4-player free-for-all (29×29)</h4><ul><li>Cross-shaped board: a 21×21 centre with a 13×4 arm for each army (same 39-piece layout, rotated). Seats take turns in order; last seat standing wins.</li><li>Promotion happens on the far edge of the centre square (22 steps from your army). Tick <b>Teams</b> for 2v2 (partners sit opposite and never capture or check each other); choose the <b>Wide board</b> for the 30×16 version where each team's two armies sit side by side.</li><li>Check applies to a seat only when it has exactly one Imperial left, and any opponent can give it. A checkmated seat — or one left with only Imperials — is out; a stalemated seat just skips. Their pieces turn <b>gray</b>: they stop moving but can be captured, Imperials included, with no immunities.</li></ul>
+<h4>4-player free-for-all (29×29)</h4><ul><li>Cross-shaped board: a 21×21 centre with a 13×4 arm for each army (same 39-piece layout, rotated). Seats take turns in order; last seat standing wins.</li><li>Promotion happens on the far edge of the centre square (22 steps from your army). Tick <b>Teams</b> for 2v2 (partners sit opposite and never capture or check each other); choose the <b>Wide board</b> for the 30×16 version where each team's two armies sit side by side.</li><li>Check applies to a seat only when it has exactly one Imperial left, and any opponent can give it. A checkmated seat, or one left with only Imperials, is out; a stalemated seat just skips. Their pieces turn <b>gray</b>: they stop moving but can be captured, Imperials included, with no immunities.</li></ul>
 <h4>Walls &amp; special rules</h4><ul><li>Walls block movement and lines; they belong to the player whose Sapper raised them (shown in that colour): only enemies can capture one, by moving onto it. Ranged shots pass over them. The number on a wall is how many full rounds it still stands (it vanishes at the start of the enemy's 4th turn in 2-player; lifetime scales with the number of seats).</li><li>En passant: after a 2–3 step pawn move, an enemy pawn-family piece may capture diagonally onto a square it passed, next turn only.</li><li>Ranged shots (⌖) capture without moving. Click a piece to see its squares.</li></ul></div></details>
   <div id="history"></div>
   <details id="hostCtl" class="panel hidden" open>
@@ -431,7 +488,7 @@
     <button id="rematchBtn" class="hidden">Ask for rematch</button>
     <button id="readyBtn" class="hidden">Ready</button>
     <button id="nextBtn" class="hidden">Continue to next round</button>
-    <button id="suggestBtn" class="hidden" title="Point at a piece, then at the square where it should go. Only your team sees it. (Right-click-drag does the same.)">Suggest a move</button>
+    <button id="suggestBtn" class="hidden" title="Point at a piece, then at the square where it should go. Only your team sees it. (Ctrl + right-drag does the same.)">Suggest a move</button>
     <button id="resignBtn">Resign</button>
     <button id="drawBtn">Offer draw</button>
     <button id="menuBtn" title="Leave this game and return to the start screen">Main menu</button>
@@ -457,7 +514,7 @@
   <label>Loser bonus <input id="sCatch" type="number" value="3" min="0"></label>
   <label>Piece cap <input id="sCap" type="number" value="24" min="1"></label>
   <label>Rounds <input id="sRounds" type="number" value="5" min="1"></label>
-  <div id="austLimitsBox"><b>Piece limits</b> <span class="dim">(per player, per round — leave a box empty for no limit)</span><br><div id="austLimits"></div></div>
+  <div id="austLimitsBox"><b>Piece limits</b> <span class="dim">(per player, per round; leave a box empty for no limit)</span><br><div id="austLimits"></div></div>
 </div>
 
 <script src="engine.js"></script>
@@ -496,7 +553,7 @@ const MODES = {
   threeplayer: { name: '3-Player Chess (hexagonal board)', multi: true, opts: ['fog'], all: ['r', 'b', 'y'], v: Engine.THREE },
   imperial: { name: 'Imperial Chess (17×16, destroy the army)', imperial: true, opts: [], v: { imperial: true } },
   promotion: { name: 'Promotion Chess (every piece can promote)', promotion: true, opts: [], v: { promotion: true } },
-  imperial4: { name: 'Imperial Chess — 4-Player (29×29; free-for-all or 2v2)', imperial: true, multi: true, all: ['r', 'b', 'y', 'g'], opts: ['teams'], v: { imperial: true } },
+  imperial4: { name: 'Imperial Chess: 4-Player (29×29; free-for-all or 2v2)', imperial: true, multi: true, all: ['r', 'b', 'y', 'g'], opts: ['teams'], v: { imperial: true } },
 };
 const CN = { r: 'Red', b: 'Blue', y: 'Yellow', g: 'Green', o: 'Orange', p: 'Pink', t: 'Teal', m: 'Purple' };
 const OCT_HEX = { r: '#ff5a5a', o: '#ff9a3c', y: '#ffd84d', g: '#5fd16a', t: '#3fd6cf', b: '#5aa0ff', p: '#ff7ac8', m: '#a66bff' };
@@ -709,7 +766,7 @@ function drawWhy() {                             // multiplayer draw reason: onl
   return 'only bare kings are left (checkmate is impossible)';
 }
 const ended = () => over || (game && (game.multi ? (!!game.winner() || game.drawn) : ['checkmate', 'stalemate', 'draw', 'bare'].includes(game.status())));
-const SPEC_OK = new Set(['move', 'resign', 'drawAccept', 'newgame', 'traits', 'mmove', 'nmove', 'mresign', 'mchat', 'schat', 'specChatSetting']);
+const SPEC_OK = new Set(['clock', 'timeout', 'mtimeout', 'move', 'resign', 'drawAccept', 'newgame', 'traits', 'mmove', 'nmove', 'mresign', 'mchat', 'schat', 'specChatSetting']);
 function sendSpecs(msg) {
   if (!isHost || !specs.length || !SPEC_OK.has(msg.type)) return;
   specs.forEach(c => c.open && c.send(msg));
@@ -718,7 +775,7 @@ const mmoveMsg = m => { let n = -1; try { n = game.history().length; } catch (e)
 let lastResync = 0;
 function askResync() {                           // a guest noticed it no longer matches the host: ask for the whole game again
   if (isHost || Date.now() - lastResync < 2500) return; lastResync = Date.now();
-  addChat('', 'Your board was out of step with the host — refreshing it…', true);
+  addChat('', 'Your board was out of step with the host, refreshing it…', true);
   send({ type: 'resync' });
 }
 const broadcast = msg => { conns.forEach(c => c.open && c.send(msg)); sendSpecs(msg); };
@@ -773,13 +830,13 @@ function readGS() {
     classes: $('classesChk').checked, clStart: +$('clStart').value || 0, clGain: +$('clGain').value || 0, clCap: +$('clCap').value || 8, clPer: +$('clPer').value || 0,
     clSum: +$('clSum').value || 4, clUlt: $('clUlt').checked, clHide: $('clHide').checked, clFree: $('clFree').checked, clHideFx: $('clHideFx').checked,
     teams8: $('teams8Sel').value, holes8: $('holes8Sel').value, wild8: $('wild8Chk').checked, boss8: $('boss8Chk').checked, burrow: $('burrowChk').checked,
-    foeMoves: $('foesChk').checked, seed: Math.floor(Math.random() * 2147483646) + 1 };
+    foeMoves: $('foesChk').checked, seed: Math.floor(Math.random() * 2147483646) + 1, ...tcRead() };
 }
 const seatsFor = (m, n) => { const all = MODES[m].all; if (MODES[m].oct && n < all.length) return [...new Set(Array.from({ length: n }, (_, k) => Math.round(k * all.length / n)))].map(i => all[i]); return n >= all.length ? all.slice() : n === 2 ? (all.length === 4 ? ['r', 'y'] : ['r', 'b']) : all.slice(0, n); };
 
 const FOES_MODES = ['standard', 'crazyhouse', 'marseillais', 'cylinder', 'infinite', 'fourplayer', 'fourmars', 'fourcrazy', 'fourcyl', 'fourneutral', 'fourinfinite', 'imperial', 'imperial4', 'promotion'];      // modes where clicking an enemy piece can show its moves
 const GS_DEFAULTS = { teams8: 'ffa', holes8: 'four', wild8: false, boss8: false, burrow: false, dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false, neutralDrop: false, impRoam: false, traits: false, offers: 4, c960: false, back960: null, cyl: false,
-  foeMoves: true, seed: 1, classes: false, clStart: 2, clGain: 1, clCap: 8, clPer: 0, clSum: 4, clUlt: false, clHide: false, clFree: false, clHideFx: false };
+  foeMoves: true, seed: 1, classes: false, clStart: 2, clGain: 1, clCap: 8, clPer: 0, clSum: 4, clUlt: false, clHide: false, clFree: false, clHideFx: false, tcMin: 0, tcInc: 0 };
 // Builds an engine for a mode from plain settings, without touching any globals (also used to rebuild games for replay).
 function makeEngine(m, seatsIn, gsIn, traits, classes, a4) {
   const g2 = Object.assign({}, GS_DEFAULTS, gsIn || {}), op = MODES[m].opts || [];
@@ -830,7 +887,7 @@ function newGame(m, s, o) {
   if (!MODES[m].match4) A4 = null;
   mode = m; sel = null; over = null; overRes = null; setupMsg = ''; pal = 'p'; centered = false; cylShift = 0;
   gs = Object.assign({}, GS_DEFAULTS, o.gs || gs);
-  gtraits = o.traits || null; draft = null; revealedAll = false; resignLog = [];
+  gtraits = o.traits || null; draft = null; revealedAll = false; resignLog = []; timedOut = new Set();
   gclasses = o.classes || null; abMode = null; abFrom = null; mirageSeen = 0; foeSel = null; glitchSeen = 0; abSet = null; revealedCl = false; pendTraits = null;
   gs.traits = !!gs.traits && ((MODES[m].opts || []).includes('traits'));
   gs.classes = !!gs.classes && ((MODES[m].opts || []).includes('classes'));
@@ -849,7 +906,7 @@ function newGame(m, s, o) {
     const r = makeEngine(m, o.seats || mseats, gs, gtraits, gclasses, o.a4round && A4 ? { armies: A4.armies, first: A4.first } : null);
     M = null; nBusy = false; game = r.game; gs = r.gs;
     if (MODES[m].multi) mseats = r.seats;
-    if (gs.c960 && gs.back960) addChat('', 'Chess960 layout: ' + gs.back960.toUpperCase().split('').join(' ') + ' — castle by moving your king onto your own rook.', true);
+    if (gs.c960 && gs.back960) addChat('', 'Chess960 layout: ' + gs.back960.toUpperCase().split('').join(' ') + '. Castle by moving your king onto your own rook.', true);
   }
 }
 
@@ -860,7 +917,7 @@ function handleMessage(msg) {
     case 'a4resume':
       stopRetry(); newGame(msg.mode, null, { seats: msg.seats, gs: msg.gs }); a4Load(msg.a4); mySeat = msg.seat; a4Apply(msg.x);
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
-      addChat('', 'Reconnected — you are back in the match.', true); render(); break;
+      addChat('', 'Reconnected. You are back in the match.', true); render(); break;
     case 'a4status': if (A4 && msg.round === A4.round) { A4.ready = {}; (msg.ready || []).forEach(c => { A4.ready[c] = true; }); render(); } break;
     case 'a4mate': if (A4 && A4.teams && A4.phase === 'setup' && msg.setup && typeof msg.setup === 'object') { A4.mate[msg.seat] = msg.setup; render(); } break;
     case 'a4reject': if (A4) { A4.sent = 0; setupMsg = String(msg.text || 'Your army was rejected.'); render(); } break;
@@ -870,22 +927,23 @@ function handleMessage(msg) {
       newGame(msg.mode, null, { seats: msg.seats, gs: msg.gs }); initA4(msg.seats, msg.a4.s, msg.gs); $('modeSel2').value = mode;
       addChat('', 'New match: ' + MODES[mode].name + '. Build your army!', true); render(); break;
     case 'resume':
-      stopRetry(); loadRecord(msg.rec);
+      stopRetry(); loadRecord(msg.rec); clkApplySnap(msg.clk);
       if (msg.seat) mySeat = msg.seat;
       if (msg.a4x && A4) a4Apply(msg.a4x);
       if (msg.color) myColor = msg.color;
       draft = msg.draft && msg.draft.offers ? { kind: msg.draft.kind || 'trait', mine: msg.draft.offers, picked: msg.draft.picked } : null;
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       if (game && game.multi) $('rematchBtn').classList.add('hidden'); else $('rematchBtn').classList.remove('hidden');
-      addChat('', msg.resync ? 'Board refreshed from the host.' : 'Reconnected — you are back in the game.', true); render(); break;
+      addChat('', msg.resync ? 'Board refreshed from the host.' : 'Reconnected. You are back in the game.', true); render(); break;
     case 'spec':
-      stopRetry(); spectating = true; specChatAllowed = !!msg.chat; loadRecord(msg.rec);
+      stopRetry(); spectating = true; specChatAllowed = !!msg.chat; loadRecord(msg.rec); clkApplySnap(msg.clk);
       myColor = 'w'; if (game && game.multi) mySeat = game.seats[0];
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       addChat('', 'You are watching this game as a spectator.', true); render(); break;
     case 'schat': addChat(String(msg.who), String(msg.text).slice(0, 300)); break;
     case 'specChatSetting': specChatAllowed = !!msg.on; addChat('', specChatAllowed ? 'The host has switched spectator chat on.' : 'The host has switched spectator chat off.', true); break;
     case 'init':
+      if (msg.hostColor) myColor = msg.hostColor === 'w' ? 'b' : 'w';
       if (msg.from) peerInfo = { n: cleanName(msg.from.n), p: safePfp(msg.from.p) };
       newGame(msg.mode, msg.settings, { gs: msg.gs }); if (game) msg.moves.forEach(m => game.move(m));
       if (gs.traits || gs.classes) draft = { kind: gs.traits ? 'trait' : 'class', mine: null, picked: null };
@@ -912,7 +970,7 @@ function handleMessage(msg) {
       if (MODES[msg.mode].match4) {
         initA4(msg.seats, msg.a4.s, msg.gs);
         $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
-        addChat('', 'You are ' + CN[mySeat] + '. Build your army in your own arm — nobody sees it until everyone is ready' + (A4.teams ? ' (your partner can watch you build).' : '.'), true);
+        addChat('', 'You are ' + CN[mySeat] + '. Build your army in your own arm. Nobody sees it until everyone is ready' + (A4.teams ? ' (your partner can watch you build).' : '.'), true);
         render(); break;
       }
       if (gs.traits || gs.classes) draft = { kind: gs.traits ? 'trait' : 'class', mine: null, picked: null };
@@ -927,8 +985,8 @@ function handleMessage(msg) {
     case 'traits':
       newGame(msg.mode || mode, null, { seats: msg.seats, gs: msg.gs, traits: msg.traits, classes: msg.classes }); draft = null;
       announceTraitStart(); render(); break;
-    case 'mwait': $('lobbyMsg').textContent = msg.text; drawPreview(msg.prev || null); break;
-    case 'mroom': $('lobbyMsg').textContent = msg.text; drawPreview(msg.prev || null); $('game').classList.add('hidden'); $('lobby').classList.remove('hidden'); break;
+    case 'mwait': $('lobbyMsg').textContent = msg.text; drawPreview(msg.prev || null); drawSeatPick(msg.pick); break;
+    case 'mroom': $('lobbyMsg').textContent = msg.text; drawPreview(msg.prev || null); drawSeatPick(msg.pick); $('game').classList.add('hidden'); $('lobby').classList.remove('hidden'); break;
     case 'kicked': $('lobbyMsg').textContent = 'The host removed you from the room.'; $('lobby').classList.remove('hidden'); $('game').classList.add('hidden'); break;
     case 'mmove': {
       const ok = !!(game && game.move(msg.m));
@@ -939,6 +997,9 @@ function handleMessage(msg) {
       break;
     }
     case 'mresign': if (game) { logResign(msg.seat); game.resign(msg.seat); announceMulti(); render(); } break;
+    case 'mtimeout': if (game && game.multi && game.alive(msg.seat)) { timedOut.add(msg.seat); logResign(msg.seat); game.resign(msg.seat); announceMulti(); render(); } break;
+    case 'timeout': if (game && !game.multi && !ended()) { over = (msg.color === 'w' ? 'White' : 'Black') + ' ran out of time.'; overRes = msg.color === 'w' ? 'b' : 'w'; render(); } break;
+    case 'clock': if (!isHost && game) { clkEnsure(); if (clk) { clk.t = msg.t || clk.t; clk.turn = msg.turn; clk.run = !!msg.run; clk.at = performance.now(); clk.len = game.history().length; clkRender(); } } break;
     case 'mchat': addChat(msg.from === mySeat ? 'You' : CN[msg.from], String(msg.text || '').slice(0, 300), false, msg.from, safeImg(msg.img)); break;
     case 'rematchReq': addChat('', 'Opponent wants a rematch.', true); break;
     case 'drawOffer':
@@ -949,7 +1010,7 @@ function handleMessage(msg) {
     case 'ready':
       if (M) {
         const prob = setupProblem(myColor === 'w' ? 'b' : 'w', msg.setup);       // an army that breaks the rules (e.g. a modified client ignoring the piece limits) is not accepted
-        if (prob) { addChat('', "Opponent's army was rejected (" + prob + ') — ask them to rebuild it, or end the round.', true); render(); break; }
+        if (prob) { addChat('', "Opponent's army was rejected (" + prob + '). Ask them to rebuild it, or end the round.', true); render(); break; }
         M.opp = { round: msg.round, setup: msg.setup }; addChat('', 'Opponent is ready.', true); tryStart(); render();
       }
       break;
@@ -968,7 +1029,8 @@ function setupConn(c) {
       everJoined = true; peerToken = c.token || null;
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       $('hostCtl').classList.remove('hidden'); $('modeSel2').value = mode;
-      send({ type: 'init', mode, moves: game ? game.history() : [], settings: M && M.s, gs, from: { n: myName(), p: safePfp(profile.pfp) } });
+      applyColorPref();
+      send({ type: 'init', mode, hostColor: myColor, moves: game ? game.history() : [], settings: M && M.s, gs, from: { n: myName(), p: safePfp(profile.pfp) } });
       if (needDraft()) beginDraft();
       render();
     } else {
@@ -984,15 +1046,16 @@ function setupConn(c) {
 }
 
 function host() {
-  isHost = true; myColor = 'w'; mseats = null; bots = {}; bots2p = null; lobbyBots = []; specChatOn = false; $('specChatChk').checked = false; newGame($('modeSel').value, readSettings($('modeSel').value), { gs: readGS() });
+  isHost = true; myColor = 'w'; hostPref = null; mseats = null; bots = {}; bots2p = null; lobbyBots = []; specChatOn = false; $('specChatChk').checked = false; newGame($('modeSel').value, readSettings($('modeSel').value), { gs: readGS() });
   const code = Math.random().toString(36).slice(2, 7);
   peer = new Peer(PREFIX + code);
   peer.on('open', () => {
     const url = location.origin + location.pathname + '?join=' + code;
-    roomCode = code; $('copyRow').classList.remove('hidden');
-    lobbyBase = 'Room code: <b>' + code + '</b><br>Send this link to your friend' + (MODES[mode].multi ? 's' : '') + ':<br><span id="link">' + url + '</span>' +
-      '<br>Spectators can watch with: <span>' + location.origin + location.pathname + '?watch=' + code + '</span>';
-    $('lobbyMsg').innerHTML = lobbyBase + (MODES[mode].multi ? '' : '<br>Waiting for them to join…');
+    roomCode = code; $('copyRow').classList.remove('hidden'); $('lobby').classList.add('hosting');
+    lobbyBase = '<div class="rcode"><span class="rl">Room code</span><b>' + code + '</b></div>' +
+      '<div class="rlink">Friends join with: <span id="link">' + url + '</span></div>' +
+      '<div class="rlink">Spectators watch with: <span>' + location.origin + location.pathname + '?watch=' + code + '</span></div>';
+    $('lobbyMsg').innerHTML = lobbyBase + (MODES[mode].multi ? '' : '<div class="rwait">Waiting for them to join…</div>');
     $('botLobby').classList.toggle('hidden', !!(MODES[mode].multi || MODES[mode].match));
     if (MODES[mode].multi) { $('lobbyCtl').classList.remove('hidden'); $('botAdd').classList.toggle('hidden', !!MODES[mode].bug); renderRoster(); }
   });
@@ -1032,6 +1095,7 @@ function clickSq(x, y) {
   if (abMode) return abClick(x, y);
   if (foeClick(x, y)) return;
   $('promo').classList.add('hidden');
+  if (preClick(x, y)) return;
   if (ended() || game.turn !== myColor) return;
   if (sel) {
     const cand = sel.drop
@@ -1080,29 +1144,29 @@ function matchLine() {
 function bugStatus() {
   const g = game, r = g.result;
   if (r) {
-    if (r.team === null) return 'Game drawn — both boards are stuck.';
+    if (r.team === null) return 'Game drawn. Both boards are stuck.';
     const w = g.winner();
-    return 'Game over — ' + teamNames(w) + (sameSide(w, mySeat) ? ' (you) win!' : ' win.') + (r.why === 'checkmate' ? ' (checkmate on Board ' + r.board + ')' : ' (' + CN[r.loser] + ' resigned)');
+    return 'Game over: ' + teamNames(w) + (sameSide(w, mySeat) ? ' (you) win!' : ' win.') + (r.why === 'checkmate' ? ' (checkmate on Board ' + r.board + ')' : ' (' + CN[r.loser] + ' resigned)');
   }
   const [bd, col] = g.info[mySeat], mine = g.canMove(mySeat), opp = g.seatOf(bd, col === 'w' ? 'b' : 'w');
   let t = (mine ? 'Your move' : 'Waiting for ' + CN[opp]) + ' (you are ' + CN[mySeat] + ', Board ' + bd + ', partner ' + CN[g.partner[mySeat]] + ')';
-  if (g.inCheck(bd)) t += mine ? ' — you are in check!' : ' — ' + CN[opp] + ' is in check';
-  if (g.stuck(bd)) t += mine ? ' — no legal move: wait for a piece from your partner' : ' — they have no legal move and must wait for a piece';
+  if (g.inCheck(bd)) t += mine ? ' · You are in check!' : ' · ' + CN[opp] + ' is in check';
+  if (g.stuck(bd)) t += mine ? ' · No legal move: wait for a piece from your partner' : ' · They have no legal move and must wait for a piece';
   return t;
 }
 
 function multiStatus() {
   if (game.bug) return bugStatus();
-  if (game.drawn) return 'Game drawn — ' + (drawWhy() || 'nobody left can move') + '.';
+  if (game.drawn) return 'Game drawn: ' + (drawWhy() || 'nobody left can move') + '.';
   const w = game.winner();
-  if (w) return 'Game over — ' + teamNames(w) + (sameSide(w, mySeat) ? ' (you) win!' : game.teams ? ' win.' : ' wins.');
-  if (!game.alive(mySeat)) return 'You are eliminated — spectating. ' + CN[game.turn] + "'s turn.";
+  if (w) return 'Game over: ' + teamNames(w) + (sameSide(w, mySeat) ? ' (you) win!' : game.teams ? ' win.' : ' wins.');
+  if (!game.alive(mySeat)) return 'You are eliminated and spectating. ' + CN[game.turn] + "'s turn.";
   const hidK = MODES[mode].v.hidden;
   if (game.pend) return game.turn === mySeat ? 'Sapper: click it, then a highlighted square for a wall (or click the Sapper itself to skip).' : CN[game.turn] + ' is placing a wall…';
   if (game.neutralPending) return 'Neutral pieces are moving…';
   return (game.turn === mySeat ? 'Your turn' : CN[game.turn] + "'s turn") + ' (you are ' + CN[mySeat] + (game.teams ? ', partner: ' + (game.seats.filter(c => c !== mySeat && game.teams[c] === game.teams[mySeat]).map(c => CN[c]).join('') || 'none') : '') + ')' +
-         (MODES[mode].v.movesPerTurn > 1 ? ' — ' + game.left + ' move' + (game.left > 1 ? 's' : '') + ' left' : '') +
-         (!hidK && game.inCheck(game.turn) ? ' — ' + CN[game.turn] + ' is in check!' : '');
+         (MODES[mode].v.movesPerTurn > 1 ? ' · ' + game.left + ' move' + (game.left > 1 ? 's' : '') + ' left' : '') +
+         (!hidK && game.inCheck(game.turn) ? ' · ' + CN[game.turn] + ' is in check!' : '');
 }
 
 $('promoGuide') && $('promoGuide').addEventListener('toggle', () => { if ($('promoGuide').open) fillPromoGuide(); });
@@ -1202,7 +1266,7 @@ function fillPromoGuide() {
 const voidNote = () => {
   if (!game || !game.promotion) return '';
   const mine = game.offBoard(myColor), theirs = game.offBoard(myColor === 'w' ? 'b' : 'w'), nm = a => a.map(e => Promotion.NAME[e.t]).join(', ');
-  return (mine.length ? ' — your ' + nm(mine) + ' is outside the board (' + Math.min(...mine.map(e => e.left)) + ' turn' + (Math.min(...mine.map(e => e.left)) > 1 ? 's' : '') + ' left to come back)' : '') + (theirs.length ? ' — the opponent\'s ' + nm(theirs) + ' is outside the board' : '');
+  return (mine.length ? ' · Your ' + nm(mine) + ' is outside the board (' + Math.min(...mine.map(e => e.left)) + ' turn' + (Math.min(...mine.map(e => e.left)) > 1 ? 's' : '') + ' left to come back)' : '') + (theirs.length ? ' · The opponent\'s ' + nm(theirs) + ' is outside the board' : '');
 };
 function updateVoidTray() {
   const el = $('voidTray'); if (!el) return;
@@ -1222,9 +1286,9 @@ function updateVoidTray() {
 const promoNote = () => {
   if (!game || !game.promotion || !sel || sel.drop) return '';
   const p = game.at(sel.x, sel.y); if (!p) return '';
-  if (game.onLast(sel.x, sel.y)) return ' — Pawn on the last rank: click a square to promote and move there (or pick another piece to leave it)';
+  if (game.onLast(sel.x, sel.y)) return ' · Pawn on the last rank: click a square to promote and move there (or pick another piece to leave it)';
   const pr = game.progress(sel.x, sel.y), nm = Promotion.NAME[p.t] || '';
-  return pr ? ' — ' + nm + ': ' + pr.have + '/' + pr.need + ' ' + pr.label : p.tier > 0 ? ' — ' + nm : '';
+  return pr ? ' · ' + nm + ': ' + pr.have + '/' + pr.need + ' ' + pr.label : p.tier > 0 ? ' · ' + nm : '';
 };
 function statusText() {
   if (game && game.multi) return multiStatus();
@@ -1233,14 +1297,14 @@ function statusText() {
   const s = game.status();
   if (s === 'checkmate') return 'Checkmate! ' + (game.turn === 'w' ? 'Black' : 'White') + ' wins.';
   if (game.pend) return game.turn === myColor ? 'Sapper: click it, then a highlighted square for a wall (or click the Sapper itself to skip).' : 'Opponent is placing a wall…';
-  if (s === 'bare') return 'Only Imperials left — ' + (game.loser === 'w' ? 'Black' : 'White') + ' wins.';
-  if (s === 'stalemate') return 'Stalemate — draw.';
-  if (s === 'draw') return 'Draw — not enough material to checkmate.';
+  if (s === 'bare') return 'Only Imperials left: ' + (game.loser === 'w' ? 'Black' : 'White') + ' wins.';
+  if (s === 'stalemate') return 'Stalemate: draw.';
+  if (s === 'draw') return 'Draw: not enough material to checkmate.';
   return (M ? 'Round ' + M.round + '/' + M.s.rounds + ' · ' : '') + (game.turn === myColor ? 'Your turn' : "Opponent's turn") + ' (you are ' + (myColor === 'w' ? 'White' : 'Black') +
-         ', ' + MODES[mode].name + ')' + (s === 'check' ? ' — check!' : '') + promoNote() + voidNote() +
-         (MODES[mode].v.movesPerTurn > 1 ? ' — ' + game.left + ' move' + (game.left > 1 ? 's' : '') + ' left' : '') +
-         (M && game.yard && game.yard(myColor).length && game.yard(myColor).length < 40 && hasReviveUnit() ? ' — Fallen: ' + game.yard(myColor).map(t => GLYPH[t] || t).join(' ') : '') +
-         (game.turn === myColor && game.freeLeft && game.freeLeft() > 0 && game.freeLeft() < 5 ? ' — Herald: ' + game.freeLeft() + ' free step' + (game.freeLeft() > 1 ? 's' : '') + ' left' : '');
+         ', ' + MODES[mode].name + ')' + (s === 'check' ? ' · Check!' : '') + promoNote() + voidNote() +
+         (MODES[mode].v.movesPerTurn > 1 ? ' · ' + game.left + ' move' + (game.left > 1 ? 's' : '') + ' left' : '') +
+         (M && game.yard && game.yard(myColor).length && game.yard(myColor).length < 40 && hasReviveUnit() ? ' · Fallen: ' + game.yard(myColor).map(t => GLYPH[t] || t).join(' ') : '') +
+         (game.turn === myColor && game.freeLeft && game.freeLeft() > 0 && game.freeLeft() < 5 ? ' · Herald: ' + game.freeLeft() + ' free step' + (game.freeLeft() > 1 ? 's' : '') + ' left' : '');
 }
 
 // ---- cylinder chess view: a tilted, shaded barrel with faded 'beyond the edge' files that you can spin ----
@@ -1292,6 +1356,15 @@ function layoutGame() {                         // tells CSS how tall the board 
   m.style.setProperty('--asp', String(Math.max(0.4, asp)));
 }
 const view = { k: 1, x: 0, y: 0 };
+function handsOn() { const V = (MODES[mode] && MODES[mode].v) || {}; return !!(game && (game.bug || (V.neutral ? gs.neutralDrop : V.drops))); }
+function fitBigBoard() {                           // the zoomable board always ends inside the window, whatever sits above it
+  const wr = $('boardWrap'); if (!wr || !wr.classList.contains('zoomable') || $('game').classList.contains('hidden')) return;
+  const r = wr.getBoundingClientRect(), below = Math.max(0, $('gameMain').getBoundingClientRect().bottom - r.bottom);      // (a hand row etc. under the board)
+  const h = Math.max(320, Math.round(innerHeight - r.top - 12 - below));
+  if (wr.style.height !== h + 'px') { wr.style.height = h + 'px'; applyView(); }
+}
+function syncChrome() { $('gameMain').classList.toggle('nohands', !handsOn()); fitBigBoard(); requestAnimationFrame(fitBigBoard); }
+addEventListener('resize', () => fitBigBoard());
 let dragMoved = false, focusPx = 400;
 function viewMetrics() { const wr = $('boardWrap'), el = $('board'); return { vw: wr.clientWidth, vh: wr.clientHeight, bw: el.offsetWidth, bh: el.offsetHeight }; }
 function applyView() {
@@ -1313,7 +1386,7 @@ function fitView(px) {
 function setupBigBoard(cellPx, focusCells) {
   const wr = $('boardWrap');
   wr.classList.add('zoomable'); $('zoomCtl').classList.remove('hidden');
-  wr.style.height = Math.round(Math.max(380, innerHeight - 190)) + 'px';
+  wr.style.height = Math.max(320, Math.round(innerHeight - wr.getBoundingClientRect().top - 12)) + 'px';
   if (innerWidth > 900) document.body.classList.add('nopagescroll');      // the Infinite board fills the window: no page scrollbar
   focusPx = focusCells * cellPx;
   initZoomEvents();
@@ -1325,7 +1398,7 @@ function initZoomEvents() {
   wr._zoomReady = true;
   const ptrs = new Map(); let startDist = 1, startK = 1, downX = 0, downY = 0;
   wr.addEventListener('pointerdown', e => {
-    if (!wr.classList.contains('zoomable') || e.target.closest('#zoomCtl')) return;
+    if (!wr.classList.contains('zoomable') || e.target.closest('#zoomCtl') || e.button === 2) return;      // (right-drag draws arrows, it must not pan)
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); dragMoved = false; downX = e.clientX; downY = e.clientY;
     if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; startDist = Math.hypot(a.x - b.x, a.y - b.y) || 1; startK = view.k; }
   });
@@ -1512,15 +1585,17 @@ function renderStrip() {
   const seats = game.seats, k = Math.max(0, seats.indexOf(game.turn)), order = seats.map((_, i) => seats[(k + i) % seats.length]);
   el.innerHTML = ''; el.classList.remove('hidden');
   const showCheck = !gs.fog;
+  el.classList.toggle('compact', seats.length > 4);      // (8 seats on one slim row: only the player to move and the next one show a name; hover the others)
   order.forEach((c, i) => {
     const d = document.createElement('div'), alive = game.alive(c);
     d.className = 'tchip' + (i === 0 ? ' now' : i === 1 ? ' next' : '') + (alive ? '' : ' dead') + (game.teams ? ' tm' + game.teams[c] : '');
-    d.style.setProperty('--c', seatCol(c)); d.title = CN[c] + (game.teams ? ' — team ' + (game.teams[c] + 1) : '') + (alive ? '' : ' (out)');
+    d.style.setProperty('--c', seatCol(c)); d.title = CN[c] + (game.teams ? ', team ' + (game.teams[c] + 1) : '') + (alive ? '' : ' (out)');
     const av = document.createElement('span'); av.className = 'av'; fillAvatar(av, seatName(c), seatInfo[c] && seatInfo[c].p, seatInfo[c] && seatInfo[c].bot ? '#555' : seatCol(c)); if (seatInfo[c] && seatInfo[c].bot && !seatInfo[c].p) av.textContent = '🤖'; d.appendChild(av);
     const nm = document.createElement('span'); nm.className = 'tn'; nm.textContent = seatName(c) + (c === mySeat ? ' (you)' : ''); d.appendChild(nm);
     if (alive && i === 0 && !ended()) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'now'; d.appendChild(t); }
     if (alive && advWait === c) { const t = document.createElement('span'); t.className = 'tag adv'; t.textContent = 'waiting for advice'; t.title = 'A bot teammate waits a few seconds for advice: point at one of its pieces and then at the square'; d.appendChild(t); }
     else if (alive && i === 1 && !ended() && seats.length > 2) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'next'; d.appendChild(t); }
+    if (clk && !(seatInfo[c] && seatInfo[c].bot)) { const k = document.createElement('span'); k.className = 'tclk'; k.dataset.id = c; k.textContent = clkFmt(clkNow(c)); d.appendChild(k); }
     try { if (alive && showCheck && game.inCheck(c)) { const t = document.createElement('span'); t.className = 'chk'; t.textContent = '+'; t.title = 'in check'; d.appendChild(t); } } catch (e) { /* ignore */ }
     el.appendChild(d);
   });
@@ -1555,7 +1630,7 @@ const readDataURL = blob => new Promise((res, rej) => { const r = new FileReader
 async function prepareImage(file) {
   if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) throw new Error('Only PNG, JPEG, WebP and GIF pictures can be sent.');
   if (file.type === 'image/gif') {
-    if (file.size > GIF_CAP) throw new Error('That GIF is ' + fmtMB(file.size) + ' — the limit is ' + fmtMB(GIF_CAP) + ' (a GIF cannot be shrunk without freezing it).');
+    if (file.size > GIF_CAP) throw new Error('That GIF is ' + fmtMB(file.size) + '. The limit is ' + fmtMB(GIF_CAP) + ' (a GIF cannot be shrunk without freezing it).');
     return { url: await readDataURL(file), name: file.name || 'image.gif' };
   }
   const obj = URL.createObjectURL(file);
@@ -1595,7 +1670,7 @@ $('lightbox').onclick = () => $('lightbox').classList.add('hidden');
 function chatImage(src, remote) {
   const wrap = document.createElement('span'), mk = () => { const im = document.createElement('img'); im.className = 'cimg'; if (remote) im.referrerPolicy = 'no-referrer'; im.loading = 'lazy'; im.src = src; im.onclick = () => openLightbox(src); im.onerror = () => im.remove(); return im; };
   if (showImg) wrap.appendChild(mk());
-  else { const ph = document.createElement('span'); ph.className = 'cimgph'; ph.textContent = '[picture hidden — click to show]'; ph.onclick = () => { ph.replaceWith(mk()); }; wrap.appendChild(ph); }
+  else { const ph = document.createElement('span'); ph.className = 'cimgph'; ph.textContent = '[picture hidden, click to show]'; ph.onclick = () => { ph.replaceWith(mk()); }; wrap.appendChild(ph); }
   return wrap;
 }
 const imgLinkIn = text => { const m = String(text).match(/https?:\/\/[^\s<>"']+\.(?:gif|png|jpe?g|webp)(?:\?[^\s<>"']*)?/i); return m ? m[0] : ''; };
@@ -1654,7 +1729,7 @@ function pingBubble(pg) {
   const sp = document.createElement('span'); setGlyph(sp, pg.t); sp.className = 'pc-' + pg.owner + (FAIRY.includes(pg.t) ? ' fairy' : ''); b.appendChild(sp);
   if (pg.promo) { const pr = document.createElement('span'); pr.className = 'pbadge'; const q = document.createElement('span'); setGlyph(q, pg.promo); q.className = 'pc-' + pg.owner + (FAIRY.includes(pg.promo) ? ' fairy' : ''); pr.appendChild(q); b.appendChild(pr); }
   b.title = seatName(pg.from) + ' suggests this ' + (PNAMES[pg.t] || 'piece') + ' goes here' + (pg.promo ? ', promoting to ' + (PNAMES[pg.promo] || pg.promo) : '');
-  if (seatInfo[pg.owner] && seatInfo[pg.owner].bot && pingBad(pg)) { b.classList.add('bad'); b.title += ' — but that is not a legal move right now'; }
+  if (seatInfo[pg.owner] && seatInfo[pg.owner].bot && pingBad(pg)) { b.classList.add('bad'); b.title += ', but that is not a legal move right now'; }
   return b;
 }
 function startPing(s, d) {
@@ -1678,8 +1753,8 @@ function clearMyPings() { pings = pings.filter(q => q.from !== mySeat); if (!isH
 $('suggestBtn').onclick = () => { pingMode = !pingMode; pingSrc = null; sel = null; $('suggestBtn').classList.toggle('on', pingMode); render(); };
 let rcSrc = null;
 const cellXY = e => { const c = e.target.closest && e.target.closest('.sq'); return c && c.dataset.x != null ? { x: +c.dataset.x, y: +c.dataset.y } : null; };
-$('board').addEventListener('contextmenu', e => { if (game && game.multi && !spectating) e.preventDefault(); });
-$('board').addEventListener('mousedown', e => { if (e.button === 2 && game && game.multi && !spectating && !replay && !draft) rcSrc = cellXY(e); });
+$('board').addEventListener('contextmenu', e => { if (game) e.preventDefault(); });
+$('board').addEventListener('mousedown', e => { if (e.button === 2 && (e.ctrlKey || e.metaKey) && game && game.multi && !spectating && !replay && !draft) rcSrc = cellXY(e); });
 document.addEventListener('mouseup', e => { if (e.button !== 2 || !rcSrc) return; const s = rcSrc; rcSrc = null; const d = cellXY(e); if (!d || !game || !game.multi) return; if (d.x === s.x && d.y === s.y) { clearMyPings(); return; } startPing(s, d); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && (pingMode || pingSrc)) { pingMode = false; pingSrc = null; $('suggestBtn').classList.remove('on'); if (game) render(); } });
 
@@ -1758,10 +1833,10 @@ function rebindMulti(c, old) {
   conns[conns.indexOf(old)] = c;
   try { if (old.open) old.close(); } catch (e) { /* already closed */ }
   c.on('data', msg => hostRecv(c, msg));
-  c.on('close', () => { if (!c.replaced) addChat('', CN[c.seat] + ' disconnected — they can rejoin with the same link.', true); });
+  c.on('close', () => { if (!c.replaced) addChat('', CN[c.seat] + ' disconnected. They can rejoin with the same link.', true); });
   onOpen(c, () => {
     if (A4 && !game) a4SendResume(c);
-    else c.send({ type: 'resume', rec: buildRecord(), seat: c.seat, draft: draftFor(c.seat), a4x: A4 ? a4Extra(c.seat) : undefined });
+    else c.send({ type: 'resume', rec: buildRecord(), seat: c.seat, draft: draftFor(c.seat), a4x: A4 ? a4Extra(c.seat) : undefined, clk: clkSnap() });
     addChat('', CN[c.seat] + ' reconnected.', true);
   });
 }
@@ -1770,33 +1845,33 @@ function rebind2p(c) {
   if (old && old !== c) { old.replaced = true; try { old.close(); } catch (e) { /* already closed */ } }
   conn = c;
   c.on('data', handleMessage);
-  c.on('close', () => { if (!c.replaced) $('status').textContent = 'Opponent disconnected — they can rejoin with the same link.'; });
+  c.on('close', () => { if (!c.replaced) $('status').textContent = 'Opponent disconnected. They can rejoin with the same link.'; });
   onOpen(c, () => {
-    c.send({ type: 'resume', rec: buildRecord(), color: myColor === 'w' ? 'b' : 'w', draft: draftFor(myColor === 'w' ? 'b' : 'w') });
+    c.send({ type: 'resume', rec: buildRecord(), color: myColor === 'w' ? 'b' : 'w', draft: draftFor(myColor === 'w' ? 'b' : 'w'), clk: clkSnap() });
     addChat('', 'Opponent reconnected.', true);
   });
 }
 function addSpectator(c) {
   const early = (MODES[mode].multi && !mstarted) || (!MODES[mode].multi && !everJoined && !bots2p);
   if (M || A4 || !game || early) {
-    onOpen(c, () => { c.send({ type: 'mwait', text: (M || A4) ? "Spectating isn't available in Austang." : 'The game has not started yet — try the link again in a moment.' }); setTimeout(() => c.close(), 300); });
+    onOpen(c, () => { c.send({ type: 'mwait', text: (M || A4) ? "Spectating isn't available in Austang." : 'The game has not started yet. Try the link again in a moment.' }); setTimeout(() => c.close(), 300); });
     return;
   }
   c.spec = true; specs.push(c);
   c.on('data', msg => {                                   // spectators can only send chat, and only if the host allows it
-    if (msg && msg.type === 'resync') { c.send({ type: 'spec', rec: buildRecord(), chat: specChatOn }); return; }
+    if (msg && msg.type === 'resync') { c.send({ type: 'spec', rec: buildRecord(), chat: specChatOn, clk: clkSnap() }); return; }
     if (!msg || msg.type !== 'specChat' || !specChatOn || typeof msg.text !== 'string') return;
     const t = msg.text.trim().slice(0, 300), who = 'Spectator ' + (specs.indexOf(c) + 1);
     if (!t) return;
     addChat(who, t);
     if (game && game.multi) broadcast({ type: 'schat', who, text: t }); else send({ type: 'schat', who, text: t });
   });
-  onOpen(c, () => { c.send({ type: 'spec', rec: buildRecord(), chat: specChatOn }); addChat('', 'A spectator joined (' + specs.filter(x => x.open).length + ' watching).', true); });
+  onOpen(c, () => { c.send({ type: 'spec', rec: buildRecord(), chat: specChatOn, clk: clkSnap() }); addChat('', 'A spectator joined (' + specs.filter(x => x.open).length + ' watching).', true); });
   c.on('close', () => { specs = specs.filter(x => x !== c); addChat('', 'A spectator left.', true); });
 }
 function startRetry() {
   if (retryTimer || isHost || !roomCode) return;
-  retries = 0; $('status').textContent = 'Connection lost — trying to reconnect…';
+  retries = 0; $('status').textContent = 'Connection lost. Trying to reconnect…';
   const attempt = () => {
     if (retries++ > 25) { clearInterval(retryTimer); retryTimer = null; $('status').textContent = 'Could not reconnect. Reload the page or open the link again.'; return; }
     try { if (peer) peer.destroy(); } catch (e) { /* ignore */ }
@@ -1849,7 +1924,8 @@ let audioCtx = null, lastMyTurn = false, flashTimer = null;
   $('sndTest').onclick = () => { sfx('capture'); setTimeout(() => sfx('check'), 380); };
 })();
 var master = null, noiseBuf = null;
-function sndOut() { if (!master) { master = audioCtx.createGain(); master.connect(audioCtx.destination); } master.gain.value = (+$('volRange').value || 0) / 100; return master; }
+function sndOut() { if (!master) { master = audioCtx.createGain(); const lim = audioCtx.createWaveShaper(), cv = new Float32Array(2049); for (let i = 0; i < cv.length; i++) { const x = i / 1024 - 1, a = Math.abs(x); cv[i] = a < 0.5 ? x : Math.sign(x) * (0.5 + 0.5 * Math.tanh((a - 0.5) / 0.5)); } lim.curve = cv; master.connect(lim); lim.connect(audioCtx.destination); }      // (soft peak guard: layered sounds can never get harsh or clip)
+  master.gain.value = (+$('volRange').value || 0) / 100; return master; }
 const sndEnv = (g, t0, a, d, peak) => { g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t0 + a); g.gain.exponentialRampToValueAtTime(0.0001, t0 + a + d); };
 function sTone(f, t0, d, peak, type, f2) { const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.type = type || 'sine'; o.frequency.setValueAtTime(f, t0); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t0 + d); sndEnv(g, t0, 0.006, d, peak); o.connect(g); g.connect(sndOut()); o.start(t0); o.stop(t0 + d + 0.06); }
 function sNoise(t0, d, peak, type, freq, q) {
@@ -1863,7 +1939,7 @@ function sfx(name, base) {
   if (audioCtx.state === 'suspended') return;
   try {
     const t = audioCtx.currentTime + 0.01;
-    const tap = (t0, big) => { sNoise(t0, big ? 0.1 : 0.05, big ? 0.7 : 0.5, 'bandpass', big ? 700 : 1100, 1.1); sTone(big ? 120 : 175, t0, big ? 0.16 : 0.08, big ? 0.5 : 0.32, 'sine', big ? 70 : 120); if (big) sNoise(t0, 0.02, 0.35, 'highpass', 3500, 0.7); };
+    const tap = (t0, big) => { sNoise(t0, big ? 0.09 : 0.05, big ? 0.62 : 0.5, 'bandpass', big ? 850 : 1100, 1.1); sTone(big ? 150 : 175, t0, big ? 0.12 : 0.08, big ? 0.38 : 0.32, 'sine', big ? 95 : 120); if (big) sNoise(t0, 0.012, 0.08, 'highpass', 2600, 0.7); };      // (a capture sits a little above a move: no long low thump, no bright click)
     if (name === 'move') tap(t, false);
     else if (name === 'capture') tap(t, true);
     else if (name === 'castle') { tap(t, false); tap(t + 0.13, false); }
@@ -1891,6 +1967,356 @@ function moveSounds() {
   if (!sndEnded && ended()) { sndEnded = true; setTimeout(() => sfx('end'), 400); }
   sndLen = n; sndAlive = alive;
 }
+
+/* ============ BOARD FEEL: pieces slide, and can be dragged ============
+   Slide: render() snapshots the pieces before it rebuilds the board and compares afterwards; whatever moved is flown across by a floating copy
+   (castling, swaps, neutral monsters and so on come for free), captured pieces fade, shots fire a tracer.
+   Drag: pressing your own piece and moving the mouse picks it up (a tilting copy follows the pointer); letting go on a square runs the very same
+   click code a click would, so promotion pickers, hidden-move referees and friendly-fire checks all still work. Mouse only. */
+const animLoad = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v !== '0'; } catch (e) { return d; } };
+$('animChk').checked = animLoad('chessAnim', true); $('dragChk').checked = animLoad('chessDrag', true);
+$('animChk').onchange = e => { try { localStorage.setItem('chessAnim', e.target.checked ? '1' : '0'); } catch (x) { /* ignore */ } };
+$('dragChk').onchange = e => { try { localStorage.setItem('chessDrag', e.target.checked ? '1' : '0'); } catch (x) { /* ignore */ } };
+const animOn = () => $('animChk').checked && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+const boardSq = (x, y) => document.querySelector('#board .sq[data-x="' + x + '"][data-y="' + y + '"]:not(.ghost)');
+let animGame = null, animLen = 0, animJob = null, animLive = [], animSkip = null;
+function snapBoard() {
+  const m = new Map();
+  document.querySelectorAll('#board .sq[data-x]').forEach(sq => {
+    if (sq.classList.contains('ghost')) return;
+    const sp = sq.querySelector(':scope > span[data-pc]'); if (!sp) return;
+    m.set(sq.dataset.x + ',' + sq.dataset.y, { key: sp.className + '|' + sp.innerHTML, node: sp.cloneNode(true), sp, sq });
+  });
+  return m;
+}
+function animCancel() { animLive.forEach(a => { try { a.anim && a.anim.cancel(); } catch (e) { /* done */ } if (a.el) a.el.remove(); if (a.show) a.show(); }); animLive = []; }
+function animBefore() {
+  animCancel(); animJob = null;
+  if (!game || replay || draft || $('game').classList.contains('hidden')) return;
+  const h = game.history(), n = h.length;
+  if (game !== animGame) { animGame = game; animLen = n; arrows = []; circles = []; return; }
+  if (n !== animLen) { arrows = []; circles = []; }                       // the position changed: the old plans no longer apply
+  if (animOn() && n > animLen && n - animLen <= 3) animJob = { before: snapBoard(), m: h[n - 1] };
+  animLen = n;
+}
+function mkFlyer(node, sq, cls) {
+  const r = sq.getBoundingClientRect(), cs = getComputedStyle(sq), k = sq.offsetWidth ? r.width / sq.offsetWidth : 1;
+  const d = document.createElement('div'); d.className = 'sq flyer' + (cls ? ' ' + cls : '');
+  d.style.cssText = 'position:fixed;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;font-size:' + (parseFloat(cs.fontSize) * k) + 'px;pointer-events:none;z-index:40;background:none;overflow:visible;cursor:default';
+  d.appendChild(node.cloneNode(true)); document.body.appendChild(d); return d;
+}
+function animAfter() {
+  clkEnsure(); clkSync(); clkRender();
+  dragRefresh(); drawOverlay(); preRun();
+  const job = animJob; animJob = null; if (!job) return;
+  const after = snapBoard(), before = job.before, m = job.m, mk = (x, y) => x + ',' + y;
+  const rem = [...before.keys()].filter(k => !after.has(k) || after.get(k).key !== before.get(k).key);
+  const add = [...after.keys()].filter(k => !before.has(k) || before.get(k).key !== after.get(k).key);
+  const used = new Set(), pairs = [], center = k => { const sq = boardSq(...k.split(',')); if (!sq) return [0, 0]; const r = sq.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+  if (m && m.fx !== undefined && !m.shot && !m.shoot) {                       // the move itself: from -> to, even if the piece changed (promotion)
+    const a = mk(m.fx, m.fy), b = mk(m.tx, m.ty);
+    if (rem.includes(a) && add.includes(b)) { pairs.push([a, b, true]); used.add(a); used.add(b); }
+  }
+  add.forEach(b => {                                                           // everything else that moved: match identical pieces, nearest first
+    if (used.has(b)) return;
+    let best = null, bd = 1e9; const [bx, by] = center(b);
+    rem.forEach(a => { if (used.has(a) || before.get(a).key !== after.get(b).key) return; const [ax, ay] = center(a), d = Math.hypot(ax - bx, ay - by); if (d < bd) { bd = d; best = a; } });
+    if (best) { pairs.push([best, b, false]); used.add(best); used.add(b); }
+  });
+  if (pairs.length > 6) return;                                                // mass changes: just show the result
+  const skip = animSkip && performance.now() < animSkip.until ? animSkip.key : null; animSkip = null;
+  const live = a => animLive.push(a);
+  pairs.forEach(([a, b, main]) => {
+    if (main && skip === b) return;                                            // you dropped it there yourself: it is already in place
+    const to = after.get(b), fr = before.get(a), fSq = fr.sq.isConnected ? fr.sq : (boardSq(...a.split(',')) || fr.sq);
+    const r0 = fSq.getBoundingClientRect(), r1 = to.sq.getBoundingClientRect();
+    const dx = r1.left - r0.left, dy = r1.top - r0.top, cells = Math.hypot(dx, dy) / (r0.width || 1);
+    if (!cells) return;
+    const fl = mkFlyer(to.sp, fSq), ms = Math.round(Math.min(340, Math.max(130, 100 + 42 * Math.sqrt(cells))));
+    to.sp.style.visibility = 'hidden';
+    const anim = fl.animate([{ transform: 'translate(0,0)' }, { transform: 'translate(' + dx + 'px,' + dy + 'px)' }], { duration: ms, easing: 'cubic-bezier(.25,.8,.3,1)', fill: 'forwards' });
+    const done = () => { to.sp.style.visibility = ''; fl.remove(); };
+    anim.onfinish = done; live({ el: fl, anim, show: () => { to.sp.style.visibility = ''; } });
+  });
+  const hitKeys = new Set(); if (m && m.cap) hitKeys.add(mk(m.tx, m.ty)); if (m && m.hits) m.hits.forEach(q => hitKeys.add(mk(q.x, q.y)));
+  const srcs = new Set(pairs.map(p => p[0])), dsts = new Set(pairs.map(p => p[1]));
+  rem.forEach(k => {                                                           // captured pieces fade out where they stood
+    if (!hitKeys.has(k) || (srcs.has(k) && !dsts.has(k))) return;
+    const fr = before.get(k), sq = boardSq(...k.split(',')); if (!sq) return;
+    const fl = mkFlyer(fr.node, sq); fl.style.zIndex = 39;
+    const anim = fl.animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(.7)' }], { duration: 260, easing: 'ease-out', fill: 'forwards' });
+    anim.onfinish = () => fl.remove(); live({ el: fl, anim });
+  });
+  if (m && (m.shot || m.shoot) && m.fx !== undefined) {                        // a shot: a tracer from the shooter to the target
+    const a = boardSq(m.fx, m.fy), b = boardSq(m.tx, m.ty);
+    if (a && b) {
+      const r0 = a.getBoundingClientRect(), r1 = b.getBoundingClientRect(), dot = document.createElement('div'); dot.className = 'animdot';
+      dot.style.left = (r0.left + r0.width / 2) + 'px'; dot.style.top = (r0.top + r0.height / 2) + 'px'; document.body.appendChild(dot);
+      const anim = dot.animate([{ transform: 'translate(0,0)', opacity: 1 }, { transform: 'translate(' + (r1.left - r0.left) + 'px,' + (r1.top - r0.top) + 'px)', opacity: .9 }], { duration: 170, easing: 'ease-in', fill: 'forwards' });
+      anim.onfinish = () => dot.remove(); live({ el: dot, anim });
+    }
+  }
+  add.filter(k => !used.has(k)).slice(0, 4).forEach(k => {                      // pieces that simply appeared (drops, revivals): a little pop
+    const sp = after.get(k).sp; if (!sp || !sp.animate) return;
+    const anim = sp.animate([{ transform: 'scale(.4)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }], { duration: 180, easing: 'ease-out' });
+    live({ anim });
+  });
+}
+
+let dg = null;
+function dragEligible(x, y) {
+  if (!$('dragChk').checked || !game || replay || spectating || draft || ended() || swapMode || abMode || (typeof pingMode !== 'undefined' && pingMode)) return false;
+  const p = game.at(x, y); if (!p || p.wall || p.dead) return false;
+  if (!(game.multi ? p.c === mySeat && game.alive(mySeat) : p.c === myColor)) return false;
+  return isMyTurn() ? !(game.multi && game.neutralPending) : preOn();
+}
+function dragStop(keepGhost) {
+  const d = dg; if (!d) return; dg = null;
+  removeEventListener('pointermove', dragMove); removeEventListener('pointerup', dragEnd); removeEventListener('pointercancel', dragEnd); removeEventListener('keydown', dragKey, true);
+  if (d.raf) cancelAnimationFrame(d.raf);
+  document.body.classList.remove('dragging'); if (d.over) d.over.classList.remove('dragover');
+  if (d.sp) d.sp.style.opacity = '';
+  if (d.ghost && !keepGhost) d.ghost.remove();
+}
+function dragRefresh() {                                // the board was rebuilt while carrying a piece: find it again (or let go if it is gone)
+  if (!dg || !dg.started) return;
+  const sq = boardSq(dg.x, dg.y), sp = sq && sq.querySelector(':scope > span[data-pc]');
+  if (!sp) { dragStop(); return; }
+  sp.style.opacity = '.3'; dg.sp = sp;
+}
+function dragKey(e) { if (e.key === 'Escape') { e.stopPropagation(); dragSnap(); } }
+function dragSnap() {                                   // glide the carried piece back to where it came from
+  const d = dg; if (!d) return; const g = d.ghost;
+  dragStop(true);
+  if (!g) return;
+  const sp = d.sp; if (sp) sp.style.opacity = '.3';
+  const anim = g.animate([{ transform: g.style.transform }, { transform: 'translate(0,0) rotate(0deg) scale(1)' }], { duration: 150, easing: 'ease-out', fill: 'forwards' });
+  anim.onfinish = () => { g.remove(); if (sp) sp.style.opacity = ''; };
+}
+function dragMove(e) {
+  const d = dg; if (!d || e.pointerId !== d.id) return;
+  if (!d.started) {
+    if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 5) return;
+    const sq0 = boardSq(d.x, d.y); if (!sq0) { dragStop(); return; }
+    { const c0 = curSel(); if (!(c0 && c0.x === d.x && c0.y === d.y)) sq0.click(); }       // pick it up for real: the squares it can reach light up while you carry it
+    const sq = boardSq(d.x, d.y), sp = sq && sq.querySelector(':scope > span[data-pc]'), c1 = curSel();
+    if (!sp || !c1 || c1.x !== d.x || c1.y !== d.y) { dragStop(); return; }
+    const r = sq.getBoundingClientRect(); d.ox = r.left + r.width / 2; d.oy = r.top + r.height / 2; d.sp = sp;
+    d.ghost = mkFlyer(sp, sq, 'dragghost'); d.ghost.style.zIndex = 60; sp.style.opacity = '.3'; d.started = true; d.vel = 0; d.tilt = 0;
+    try { $('boardWrap').setPointerCapture(e.pointerId); } catch (x) { /* fine */ }
+    document.body.classList.add('dragging'); addEventListener('keydown', dragKey, true);
+    d.raf = requestAnimationFrame(dragFrame);
+  }
+  d.vel = d.vel * 0.6 + (e.clientX - d.lx) * 0.4; d.lx = e.clientX; d.px = e.clientX; d.py = e.clientY;
+  const el = document.elementFromPoint(e.clientX, e.clientY), sq = el && el.closest ? el.closest('#board .sq[data-x]') : null;
+  if (d.over !== sq) { if (d.over) d.over.classList.remove('dragover'); d.over = sq; if (sq) sq.classList.add('dragover'); }
+}
+function dragFrame() {                                  // the carried piece leans into the direction you shake it
+  const d = dg; if (!d || !d.started) return;
+  d.vel *= 0.82; d.tilt += (Math.max(-16, Math.min(16, d.vel * 1.7)) - d.tilt) * 0.25;
+  d.ghost.style.transform = 'translate(' + (d.px - d.ox) + 'px,' + (d.py - d.oy) + 'px) rotate(' + d.tilt.toFixed(2) + 'deg) scale(1.18)';
+  d.raf = requestAnimationFrame(dragFrame);
+}
+function dragEnd(e) {
+  const d = dg; if (!d || e.pointerId !== d.id) return;
+  if (!d.started) { dragStop(); return; }                            // never moved far enough: it was a plain click
+  const swallow = ev => { ev.stopPropagation(); ev.preventDefault(); };      // (the browser's own click after the release must not toggle the selection)
+  const arm = () => { addEventListener('click', swallow, { capture: true, once: true }); setTimeout(() => removeEventListener('click', swallow, true), 80); };
+  const el = document.elementFromPoint(e.clientX, e.clientY), sq = e.type === 'pointercancel' || !el || !el.closest ? null : el.closest('#board .sq[data-x]');
+  const tx = sq ? +sq.dataset.x : -1, ty = sq ? +sq.dataset.y : -1;
+  if (!sq || (tx === d.x && ty === d.y)) { arm(); dragSnap(); return; }
+  let legal = !isMyTurn();                                           // (a premove is checked when its turn comes, not now)
+  if (!legal) { try { legal = MODES[mode].v.hidden || selMoves().some(m => m.tx === tx && m.ty === ty) || (game.oct && selMoves().some(m => m.inplace)); } catch (x) { legal = true; } }
+  if (!legal) { arm(); dragSnap(); return; }
+  animSkip = { key: tx + ',' + ty, until: performance.now() + 700 };
+  dragStop(); sq.click(); arm();
+}
+$('boardWrap').addEventListener('pointerdown', e => {
+  if (e.button !== 0 || e.pointerType === 'touch' || dg) return;
+  const sq = e.target.closest ? e.target.closest('#board .sq[data-x]') : null; if (!sq || sq.classList.contains('ghost')) return;
+  const x = +sq.dataset.x, y = +sq.dataset.y; if (!dragEligible(x, y)) return;
+  e.stopPropagation();                                              // (so the zoom pan does not start from a piece)
+  dg = { x, y, id: e.pointerId, sx: e.clientX, sy: e.clientY, lx: e.clientX, px: e.clientX, py: e.clientY, started: false };
+  addEventListener('pointermove', dragMove); addEventListener('pointerup', dragEnd); addEventListener('pointercancel', dragEnd);
+}, true);
+
+/* ============ ARROWS, CIRCLES and PREMOVES (all drawn on one SVG layer inside the board) ============
+   Arrows/circles: right-drag / right-click, only on your own screen, gone when the position changes or you click the board.
+   Premove: click (or drag) one of your pieces and then a square while it is not your turn; it is played the moment your turn comes,
+   if it is legal then, and dropped silently if not. */
+const preLoad = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v !== '0'; } catch (e) { return d; } };
+$('preChk').checked = preLoad('chessPremove', true);
+$('preChk').onchange = e => { try { localStorage.setItem('chessPremove', e.target.checked ? '1' : '0'); } catch (x) { /* ignore */ } if (!e.target.checked) { pre = null; preSel = null; drawOverlay(); } };
+let arrows = [], circles = [], rcA = null, arrowPrev = null, pre = null, preSel = null, preGame = null;
+const isMyTurn = () => !!game && (game.multi ? game.turn === mySeat && game.alive(mySeat) : game.turn === myColor);
+const preOn = () => $('preChk').checked && !!game && !(MODES[mode].v && MODES[mode].v.hidden) && !game.bug && !ended() && !replay && !spectating && !draft;
+const curSel = () => isMyTurn() ? sel : preSel;
+const OV_COL = { g: '#3fae55', r: '#e04a4a', y: '#e6b800' };
+function drawOverlay() {
+  const board = $('board'), old = board.querySelector(':scope > svg.ov'); if (old) old.remove();
+  if (!game || $('game').classList.contains('hidden')) return;
+  const prev = arrowPrev;
+  if (!arrows.length && !circles.length && !prev && !pre && !preSel) return;
+  const NS = 'http://www.w3.org/2000/svg', W = board.clientWidth, H = board.clientHeight;
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('class', 'ov'); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  svg.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:7;overflow:visible';
+  const geo = (x, y) => { const sq = boardSq(x, y); return sq ? { cx: sq.offsetLeft + sq.offsetWidth / 2, cy: sq.offsetTop + sq.offsetHeight / 2, w: sq.offsetWidth, h: sq.offsetHeight, l: sq.offsetLeft, t: sq.offsetTop } : null; };
+  const add = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); svg.appendChild(e); return e; };
+  const rect = (x, y, fill) => { const g = geo(x, y); if (g) add('rect', { x: g.l, y: g.t, width: g.w, height: g.h, fill }); };
+  const arrow = (a, col, op) => {
+    const p = geo(a.fx, a.fy), q = geo(a.tx, a.ty); if (!p || !q) return;
+    const cs = (p.w + p.h) / 2, dx = q.cx - p.cx, dy = q.cy - p.cy, len = Math.hypot(dx, dy); if (!len) return;
+    const ux = dx / len, uy = dy / len, hl = cs * 0.42, hw = cs * 0.27, x0 = p.cx + ux * cs * 0.18, y0 = p.cy + uy * cs * 0.18, tx = q.cx - ux * cs * 0.08, ty = q.cy - uy * cs * 0.08;
+    const bx = tx - ux * hl, by = ty - uy * hl;
+    add('line', { x1: x0, y1: y0, x2: bx + ux * 2, y2: by + uy * 2, stroke: col, 'stroke-width': cs * 0.16, 'stroke-linecap': 'round', opacity: op });
+    add('polygon', { points: tx + ',' + ty + ' ' + (bx - uy * hw) + ',' + (by + ux * hw) + ' ' + (bx + uy * hw) + ',' + (by - ux * hw), fill: col, opacity: op });
+  };
+  if (preSel) rect(preSel.x, preSel.y, 'rgba(255,215,0,.40)');
+  if (pre) { rect(pre.fx, pre.fy, 'rgba(232,115,28,.50)'); rect(pre.tx, pre.ty, 'rgba(232,115,28,.50)'); arrow(pre, '#e8731c', .75); }
+  circles.forEach(c => { const g = geo(c.x, c.y); if (g) add('circle', { cx: g.cx, cy: g.cy, r: (g.w + g.h) / 4 * 0.9, fill: 'none', stroke: OV_COL[c.c], 'stroke-width': (g.w + g.h) / 2 * 0.07, opacity: .85 }); });
+  arrows.forEach(a => arrow(a, OV_COL[a.c], .82));
+  if (prev) { if (prev.fx === prev.tx && prev.fy === prev.ty) { const g = geo(prev.fx, prev.fy); if (g) add('circle', { cx: g.cx, cy: g.cy, r: (g.w + g.h) / 4 * 0.9, fill: 'none', stroke: OV_COL[prev.c], 'stroke-width': (g.w + g.h) / 2 * 0.07, opacity: .5 }); } else arrow(prev, OV_COL[prev.c], .5); }
+  board.appendChild(svg);
+}
+const ovCol = e => e.shiftKey ? 'r' : e.altKey ? 'y' : 'g';
+$('board').addEventListener('mousedown', e => {
+  if (e.button !== 2 || e.ctrlKey || e.metaKey || !game || $('game').classList.contains('hidden')) return;
+  const c = cellXY(e); if (c) { rcA = { x: c.x, y: c.y, c: ovCol(e) }; arrowPrev = { fx: c.x, fy: c.y, tx: c.x, ty: c.y, c: rcA.c }; drawOverlay(); }
+});
+document.addEventListener('mousemove', e => {
+  if (!rcA) return;
+  const el = document.elementFromPoint(e.clientX, e.clientY), c = el && el.closest ? cellXY({ target: el }) : null;
+  if (c && (!arrowPrev || arrowPrev.tx !== c.x || arrowPrev.ty !== c.y)) { arrowPrev = { fx: rcA.x, fy: rcA.y, tx: c.x, ty: c.y, c: rcA.c }; drawOverlay(); }
+});
+document.addEventListener('mouseup', e => {
+  if (e.button !== 2 || !rcA) return;
+  const a = rcA; rcA = null; arrowPrev = null;
+  const el = document.elementFromPoint(e.clientX, e.clientY), d = el && el.closest ? cellXY({ target: el }) : null;
+  if (d && game) {
+    if (d.x === a.x && d.y === a.y) {
+      const i = circles.findIndex(c => c.x === d.x && c.y === d.y);
+      if (i >= 0 && circles[i].c === a.c) circles.splice(i, 1); else if (i >= 0) circles[i].c = a.c; else circles.push({ x: d.x, y: d.y, c: a.c });
+    } else {
+      const i = arrows.findIndex(q => q.fx === a.x && q.fy === a.y && q.tx === d.x && q.ty === d.y);
+      if (i >= 0 && arrows[i].c === a.c) arrows.splice(i, 1); else if (i >= 0) arrows[i].c = a.c; else arrows.push({ fx: a.x, fy: a.y, tx: d.x, ty: d.y, c: a.c });
+    }
+  }
+  drawOverlay();
+});
+$('boardWrap').addEventListener('pointerdown', e => { if (e.button === 0 && (arrows.length || circles.length)) { arrows = []; circles = []; drawOverlay(); } }, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && game && (arrows.length || circles.length || pre || preSel)) { arrows = []; circles = []; pre = null; preSel = null; drawOverlay(); } });
+
+function preClick(x, y) {                               // true when the click was a premove click (so the normal click code is skipped)
+  if (!preOn() || isMyTurn()) return false;
+  const p = game.at(x, y), mine = !!p && !p.wall && !p.dead && (game.multi ? p.c === mySeat && game.alive(mySeat) : p.c === myColor);
+  if (preSel) {
+    if (preSel.x === x && preSel.y === y) { preSel = null; drawOverlay(); return true; }
+    if (!mine) { pre = { fx: preSel.x, fy: preSel.y, tx: x, ty: y }; preGame = game; preSel = null; drawOverlay(); return true; }
+    preSel = { x, y }; drawOverlay(); return true;        // another piece of yours: switch to it
+  }
+  if (mine) { preSel = { x, y }; drawOverlay(); return true; }
+  if (pre) { pre = null; drawOverlay(); return true; }     // clicking elsewhere cancels the queued premove
+  return false;
+}
+function preRun() {
+  if (!pre && !preSel) return;
+  if (!game || game !== preGame && pre || ended() || replay || draft || spectating) { pre = null; preSel = null; drawOverlay(); return; }
+  if (isMyTurn() && preSel) { preSel = null; drawOverlay(); }
+  if (!pre) return;
+  const p = game.at(pre.fx, pre.fy);
+  if (!p || !(game.multi ? p.c === mySeat : p.c === myColor)) { pre = null; drawOverlay(); return; }      // the piece was taken or has moved on
+  if (!isMyTurn()) return;
+  const q = pre, g = game; pre = null; drawOverlay();
+  setTimeout(() => {                                    // a beat after the last move, so you still see it
+    if (game !== g || !isMyTurn() || ended() || replay || draft) return;
+    const t = game.at(q.tx, q.ty); if (t && (game.multi ? t.c === mySeat : t.c === myColor)) return;
+    let c = []; try { c = game.moves(q.fx, q.fy).filter(m => m.tx === q.tx && m.ty === q.ty && !m.inplace); } catch (e) { c = []; }
+    if (!c.length) return;                              // not legal any more: dropped silently
+    const m = c.find(z => z.promo === 'q') || c[0];
+    sel = null; (game.multi ? playMulti : play)(withCk(m));
+  }, 140);
+}
+
+/* ============ CLOCKS (optional, set by the host in Game options) ============
+   The host owns the clock: whenever the turn changes it re-sends everybody's remaining time, and every screen just counts down locally in between.
+   Bots never use time. Running out of time is handled exactly like resigning (so "fallen armies" and friends apply). */
+var clk = null, clkGame = null, tcAllowed = false, timedOut = new Set();
+const clkOk = v => !!MODES[v] && !AUST_CFG[v] && !MODES[v].bug && !MODES[v].match && !MODES[v].match4;
+const TC_DUO = [['1+0', 'Bullet 1+0'], ['3+2', 'Blitz 3+2'], ['5+0', 'Blitz 5+0'], ['10+0', 'Rapid 10+0'], ['15+10', 'Rapid 15+10']];
+const TC_MULTI = [['3+3', 'Fast 3+3'], ['5+5', 'Quick 5+5'], ['10+5', 'Standard 10+5'], ['15+10', 'Long 15+10']];
+const TC_MODES = { duo: ['standard', 'crazyhouse', 'marseillais', 'cylinder', 'kriegspiel', 'alice', 'promotion'], multi: ['fourplayer', 'fourmars', 'fourcrazy', 'fourcyl', 'fourkrieg'] };
+let tcFor = null;
+function fillClockSel(v) {                                   // presets for the classic-like modes, a custom time for all of them
+  if (tcFor === v) return; tcFor = v;
+  const sel = $('tcSel'), keep = sel.value, list = TC_MODES.duo.includes(v) ? TC_DUO : TC_MODES.multi.includes(v) ? TC_MULTI : [];
+  sel.innerHTML = ''; sel.add(new Option('No clock', '')); list.forEach(([k, n]) => sel.add(new Option(n, k))); sel.add(new Option('Custom…', 'custom'));
+  sel.value = [...sel.options].some(o => o.value === keep) ? keep : ''; $('tcCustom').classList.toggle('hidden', sel.value !== 'custom');
+}
+$('tcSel').onchange = () => $('tcCustom').classList.toggle('hidden', $('tcSel').value !== 'custom');
+function tcRead() {
+  if (!tcAllowed) return { tcMin: 0, tcInc: 0 };
+  const v = $('tcSel').value; if (!v) return { tcMin: 0, tcInc: 0 };
+  if (v === 'custom') return { tcMin: Math.max(0, +$('tcMin').value || 0), tcInc: Math.max(0, Math.min(60, +$('tcInc').value || 0)) };
+  const p = v.split('+').map(Number); return { tcMin: p[0], tcInc: p[1] };
+}
+const clkBot = id => game.multi ? !!bots[id] : (!!bots2p && id !== myColor);
+function clkInit() {
+  clk = null;
+  if (!game || !(gs.tcMin > 0) || !clkOk(mode)) return;
+  const base = gs.tcMin * 60000, t = {}; (game.multi ? game.seats : ['w', 'b']).forEach(id => { t[id] = base; });
+  clk = { inc: (gs.tcInc || 0) * 1000, t, turn: game.turn, run: false, at: performance.now(), len: game.history().length, over: false };
+}
+function clkEnsure() { if (game !== clkGame) { clkGame = game; clkInit(); } }
+const clkNow = id => !clk || clk.t[id] === undefined ? 0 : (clk.run && clk.turn === id ? Math.max(0, clk.t[id] - (performance.now() - clk.at)) : clk.t[id]);
+function clkSnap() { if (!clk) return undefined; const t = {}; for (const id in clk.t) t[id] = Math.round(clkNow(id)); return { t, turn: clk.turn, run: clk.run }; }
+function clkApplySnap(sn) { clkEnsure(); if (!clk || !sn || !sn.t) return; clk.t = sn.t; clk.turn = sn.turn; clk.run = !!sn.run; clk.at = performance.now(); clk.len = game ? game.history().length : 0; }
+const clkShouldRun = () => !!clk && !!game && !draft && !ended() && clk.t[game.turn] !== undefined && !clkBot(game.turn) && !(game.multi && (game.neutralPending || !game.alive(game.turn)));
+function clkSend() { const msg = { type: 'clock', t: clk.t, turn: clk.turn, run: clk.run }; if (game.multi) broadcast(msg); else { send(msg); sendSpecs(msg); } }
+function clkSync() {                                          // host only: the turn changed, so settle the books and tell everyone
+  if (!clk || !isHost || !game || replay) return;
+  const n = game.history().length, now = performance.now(), run = clkShouldRun(), ov = !!ended();
+  if (n === clk.len && game.turn === clk.turn && run === clk.run && ov === clk.over) return;
+  const prev = clk.turn, wasRun = clk.run;
+  if (wasRun && clk.t[prev] !== undefined) clk.t[prev] = Math.max(0, clk.t[prev] - (now - clk.at));
+  if (wasRun && n > clk.len && game.turn !== prev && !ov && clk.t[prev] > 0) clk.t[prev] += clk.inc;
+  clk.turn = game.turn; clk.len = n; clk.at = now; clk.run = run; clk.over = ov;
+  clkSend();
+}
+function clkFlag(id) {                                        // the host saw this player's time run out
+  if (!clk || !game || ended()) return;
+  clk.t[id] = 0; clk.run = false;
+  if (game.multi) { if (!game.alive(id)) return; timedOut.add(id); logResign(id); game.resign(id); broadcast({ type: 'mtimeout', seat: id }); announceMulti(); }
+  else { over = (id === 'w' ? 'White' : 'Black') + ' ran out of time.'; overRes = id === 'w' ? 'b' : 'w'; send({ type: 'timeout', color: id }); sendSpecs({ type: 'timeout', color: id }); }
+  render();
+}
+function clkFmt(ms) {
+  ms = Math.max(0, ms);
+  if (ms < 10000) return Math.floor(ms / 1000) + '.' + Math.floor((ms % 1000) / 100);
+  const sec = Math.ceil(ms / 1000); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+}
+function clkRender() {
+  const top = $('clkTopRow'), bot = $('clkBotRow');
+  $('gameMain').classList.toggle('hasclk2', !!clk && !!game && !game.multi);
+  if (!clk || !game) { top.classList.add('hidden'); bot.classList.add('hidden'); return; }
+  if (game.multi) {
+    top.classList.add('hidden'); bot.classList.add('hidden');
+    document.querySelectorAll('#turnStrip .tclk').forEach(e => { const id = e.dataset.id, ms = clkNow(id); e.textContent = clkFmt(ms); e.classList.toggle('low', ms > 0 && ms < 30000); e.classList.toggle('out', ms <= 0); });
+    return;
+  }
+  const row = (el, id, label) => {
+    const ms = clkNow(id), on = clk.run && clk.turn === id && !ended();
+    el.innerHTML = '<span class="clkp' + (on ? ' on' : '') + (ms > 0 && ms < 30000 ? ' low' : '') + (ms <= 0 ? ' out' : '') + '"><b>' + label + '</b>' + clkFmt(ms) + '</span>';
+    el.classList.remove('hidden');
+  };
+  const me = myColor, opp = me === 'w' ? 'b' : 'w', nm = c => c === 'w' ? 'White' : 'Black';
+  row(bot, me, nm(me) + (spectating ? '' : ' (you)'));
+  if (bots2p) top.classList.add('hidden'); else row(top, opp, nm(opp));
+}
+setInterval(() => {
+  clkEnsure(); if (!clk) { clkRender(); return; }
+  clkRender();
+  if (isHost && game && !replay && clk.run) { const id = clk.turn; if (clkNow(id) <= 0) clkFlag(id); }
+}, 200);
 
 const baseTitle = document.title;
 document.addEventListener('pointerdown', () => {
@@ -2050,7 +2476,7 @@ const GRAND_GROUPS = [
 ];
 const OCT_GUIDE = [
   [Engine.NEUTRAL_T.boar, 'Boar', 'Wild: wanders, then now and then stops and <b>aims</b> (a red arrow shows the direction). Next round it <b>charges</b> that way until it hits a wall, a hole or a piece, capturing what it hits (never a king). You get one turn to dodge, block or capture it. Owned (dropped): see the diagram.', true],
-  [Engine.NEUTRAL_T.hound, 'Hound', 'Wild: hunts the nearest piece, up to 2 squares a round, capturing what it reaches (never a king). With neutral drops on you can capture it into your hand and drop it: then it is yours but <b>moves by itself</b> — you can never move it, and it never leaves your king in check. If it is captured again it is gone for good.', false],
+  [Engine.NEUTRAL_T.hound, 'Hound', 'Wild: hunts the nearest piece, up to 2 squares a round, capturing what it reaches (never a king). With neutral drops on you can capture it into your hand and drop it: then it is yours but <b>moves by itself</b>. You can never move it, and it never leaves your king in check. If it is captured again it is gone for good.', false],
   [Engine.NEUTRAL_T.burrower, 'Burrower', 'Wild: steps like a king, and every square it leaves becomes a <b>hole for 3 rounds</b>. A host option lets those holes also promote pawns. Owned: see the diagram.', true],
   [Engine.NEUTRAL_T.golem, 'Golem', 'Wild: steps like a king but only every second round. <b>Only rooks, queens and other straight sliders can capture it</b> (not pawns, knights, bishops or kings). Owned: see the diagram.', true],
   [Engine.NEUTRAL_T.boss, 'Boss', 'A 2×2 monster. See the rules above: crushes what it rolls over, costs your piece for every cell you take, can be killed or claimed on its last cell. It is drawn as one picture across its four cells: capture a cell and that part of the picture is gone.', false]
@@ -2108,7 +2534,7 @@ function wireGuide(container, kind, variant) {                // 'Show moves' bu
     b.closest('.pg').querySelector('.dgslot').classList.add('hidden');
   });
 }
-const guideRow = (t, n, d, icon, diag) => '<div class="pg" data-t="' + t.replace(/"/g, '') + '"><span class="pgi">' + icon + '</span><div><b>' + n + '</b> — ' + d + (diag ? '<div><button class="dgbtn">Show moves ▦</button><div class="dgslot"></div></div>' : '') + '</div></div>';
+const guideRow = (t, n, d, icon, diag) => '<div class="pg" data-t="' + t.replace(/"/g, '') + '"><span class="pgi">' + icon + '</span><div><b>' + n + '</b>: ' + d + (diag ? '<div><button class="dgbtn">Show moves ▦</button><div class="dgslot"></div></div>' : '') + '</div></div>';
 let pgDone = false;
 function fillPieceGuide() {
   if (pgDone) return; pgDone = true;
@@ -2222,15 +2648,17 @@ function botStep() {
   if (game.multi) { if (game.move(m)) { broadcast(mmoveMsg(m)); announceMulti(); render(); } }
   else if (game.move(m)) { send({ type: 'move', m }); announce(); render(); }
 }
+function applyColorPref() { const v = $('colSel').value; myColor = v === 'b' ? 'b' : v === 'r' ? (Math.random() < 0.5 ? 'w' : 'b') : 'w'; }
 function startVsBot(level) {
   if (!isHost || !game || MODES[mode].multi || M) return;
-  bots2p = level;
+  bots2p = level; applyColorPref();
   $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
   $('hostCtl').classList.remove('hidden'); $('modeSel2').value = mode;
   addChat('', 'You are playing against a bot (' + level + ').', true);
   if (needDraft()) beginDraft();
   render();
 }
+$('leaveRoomBtn').onclick = () => { location.href = location.origin + location.pathname; };
 $('botEasy').onclick = () => startVsBot('easy');
 $('botNormal').onclick = () => startVsBot('normal');
 const addLobbyBot = level => {
@@ -2252,7 +2680,7 @@ const TRAIT = id => Engine.TRAITS[id];
 const meId = () => (game.multi ? mySeat : myColor);
 const partIds = () => (game.multi ? game.seats : ['w', 'b']);
 const whoName = c => (game.multi ? CN[c] : c === 'w' ? 'White' : 'Black');
-const traitLine = (who, id) => who + ' used their trait: ' + TRAIT(id).name + ' — ' + TRAIT(id).desc;
+const traitLine = (who, id) => who + ' used their trait: ' + TRAIT(id).name + '. ' + TRAIT(id).desc;
 const bcast = m => (game.multi ? broadcast(m) : send(m));
 
 const CLS = id => Engine.CLASSES[id];
@@ -2309,7 +2737,7 @@ const isMate = pid => !!(game.teams && game.teams[pid] === game.teams[meId()]);
 function announceClassStart() {
   const me = meId();
   const mine = spectating ? null : gclasses[me];
-  if (mine) addChat('', 'Your class: ' + CLS(mine).name + ' — ' + CLS(mine).desc + ' Passive: ' + CLS(mine).passive.desc, true);
+  if (mine) addChat('', 'Your class: ' + CLS(mine).name + '. ' + CLS(mine).desc + ' Passive: ' + CLS(mine).passive.desc, true);
   partIds().forEach(pid => {
     if (pid === me && !spectating) return;
     if (gclasses[pid] && (spectating || !gs.clHide || isMate(pid))) addChat('', whoName(pid) + ' is a ' + CLS(gclasses[pid]).name + '.', true);
@@ -2319,8 +2747,8 @@ function announceTraitStart() {
   if (game && gclasses) announceClassStart();
   if (!gtraits || !game) return;
   const mine = gtraits[meId()];
-  if (mine) addChat('', 'Your trait (only you can see this): ' + TRAIT(mine).name + ' — ' + TRAIT(mine).desc, true);
-  if (game.teams && mine) partIds().forEach(pid => { if (pid !== meId() && game.teams[pid] === game.teams[meId()] && gtraits[pid]) addChat('', "Your teammate " + whoName(pid) + "'s trait: " + TRAIT(gtraits[pid]).name + ' — ' + TRAIT(gtraits[pid]).desc, true); });
+  if (mine) addChat('', 'Your trait (only you can see this): ' + TRAIT(mine).name + '. ' + TRAIT(mine).desc, true);
+  if (game.teams && mine) partIds().forEach(pid => { if (pid !== meId() && game.teams[pid] === game.teams[meId()] && gtraits[pid]) addChat('', "Your teammate " + whoName(pid) + "'s trait: " + TRAIT(gtraits[pid]).name + '. ' + TRAIT(gtraits[pid]).desc, true); });
 }
 function renderDraft() {
   const box = $('draftBox');
@@ -2330,7 +2758,7 @@ function renderDraft() {
   const line = t => { const d = document.createElement('div'); d.textContent = t; box.appendChild(d); };
   const btnHTML = id => { const d = DINFO(kind, id); return '<b>' + d.name + '</b><br><span>' + d.desc + '</span>' + (kind === 'class' ? '<br><span>Abilities: ' + d.abilities.map(a => a.name + ' (' + a.cost + ')').join(', ') + '</span>' : ''); };
   const h = document.createElement('div');
-  h.innerHTML = kind === 'class' ? '<b>Choose your class</b> — a passive power plus abilities you pay for with points.' : '<b>Choose your class trait</b> — it stays secret until it matters.';
+  h.innerHTML = kind === 'class' ? '<b>Choose your class</b>. A passive power plus abilities you pay for with points.' : '<b>Choose your class trait</b>. It stays secret until it matters.';
   box.appendChild(h);
   // Host-only hidden extra: click this heading 5 times quickly to unlock the full list for your own pick.
   h.onclick = () => {
@@ -2421,7 +2849,7 @@ function renderClassBar() {
     game.abilities(me).forEach(a => {
       const b = document.createElement('button');
       b.textContent = (a.replace ? '★ ' : '') + a.name + ' (' + a.cost + ')';
-      b.title = a.desc + (a.why ? ' — ' + a.why : '');
+      b.title = a.desc + (a.why ? ' · ' + a.why : '');
       b.disabled = !!a.why || ended();
       if (abMode === a.id) b.classList.add('on');
       b.onclick = () => {
@@ -2453,16 +2881,19 @@ function announceAbilities() {
   }
 }
 function specStatus() {
-  if (ended()) return 'Spectating — ' + $('status').textContent.replace(/\s*\(you are [^)]*\)/, '');
+  if (ended()) return 'Spectating: ' + $('status').textContent.replace(/\s*\(you are [^)]*\)/, '');
   if (!game) return 'Spectating';
-  if (game.bug) return 'Spectating — both boards are in play';
-  return 'Spectating — ' + (game.multi ? CN[game.turn] : game.turn === 'w' ? 'White' : 'Black') + ' to move';
+  if (game.bug) return 'Spectating: both boards are in play';
+  return 'Spectating: ' + (game.multi ? CN[game.turn] : game.turn === 'w' ? 'White' : 'Black') + ' to move';
 }
 let promoHint = false;                           // Imperial: an original Rook/Bishop/Knight is selected -> tint the zone where it would become a Grand piece
 function render() {
   teamLook(game ? game.teams : (A4 && A4.teams));
   promoHint = !!(game && game.imperial && game.inPromo && sel && !sel.drop && !replay && !spectating && (p => p && !p.dead && (p.o || 'pvm'.includes(p.t)) && 'rbnpvm'.includes(p.t) && p.c === meId())(game.at(sel.x, sel.y)));
+  animBefore();
   renderCore();
+  syncChrome();
+  animAfter();
   renderDraft();
   renderClassBar(); renderStackPick(); announceAbilities(); tidyHost();
   notifyTurn(); moveSounds();
@@ -2477,7 +2908,7 @@ function render() {
   if (abMode) { const ab = game.abilities(meId()).find(a => a.id === abMode); $('status').textContent = (ab ? ab.name : 'Ability') + (abFrom ? ': now click the destination/target square' : (ab && ab.steps === 2 ? ': first click the piece to use' : ': click a highlighted square')) + ' (click anywhere else to cancel).'; }
   if (game && !abMode && !replay && !spectating && game.overrunOf && game.overrunOf(meId()) && game.turn === meId() && !ended()) $('status').textContent = 'Overrun! Keep capturing with the marked piece' + (game.overrunOf(meId()).n ? ' or press End Overrun.' : '.');
   else if (!abMode && chargeSq && game.turn === meId() && !ended()) $('status').textContent = 'Charge! Move the marked piece' + (chargeSq.stage === 2 ? ' again (its second move).' : '.');
-  if (swapMode) $('status').textContent = 'Swap: ' + (swapFirst ? 'now pick the second piece (first: ' + sqName(swapFirst.x, swapFirst.y) + ')' : 'pick the first of your two pieces') + ' — not kings or pawns. Once per game.';
+  if (swapMode) $('status').textContent = 'Swap: ' + (swapFirst ? 'now pick the second piece (first: ' + sqName(swapFirst.x, swapFirst.y) + ')' : 'pick the first of your two pieces') + '. Not kings or pawns. Once per game.';
   $('endRoundBtn').classList.toggle('hidden', !(isHost && M && M.phase === 'play' && !ended()));
   $('botTakeBtn').classList.toggle('hidden', !(isHost && game && game.multi && !game.bug));
   const botNow = botSeatToMove();
@@ -2488,7 +2919,7 @@ function render() {
     $('replayBar').classList.remove('hidden');
     $('rpSlider').max = replay.total; $('rpSlider').value = replay.ply;
     $('rpLabel').textContent = 'Move ' + replay.ply + ' / ' + replay.total;
-    $('status').textContent = 'Replay — move ' + replay.ply + ' of ' + replay.total + (replay.queue.length ? ' (new moves are waiting)' : '');
+    $('status').textContent = 'Replay: move ' + replay.ply + ' of ' + replay.total + (replay.queue.length ? ' (new moves are waiting)' : '');
     $('replayBtn').classList.add('hidden');
     return;
   }
@@ -2497,14 +2928,14 @@ function render() {
   if (game && !game.multi && game.drainEvents) game.drainEvents();      // trait events are not announced
   if (game && gclasses && !draft && !replay && ended() && !revealedCl) {
     revealedCl = true;
-    addChat('', 'Classes this game: ' + partIds().map(p => whoName(p) + ' — ' + CLS(gclasses[p]).name).join(', ') + '.', true);
+    addChat('', 'Classes this game: ' + partIds().map(p => whoName(p) + ': ' + CLS(gclasses[p]).name).join(', ') + '.', true);
   }
   if (game && gtraits && !draft && !replay) {
     const mine = spectating ? null : gtraits[meId()];
     if (mine && !$('status').textContent.includes('Your trait')) $('status').textContent += ' · Your trait: ' + TRAIT(mine).name;
     if (ended() && !revealedAll) {
       revealedAll = true;
-      addChat('', 'Traits this game: ' + partIds().map(p => whoName(p) + ' — ' + TRAIT(gtraits[p]).name).join(', ') + '.', true);
+      addChat('', 'Traits this game: ' + partIds().map(p => whoName(p) + ': ' + TRAIT(gtraits[p]).name).join(', ') + '.', true);
     }
   }
 }
@@ -2552,7 +2983,7 @@ function renderCore() {
     const r = Math.floor(i / Wd), c = i % Wd, cc = cylOn ? c - 1 : c;
     const bx = myColor === 'w' ? cc : W - 1 - cc, x = cylOn ? cylMod(bx + cylShift, W) : bx, y = myColor === 'w' ? H - 1 - r : r;
     const p0 = g.at(x, y), fogged = !!seen && !seen.has(y * W + x), p = ((hid && p0 && p0.c !== myColor) || fogged) ? null : p0, d = document.createElement('div');
-    d.className = 'sq ' + ((x + y) % 2 === 1 ? 'l' : 'd');
+    d.className = 'sq ' + ((x + y) % 2 === 1 ? 'l' : 'd'); d.dataset.x = x; d.dataset.y = y;
     if (g.cut && g.cut(x, y)) { d.classList.add('cut'); el.appendChild(d); continue; }
     if (cylOn && (c === 0 || c === Wd - 1)) d.classList.add('ghost');
     if (sel && sel.x === x && sel.y === y) d.classList.add('sel');
@@ -2572,7 +3003,7 @@ function renderCore() {
       const s = document.createElement('span');
       setGlyph(s, shownType(p)); if (p.wall && g.wallLife) addWallNum(s, g.wallLife(x, y)); if (p.rc > 0) addWallNum(s, p.rc);      // (Reviver recharge countdown)
       s.className = (p.c === 'w' ? 'w-piece' : '') + (FAIRY.includes(p.t) ? ' fairy' : '') + (p.champ && p.c === myColor ? ' champ' : '') + fxClass(p);
-      d.appendChild(s);
+      s.dataset.pc = '1'; d.appendChild(s);
     }
     d.onclick = () => clickSq(x, y);
     el.appendChild(d);
@@ -2613,7 +3044,10 @@ let gsRoomState = null, roomKind = null;
 function updateAustUI() {
   if (typeof refreshModeBtn === 'function' && $('modeSel').options.length) refreshModeBtn();
   const room = !$('game').classList.contains('hidden');
-  if (room !== gsRoomState) { gsRoomState = room; $('gsBox').open = !room; $('gsNote').textContent = room ? '(apply from the next game — press New game' + (isHost && MODES[mode].multi ? ', or Back to room to change who plays too' : '') + ')' : ''; }
+  if (room !== gsRoomState) { gsRoomState = room; $('gsBox').open = !room; $('gsNote').textContent = room ? 'Applies from the next game: press New game' + (isHost && MODES[mode].multi ? ', or Back to room to change who plays too' : '') + '.' : ''; }
+  { const gb = $('gsBox'), hc = $('hostCtl');                  // in a game the options live in the Host controls panel instead of above the board
+    if (room && !hc.classList.contains('hidden')) { if (gb.parentNode !== hc) hc.appendChild(gb); }
+    else if (gb.parentNode !== $('lobby').parentNode) $('lobby').after(gb); }
   // In a room the mode picker only lists modes this room can actually switch to.
   if (room && isHost && game) {
     const kind = game.bug ? 'bug' : game.hex ? 'hex' : game.multi ? 'm4' : '2p';
@@ -2631,7 +3065,9 @@ function updateAustUI() {
   const v = room ? (isHost ? $('modeSel2').value : '') : $('modeSel').value;
   $('austSettings').classList.toggle('hidden', !AUST_CFG[v]); if (AUST_CFG[v]) syncAustSettings(v);
   const op = (MODES[v] && MODES[v].opts) || [];
-  $('gsBox').classList.toggle('hidden', !op.length);
+  tcAllowed = clkOk(v); $('gsClock').classList.toggle('hidden', !tcAllowed); fillClockSel(v);
+  const colOk = !MODES[v].multi && !room; $('gsColor').classList.toggle('hidden', !colOk);
+  $('gsBox').classList.toggle('hidden', !op.length && !tcAllowed && !colOk);
   $('gsDrop').classList.toggle('hidden', !op.includes('drop'));
   $('gsFog').classList.toggle('hidden', !op.includes('fog'));
   $('gsTeams').classList.toggle('hidden', !op.includes('teams'));
@@ -2712,7 +3148,7 @@ function buildPicker(hb, o) {
     const b = document.createElement('button');
     const lim = o.lim && o.lim[t], n = o.count(t);
     b.innerHTML = glyphHTML(t) + '<span class="pc">' + (c.cost[t] ? c.cost[t] : '') + '</span>' + (lim != null ? '<small>' + n + '/' + lim + '</small>' : '');
-    b.title = PNAMES[t] + ' — ' + c.cost[t] + ' point' + (c.cost[t] === 1 ? '' : 's') + (lim != null ? ' (max ' + lim + ')' : '');
+    b.title = PNAMES[t] + ': ' + c.cost[t] + ' point' + (c.cost[t] === 1 ? '' : 's') + (lim != null ? ' (max ' + lim + ')' : '');
     if (lim != null && n >= lim) b.classList.add('full');
     if (pal === t) b.classList.add('on');
     b.onclick = () => { pal = t; render(); };
@@ -2741,7 +3177,7 @@ function renderPieceDemo(ctx) {                    // what the selected piece do
   const g = Diagrams.grid2p(Engine, ctx.v, pal, Object.assign({ R: 5 }, Diagrams.states('grand', pal)[0].o));
   left.appendChild(diagramEl(g, glyphHTML(pal)));
   const right = document.createElement('div'); right.className = 'pdtxt';
-  right.innerHTML = '<b>' + PNAMES[pal] + '</b> — ' + c.cost[pal] + ' point' + (c.cost[pal] === 1 ? '' : 's') + (lim != null ? ' · max ' + lim : '') + '<br>' + info[2];
+  right.innerHTML = '<b>' + PNAMES[pal] + '</b>: ' + c.cost[pal] + ' point' + (c.cost[pal] === 1 ? '' : 's') + (lim != null ? ' · max ' + lim : '') + '<br>' + info[2];
   const lg = document.createElement('div'); lg.className = 'dgl'; const seen = new Set();
   g.rows.forEach(r => [...r].forEach(ch => { if (MARK_TXT[ch]) seen.add(ch); }));
   ['m', 'c', 'b', 's', 'x'].filter(k => seen.has(k)).forEach(k => { const sp = document.createElement('span'); sp.innerHTML = '<i class="mk ' + k + '"></i>' + MARK_TXT[k]; lg.appendChild(sp); });
@@ -2772,9 +3208,9 @@ function renderSetup() {
     el.appendChild(d);
   }
   const st = mineStats();
-  $('status').textContent = 'Round ' + M.round + '/' + M.s.rounds + ' — build your army. Points ' + st.s + '/' + M.pool[myColor] +
-    ' · pieces ' + st.n + '/' + M.s.cap + (setupMsg ? ' — ' + setupMsg : '') +
-    (locked ? ' — waiting for opponent…' : (M.opp && M.opp.round === M.round ? ' — opponent is ready' : ''));
+  $('status').textContent = 'Round ' + M.round + '/' + M.s.rounds + ': build your army. Points ' + st.s + '/' + M.pool[myColor] +
+    ' · pieces ' + st.n + '/' + M.s.cap + (setupMsg ? ' · ' + setupMsg : '') +
+    (locked ? ' · waiting for opponent…' : (M.opp && M.opp.round === M.round ? ' · opponent is ready' : ''));
   $('handTop').innerHTML = '';
   const hb = $('handBot'); hb.innerHTML = ''; hb.classList.remove('picker');
   if (!locked) buildPicker(hb, { cfg: c, lim: M.s.lim, count: t => countOf(m, t) });
@@ -2805,7 +3241,7 @@ function startRound() {
   const o = mk(other);
   if (o.inCheck()) game = o;   // the side not due to move is already in check, so it must move first
   M.phase = 'play'; over = null; overRes = null; sel = null;
-  addChat('', 'Round ' + M.round + ' begins — ' + (game.turn === 'w' ? 'White' : 'Black') + ' moves first.', true);
+  addChat('', 'Round ' + M.round + ' begins. ' + (game.turn === 'w' ? 'White' : 'Black') + ' moves first.', true);
 }
 
 function finishRound() {
@@ -2965,7 +3401,7 @@ function startRound4(armies, first) {
   A4.armies = armies; A4.first = first; A4.phase = 'play'; A4.counted = 0;
   newGame(mode, null, { seats: A4.seats, gs, a4round: true });
   sel = null; $('promo').classList.add('hidden');
-  addChat('', 'Round ' + A4.round + '/' + A4.s.rounds + ' begins — ' + CN[first] + ' moves first. All armies are revealed!', true);
+  addChat('', 'Round ' + A4.round + '/' + A4.s.rounds + ' begins. ' + CN[first] + ' moves first. All armies are revealed!', true);
   render();
 }
 function finishRound4() {
@@ -2995,9 +3431,9 @@ function a4ScoreLine() {
 }
 function a4StatusExtra() {
   let t = '';
-  if (A4.phase === 'between') t += A4.round < A4.s.rounds ? (isHost ? ' — press “Continue to next round”.' : ' — waiting for the host to continue.') : ' — match over.';
-  if (game && game.yard && game.yard(mySeat).length && game.yard(mySeat).length < 40 && hasReviveUnit()) t += ' — Fallen: ' + game.yard(mySeat).map(x => GLYPH[x] || x).join(' ');
-  if (game && game.turn === mySeat && game.freeLeft && game.freeLeft() > 0 && game.freeLeft() < 5 && !ended()) t += ' — Herald: ' + game.freeLeft() + ' free step' + (game.freeLeft() > 1 ? 's' : '') + ' left';
+  if (A4.phase === 'between') t += A4.round < A4.s.rounds ? (isHost ? ' · Press “Continue to next round”.' : ' · Waiting for the host to continue.') : ' · Match over.';
+  if (game && game.yard && game.yard(mySeat).length && game.yard(mySeat).length < 40 && hasReviveUnit()) t += ' · Fallen: ' + game.yard(mySeat).map(x => GLYPH[x] || x).join(' ');
+  if (game && game.turn === mySeat && game.freeLeft && game.freeLeft() > 0 && game.freeLeft() < 5 && !ended()) t += ' · Herald: ' + game.freeLeft() + ' free step' + (game.freeLeft() > 1 ? 's' : '') + ' left';
   return t;
 }
 function a4Arm(el, setup, seat, onclick) {            // one player's 10x5 arm, own back rank at the bottom
@@ -3017,11 +3453,11 @@ function renderSetup4() {
   $('capA').classList.add('hidden');
   a4Arm($('board'), m, mySeat, locked ? null : a4Place);
   const w2 = $('board2Wrap');
-  if (mate) { w2.classList.remove('hidden'); w2.querySelector('.lbl').textContent = CN[mate] + ' (your partner) — live view of their build'; a4Arm($('board2'), A4.mate[mate] || {}, mate, null); }
+  if (mate) { w2.classList.remove('hidden'); w2.querySelector('.lbl').textContent = CN[mate] + ' (your partner): live view of their build'; a4Arm($('board2'), A4.mate[mate] || {}, mate, null); }
   else w2.classList.add('hidden');
   const st = a4Stats(m), rd = A4.seats.filter(sd => A4.ready[sd]).map(sd => CN[sd]);
-  $('status').textContent = 'Round ' + A4.round + '/' + A4.s.rounds + ' — build your army (you are ' + CN[mySeat] + '). Points ' + st.s + '/' + A4.pool[mySeat] + ' · pieces ' + st.n + '/' + A4.s.cap +
-    (setupMsg ? ' — ' + setupMsg : '') + (locked ? ' — waiting for the others…' : '') + (rd.length ? ' · Ready: ' + rd.join(', ') : '');
+  $('status').textContent = 'Round ' + A4.round + '/' + A4.s.rounds + ': build your army (you are ' + CN[mySeat] + '). Points ' + st.s + '/' + A4.pool[mySeat] + ' · pieces ' + st.n + '/' + A4.s.cap +
+    (setupMsg ? ' · ' + setupMsg : '') + (locked ? ' · waiting for the others…' : '') + (rd.length ? ' · Ready: ' + rd.join(', ') : '');
   $('handTop').innerHTML = '';
   const hb = $('handBot'); hb.innerHTML = ''; hb.classList.remove('picker');
   if (!locked) buildPicker(hb, { cfg: c, lim: A4.s.lim, count: t => countOf(m, t) });
@@ -3089,30 +3525,72 @@ const seatHex = c => (octMode() ? OCT_HEX[c] : SEAT_HEX[c]);
 const teamCounts = () => { const cnt = Array(teamCount()).fill(0); cnt[normTeam(hostTeam)]++; conns.filter(x => x.ready).forEach(x => cnt[normTeam(x.team)]++); lobbyBots.forEach(b => cnt[normTeam(b.team)]++); return cnt; };
 const lightestTeam = cnt => cnt.indexOf(Math.min(...cnt));
 const teamsOn = () => !!MODES[mode].bug || (MODES[mode].oct ? $('teams8Sel').value !== 'ffa' : (!!(MODES[mode].opts || []).includes('teams') && $('teamsChk').checked));
+var hostPref = null;                                         // the seat each player asked for (null = whatever is left)
+const hostObj = { get team() { return hostTeam; }, get pref() { return hostPref; }, set pref(v) { hostPref = v; } };
+const lobbyPlayers = () => [hostObj].concat(conns.filter(c => c.ready)).concat(lobbyBots);
 function lobbySeats() {
-  const players = [{ team: hostTeam }].concat(conns.filter(c => c.ready)).concat(lobbyBots), order = octMode() ? Engine.OCT_ORDER : ['r', 'b', 'y', 'g'];
-  if (teamsOn()) {
-    const slots = TEAM_SLOTS(), used = slots.map(() => 0);
-    const by = players.map(p => { const t = normTeam(p.team); return slots[t][used[t]++]; });
+  const players = lobbyPlayers(), order = octMode() ? Engine.OCT_ORDER : ['r', 'b', 'y', 'g'], by = Array(players.length), taken = new Set();
+  if (teamsOn()) {                                           // a team's colours are fixed; within it everybody may pick a free one
+    const slots = TEAM_SLOTS();
+    players.forEach((p, k) => { const t = normTeam(p.team); if (p.pref && slots[t].includes(p.pref) && !taken.has(p.pref)) { by[k] = p.pref; taken.add(p.pref); } });
+    players.forEach((p, k) => { if (by[k]) return; const s = slots[normTeam(p.team)].find(x => !taken.has(x)); by[k] = s; taken.add(s); });
     return { seats: order.filter(c => by.includes(c)), by };
   }
-  const seats = seatsFor(mode, players.length);
-  return { seats, by: seats.slice() };
+  const all = MODES[mode].all || order, def = seatsFor(mode, players.length);
+  players.forEach((p, k) => { if (p.pref && all.includes(p.pref) && !taken.has(p.pref)) { by[k] = p.pref; taken.add(p.pref); } });
+  const pool = def.filter(x => !taken.has(x)).concat(all.filter(x => !taken.has(x) && !def.includes(x)));
+  players.forEach((p, k) => { if (!by[k]) { const x = pool.shift(); by[k] = x; taken.add(x); } });
+  return { seats: all.filter(c => by.includes(c)), by };
+}
+const seatChoices = p => teamsOn() ? TEAM_SLOTS()[normTeam(p.team)].slice() : (MODES[mode].all || []).slice();
+const seatLabel = c => (teamsOn() && !octMode() ? SEAT_NAME[c] : CN[c]) || c;
+function setPref(p, seat, force) {                           // a free colour is simply taken; a taken one is swapped, but only when the host asks for it
+  const ls = lobbySeats(), players = lobbyPlayers(), k = players.indexOf(p);
+  if (k < 0 || !seatChoices(p).includes(seat) || MODES[mode].match4) return false;
+  const holder = ls.by.indexOf(seat); if (holder === k) return true;
+  if (holder >= 0) { if (!force) return false; players[holder].pref = ls.by[k]; }
+  p.pref = seat; return true;
+}
+function pickSwatches(pl, ls) {
+  const span = document.createElement('span'), k = lobbyPlayers().indexOf(pl); span.className = 'rpick';
+  if (k < 0 || MODES[mode].match4 || seatChoices(pl).length < 2) return span;
+  seatChoices(pl).forEach(sc => {
+    const b = document.createElement('button'), holder = ls.by.indexOf(sc), mine = holder === k; b.type = 'button'; b.className = 'swt' + (mine ? ' mine' : holder >= 0 ? ' taken' : ''); b.style.background = seatHex(sc);
+    b.title = seatLabel(sc) + (mine ? ' (current colour)' : holder >= 0 ? ' (taken: click to swap)' : ' (free)');
+    b.onclick = () => { if (mine) return; setPref(pl, sc, true); renderRoster(); }; span.appendChild(b);
+  });
+  return span;
+}
+function pickInfo(c, ls) {
+  const k = lobbyPlayers().indexOf(c); if (k < 0 || MODES[mode].match4 || seatChoices(c).length < 2) return null;
+  return { opts: seatChoices(c).map(sc => ({ s: sc, hex: seatHex(sc), name: seatLabel(sc), mine: ls.by[k] === sc, free: ls.by.indexOf(sc) < 0 })) };
+}
+function drawSeatPick(p) {                                   // guests: pick one of the colours nobody has yet
+  const el = $('seatPick'); el.innerHTML = '';
+  if (!p || !p.opts) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden'); el.appendChild(document.createTextNode('Your colour:'));
+  p.opts.forEach(o => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'swt' + (o.mine ? ' mine' : o.free ? '' : ' taken'); b.style.background = o.hex;
+    b.title = o.name + (o.mine ? ' (yours)' : o.free ? ' (free: click to take it)' : ' (taken)');
+    b.onclick = () => { if (o.mine || !o.free) return; send({ type: 'pickseat', seat: o.s }); }; el.appendChild(b);
+  });
+  const n = document.createElement('div'); n.className = 'dim'; n.textContent = 'Click a free colour to take it. The host can also move you.'; el.appendChild(n);
 }
 const SEAT_HEX = { r: '#ff5a5a', y: '#ff9a3c', b: '#5aa0ff', g: '#3fd6cf' }, SEAT_NAME = { r: 'Red', y: 'Orange', b: 'Blue', g: 'Teal' };      // 2v2 look
 function renderRoster() {
   const r = $('roster'); r.innerHTML = '';
   const tOn = teamsOn(), ready = conns.filter(c => c.ready), bug = !!MODES[mode].bug;
   // everybody in lobby order: host, joined players, bots
-  const rows = [{ name: myName() + ' (you, host)', pfp: profile.pfp, get team() { return hostTeam; }, flip: () => { hostTeam = (normTeam(hostTeam) + 1) % teamCount(); } }]
-    .concat(ready.map((c, i) => ({ name: cleanName(c.name) || 'Player ' + (i + 2), pfp: c.pfp, get team() { return c.team; }, flip: () => { c.team = (normTeam(c.team) + 1) % teamCount(); }, kick: () => kickConn(c) })))
-    .concat(lobbyBots.map(b => ({ name: 'Bot (' + b.level + ')', bot: true, get team() { return b.team; }, flip: () => { b.team = (normTeam(b.team) + 1) % teamCount(); }, kick: () => { lobbyBots.splice(lobbyBots.indexOf(b), 1); renderRoster(); } })));
-  const n = rows.length, by = (tOn || octMode()) ? lobbySeats().by : [], tNames = c => (octMode() ? CN[c] : SEAT_NAME[c]);
+  const rows = [{ name: myName() + ' (you, host)', pl: hostObj, pfp: profile.pfp, get team() { return hostTeam; }, flip: () => { hostPref = null; hostTeam = (normTeam(hostTeam) + 1) % teamCount(); } }]
+    .concat(ready.map((c, i) => ({ name: cleanName(c.name) || 'Player ' + (i + 2), pl: c, pfp: c.pfp, get team() { return c.team; }, flip: () => { c.pref = null; c.team = (normTeam(c.team) + 1) % teamCount(); }, kick: () => kickConn(c) })))
+    .concat(lobbyBots.map(b => ({ name: 'Bot (' + b.level + ')', pl: b, bot: true, get team() { return b.team; }, flip: () => { b.pref = null; b.team = (normTeam(b.team) + 1) % teamCount(); }, kick: () => { lobbyBots.splice(lobbyBots.indexOf(b), 1); renderRoster(); } })));
+  const ls0 = lobbySeats(), n = rows.length, by = (tOn || octMode()) ? ls0.by : [], tNames = c => (octMode() ? CN[c] : SEAT_NAME[c]);
   const mk = (row, k) => {
     const d = document.createElement('div'); d.className = 'rrow';
     if ((tOn || octMode()) && by[k]) { const dot = document.createElement('span'); dot.className = 'rdot'; dot.style.background = seatHex(by[k]); dot.title = tNames(by[k]); d.appendChild(dot); }
     { const av = document.createElement('span'); av.className = 'av sm'; fillAvatar(av, row.name, row.pfp, row.bot ? '#555' : '#6b7f4e'); if (row.bot && !row.pfp) av.textContent = '🤖'; av.style.marginRight = '6px'; av.style.verticalAlign = 'middle'; d.appendChild(av); }
     d.appendChild(document.createTextNode(row.name + ' '));
+    d.appendChild(pickSwatches(row.pl, ls0));
     if (tOn) { const t = document.createElement('button'); t.textContent = teamCount() === 2 ? 'Move to Team ' + 'AB'[normTeam(row.team) ^ 1] + ' ⇄' : 'Next team ⇄ (Team ' + (normTeam(row.team) + 1) + ')'; t.onclick = () => { row.flip(); renderRoster(); }; d.appendChild(t); d.appendChild(document.createTextNode(' ')); }
     if (row.kick) { const kb = document.createElement('button'); kb.textContent = row.kick === undefined ? '' : (row.bot ? 'Remove' : 'Kick'); kb.onclick = row.kick; d.appendChild(kb); }
     return d;
@@ -3123,7 +3601,7 @@ function renderRoster() {
       const col = document.createElement('div'); col.className = 'tcol t' + t;
       const members = rows.map((row, k) => ({ row, k })).filter(o => normTeam(o.row.team) === t);
       const h = document.createElement('div'); h.className = 'thead';
-      h.textContent = octMode() ? 'Team ' + (t + 1) + ' — ' + TEAM_SLOTS()[t].map(c => CN[c]).join(', ') + ' (' + members.length + '/' + teamCap() + ')' : 'Team ' + 'AB'[t] + ' — ' + (t ? 'Blue & Teal' : 'Red & Orange') + ' (' + members.length + '/2)';
+      h.textContent = octMode() ? 'Team ' + (t + 1) + ': ' + TEAM_SLOTS()[t].map(c => CN[c]).join(', ') + ' (' + members.length + '/' + teamCap() + ')' : 'Team ' + 'AB'[t] + ': ' + (t ? 'Blue & Teal' : 'Red & Orange') + ' (' + members.length + '/2)';
       col.appendChild(h);
       members.forEach(o => col.appendChild(mk(o.row, o.k)));
       if (!members.length) { const e = document.createElement('div'); e.className = 'dim'; e.textContent = '(empty)'; col.appendChild(e); }
@@ -3145,12 +3623,12 @@ function renderRoster() {
   } else if (n >= 2) {
     const note = document.createElement('div'); note.className = 'dim'; note.textContent = octMode() ? 'Everybody for themselves. Pick Teams in the 8-player options for 2v2v2v2 or 4v4.' : 'Tick “2v2 teams” above to choose who plays with whom.'; r.appendChild(note);
   }
-  if (MODES[mode].match4 && lobbyBots.length) { ok = false; const nb = document.createElement('div'); nb.className = 'dim'; nb.textContent = 'Bots can’t build armies — remove them to play Austang 4-Player.'; r.appendChild(nb); }
-  if (n > maxSeats()) { ok = false; const nb = document.createElement('div'); nb.className = 'dim'; nb.textContent = MODES[mode].name + ' seats at most ' + maxSeats() + ' players — remove some, or pick another mode.'; r.appendChild(nb); }
+  if (MODES[mode].match4 && lobbyBots.length) { ok = false; const nb = document.createElement('div'); nb.className = 'dim'; nb.textContent = 'Bots can’t build armies. Remove them to play Austang 4-Player.'; r.appendChild(nb); }
+  if (n > maxSeats()) { ok = false; const nb = document.createElement('div'); nb.className = 'dim'; nb.textContent = MODES[mode].name + ' seats at most ' + maxSeats() + ' players. Remove some, or pick another mode.'; r.appendChild(nb); }
   $('startBtn').disabled = !ok;
   $('startBtn').textContent = 'Start game (' + n + ' player' + (n > 1 ? 's' : '') + ')';
   const info = roomSummary(), prev = previewData(); drawPreview(prev);
-  ready.forEach((c, i) => c.send({ type: inRoom ? 'mroom' : 'mwait', prev, text: (inRoom ? 'Back in the room.\n' : '') + info + '\nYou are player ' + (i + 2) + ' of ' + n + ' so far — waiting for the host to start…' }));
+  ready.forEach((c, i) => c.send({ type: inRoom ? 'mroom' : 'mwait', prev, pick: pickInfo(c, ls0), text: (inRoom ? 'Back in the room.\n' : '') + info + '\nYou are player ' + (i + 2) + ' of ' + n + ' so far. Waiting for the host to start…' }));
 }
 // A small picture of the board as it will start (host builds it from the current room settings and sends the same data to the guests).
 const previewSkip = m => !MODES[m].multi || MODES[m].bug || MODES[m].match4 || /alice/.test(m);
@@ -3196,12 +3674,12 @@ function drawPreview(data) {
 // ---------- mode cards ----------
 const MODE_DESC = {
   standard: 'The classic game. Optional traits, classes, Chess960 and fog of war.', crazyhouse: 'Captured pieces go to your hand and can be dropped back on the board.', marseillais: 'Every turn you make two moves.',
-  cylinder: 'The board wraps around: the a-file touches the h-file.', kriegspiel: 'You cannot see enemy pieces — you only hear what happened.', austang: 'Build your own army from a budget, then play.',
+  cylinder: 'The board wraps around: the a-file touches the h-file.', kriegspiel: 'You cannot see enemy pieces. You only hear what happened.', austang: 'Build your own army from a budget, then play.',
   austangGrand: 'Austang on 10×10 with a big set of fairy pieces.', austang4: 'Four players build armies, then fight on a 20×20 cross.', alice: 'Two boards: after every move the piece hops to the other board.',
   infinite: 'A huge 32×32 board with room to roam.', fourplayer: 'The classic cross-shaped four-player board. Free-for-all or 2v2.', fourmars: 'Four players, two moves per turn.', fourcrazy: 'Four players with Crazyhouse drops.',
   fourcyl: 'Four players on a wide board that wraps around.', fourkrieg: 'Four players, hidden pieces.', fourneutral: 'Neutral monsters roam the centre; capture one to tame it.', bughouse: '2v2 on two boards: pass captured pieces to your partner.',
   fouralice: 'Four-player Alice chess on two cross boards.', fourinfinite: 'Four players on an open 32×32 board.', eight: 'Eight armies on a 24×24 cross: two per side, holes, wild neutrals, a Boss, teams.',
-  threeplayer: 'Three players on a hexagonal board.', imperial: 'A 17×16 board with new pieces: destroy the whole army to win.', promotion: 'Every piece can promote — into many different forms.', imperial4: 'Imperial Chess for four on a 29×29 board.'
+  threeplayer: 'Three players on a hexagonal board.', imperial: 'A 17×16 board with new pieces: destroy the whole army to win.', promotion: 'Every piece can promote into many different forms.', imperial4: 'Imperial Chess for four on a 29×29 board.'
 };
 const MODE_ICON = { alice: '🪞', fouralice: '🪞', bughouse: '♞♞', threeplayer: '⬢', austang4: '🏰' };
 const modeCount = k => (MODES[k].multi ? (MODES[k].all ? MODES[k].all.length : 4) : 2);
@@ -3214,7 +3692,7 @@ function thumbData(k) {
 }
 function modeBlocked(k) {                                  // inside a multiplayer room: only multiplayer modes that can seat everybody
   if (!(isHost && peer && !mstarted && MODES[mode] && MODES[mode].multi)) return '';
-  if (!MODES[k].multi) return 'This room is for multiplayer modes — make a new room for a 2-player game.';
+  if (!MODES[k].multi) return 'This room is for multiplayer modes. Make a new room for a 2-player game.';
   const n = 1 + conns.filter(c => c.ready).length + lobbyBots.length;
   return modeCount(k) < n ? 'Seats ' + modeCount(k) + ' players, but ' + n + ' are in the room.' : '';
 }
@@ -3261,6 +3739,7 @@ function roomSummary() {
     if (g.wild8) bits.push('wild neutrals'); if (g.boss8) bits.push('Boss'); if (g.fallen) bits.push('fallen armies');
   } else if (op.includes('neutral')) bits.push('neutral pieces: ' + g.neutralSet + (g.fallen ? ', fallen armies' : ''));
   if (op.includes('traits') && g.traits) bits.push('traits');
+  if (g.tcMin > 0) bits.push('clock ' + g.tcMin + '+' + g.tcInc);
   if (op.includes('classes') && g.classes) bits.push('classes');
   if (op.includes('c960') && g.c960) bits.push('Chess960');
   return 'Mode: ' + MODES[mode].name + (bits.length ? ' (' + bits.join(', ') + ')' : '');
@@ -3281,7 +3760,7 @@ $('roomBtn').onclick = backToRoom;
 $('modeSel').addEventListener('change', () => {
   if (!isHost || !peer || mstarted || !MODES[mode] || !MODES[mode].multi) return;
   const m = $('modeSel').value;
-  if (!MODES[m].multi) { $('modeSel').value = mode; $('lobbyMsg').innerHTML = lobbyBase + '<br><b>This room is for multiplayer modes — create a new room for a 2-player mode.</b>'; return; }
+  if (!MODES[m].multi) { $('modeSel').value = mode; $('lobbyMsg').innerHTML = lobbyBase + '<br><b>This room is for multiplayer modes. Create a new room for a 2-player mode.</b>'; return; }
   mode = m; $('lobbyMsg').innerHTML = lobbyBase; $('botAdd').classList.toggle('hidden', !!MODES[m].bug); renderRoster();
 });
 function kickConn(c) {
@@ -3296,11 +3775,11 @@ function hostMultiConn(c) {
     c.ready = true; renderRoster();
     if ($('autoChk').checked && conns.filter(x => x.ready).length + lobbyBots.length === maxSeats() - 1) startMulti();
   });
-  c.on('data', msg => { if (msg && msg.type === 'profile') { c.name = cleanName(msg.name); c.pfp = safePfp(msg.pfp); if (mstarted) pushSeatInfo(); else renderRoster(); return; } hostRecv(c, msg); });
+  c.on('data', msg => { if (msg && msg.type === 'pickseat') { if (!mstarted) { setPref(c, String(msg.seat), false); renderRoster(); } return; } if (msg && msg.type === 'profile') { c.name = cleanName(msg.name); c.pfp = safePfp(msg.pfp); if (mstarted) pushSeatInfo(); else renderRoster(); return; } hostRecv(c, msg); });
   c.on('close', () => {
     if (c.replaced) return;
     if (!mstarted) { conns = conns.filter(x => x !== c); renderRoster(); }
-    else addChat('', CN[c.seat] + ' disconnected — they can rejoin with the same link.', true);
+    else addChat('', CN[c.seat] + ' disconnected. They can rejoin with the same link.', true);
   });
 }
 
@@ -3321,7 +3800,7 @@ function startMulti() {
   if (needDraft()) beginDraft();
   $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
   $('hostCtl').classList.remove('hidden'); $('modeSel2').value = mode; $('roomBtn').classList.remove('hidden');
-  if (A4) { a4HostSendMates(); addChat('', 'You are ' + CN[mySeat] + '. Build your army in your own arm — nobody sees it until everyone is ready' + (A4.teams ? ' (your partner can watch you build).' : '.'), true); render(); return; }
+  if (A4) { a4HostSendMates(); addChat('', 'You are ' + CN[mySeat] + '. Build your army in your own arm. Nobody sees it until everyone is ready' + (A4.teams ? ' (your partner can watch you build).' : '.'), true); render(); return; }
   addChat('', 'You are ' + CN[mySeat] + '. Turn order: ' + game.seats.map(c => CN[c]).join(' → ') + '.', true);
   render();
 }
@@ -3345,7 +3824,7 @@ function hostRecv(c, msg) {
     if (game.bug && msg.m) msg.m.seat = c.seat;
     if (!draft && !bots[c.seat] && !ended() && (game.bug ? game.canMove(c.seat) : game.turn === c.seat) && game.move(msg.m)) { broadcast(mmoveMsg(msg.m)); announceMulti(); render(); }
   } else if (msg.type === 'resync') {
-    c.send({ type: 'resume', rec: buildRecord(), seat: c.seat, draft: draftFor(c.seat), resync: true, a4x: A4 ? a4Extra(c.seat) : undefined });
+    c.send({ type: 'resume', rec: buildRecord(), seat: c.seat, draft: draftFor(c.seat), resync: true, a4x: A4 ? a4Extra(c.seat) : undefined, clk: clkSnap() });
   } else if (msg.type === 'pick') {
     recvPick(c.seat, msg.id);
   } else if (msg.type === 'tryResign') {
@@ -3372,16 +3851,16 @@ function announceMulti() {
   if (game.oct) {                                                           // the Boss and its cells
     const h = game.history(), m = h[h.length - 1], bossT = Engine.NEUTRAL_T.boss;
     if (m && m.c !== 'n' && m.cap === bossT) { let left = 0; for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) { const q = game.at(x, y); if (q && q.t === bossT) left++; }
-      addChat('', CN[m.c] + ' took a cell of the Boss and lost the piece that did it' + (left ? ' (' + left + ' cell' + (left > 1 ? 's' : '') + ' left).' : ' — the Boss is dead or claimed!'), true); }
+      addChat('', CN[m.c] + ' took a cell of the Boss and lost the piece that did it' + (left ? ' (' + left + ' cell' + (left > 1 ? 's' : '') + ' left).' : '. The Boss is dead or claimed!'), true); }
     if (m && m.boss && m.c !== 'n') addChat('', CN[m.c] + ' moved their Boss' + (m.cap ? ' and crushed ' + m.cap.length + ' piece' + (m.cap.length > 1 ? 's' : '') + '!' : '.'), true);
   }
   game.drainEvents().forEach(e => {
     if (e.e === 'trait') return;      // traits stay hidden until the end of the game
     if (e.e === 'skip') { addChat('', CN[e.c] + ' has no legal move (stalemate) and is skipped.', true); return; }
-    const why = e.reason === 'crush' ? 'was crushed by a Boss' : e.reason === 'checkmate' ? 'was checkmated' : e.reason === 'stalemate' ? 'was stalemated' : e.reason === 'bare' ? 'was left with only Imperials' : 'resigned';
+    const why = e.reason === 'crush' ? 'was crushed by a Boss' : e.reason === 'checkmate' ? 'was checkmated' : e.reason === 'stalemate' ? 'was stalemated' : e.reason === 'bare' ? 'was left with only Imperials' : (timedOut.has(e.c) ? 'ran out of time' : 'resigned');
     addChat('', CN[e.c] + ' ' + why + ' and is out. ' + (e.taken ? 'Their pieces now belong to ' + CN[e.taken] + '!' : e.fallen ? 'Their pieces are now neutral!' : 'Their pieces turn gray.'), true);
   });
-  if (game.drawn) addChat('', (drawWhy() ? 'Only bare kings are left' : 'Nobody left can move') + ' — the game is a draw.', true);
+  if (game.drawn) addChat('', (drawWhy() ? 'Only bare kings are left' : 'Nobody left can move') + '. The game is a draw.', true);
   const w = game.winner();
   if (w) addChat('', teamNames(w) + (game.teams ? ' win!' : ' wins!'), true);
   maybeRunNeutral();
@@ -3397,7 +3876,7 @@ function pickNeutral(nx) {
 }
 function noteNeutral(m) {
   const h = game.history(), last = h[h.length - 1];
-  if (m && m.aim) addChat('', 'A Boar on ' + sqName(m.fx, m.fy) + ' is aiming — it charges that way next round!', true);
+  if (m && m.aim) addChat('', 'A Boar on ' + sqName(m.fx, m.fy) + ' is aiming. It charges that way next round!', true);
   if (last && last.boss && last.c === 'n') addChat('', 'The Boss moved' + (last.cap ? ' and crushed ' + last.cap.length + ' piece' + (last.cap.length > 1 ? 's' : '') + '!' : '.'), true);
   if (last && last.c === 'n' && last.cap && !last.boss) { const mv = game.at(last.tx, last.ty), who = mv && PNAMES[mv.t] && game.oct ? 'A ' + PNAMES[mv.t] : 'A neutral piece', what = ({ p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', c: 'commoner', i: 'imp', w: 'wraith', o: 'ox', k: 'king' }[last.cap] || (PNAMES[last.cap] || 'piece').toLowerCase()); addChat('', who + (mv && mv.t === Engine.NEUTRAL_T.boar ? ' charged and' : '') + ' captured a ' + (CN[last.capc] || '') + ' ' + what + ' on ' + sqName(last.tx, last.ty) + '!', true); }
   game.drainEvents().forEach(e => {
@@ -3453,6 +3932,7 @@ function clickMulti(x, y) {
   if (swapMode) return swapClick(x, y);
   if (abMode) return abClick(x, y);
   if (foeClick(x, y)) return;
+  if (preClick(x, y)) return;
   if (ended() || game.neutralPending || game.turn !== mySeat || !game.alive(mySeat)) return;
   const hid = MODES[mode].v.hidden;
   if (sel) {
@@ -3474,7 +3954,7 @@ function renderMultiHands() {
   const g = game, V = MODES[mode].v, top = $('handTop'), bot = $('handBot');
   top.innerHTML = ''; bot.innerHTML = ''; top.classList.remove('others');
   if (!(V.neutral ? gs.neutralDrop : V.drops)) return;
-  const txt = h => 'qrbnpciwoal'.split('').filter(t => h[t] > 0).map(t => GLYPH[t] + '×' + h[t]).join(' ') || '—';
+  const txt = h => 'qrbnpciwoal'.split('').filter(t => h[t] > 0).map(t => GLYPH[t] + '×' + h[t]).join(' ') || 'none';
   top.classList.add('others');
   top.textContent = 'Hands: ' + g.seats.filter(c => c !== mySeat).map(c => CN[c] + ' ' + txt(g.hand(c))).join(' · ');
   const hand = g.hand(mySeat);
@@ -3588,13 +4068,13 @@ function renderBug() {
   $('board').classList.remove('hexb'); $('board').style.width = '100%';
   drawBugBoard($('board'), bd, col, true, cell);
   $('board2Wrap').classList.remove('hidden'); $('capA').classList.remove('hidden');
-  $('capA').textContent = 'Your board (Board ' + bd + ') — you play ' + nm(col) + ' vs ' + CN[g.seatOf(bd, col === 'w' ? 'b' : 'w')];
-  $('board2Wrap').querySelector('.lbl').textContent = "Partner's board (Board " + ob + ') — ' + CN[partner] + ' plays ' + nm(pcol);
+  $('capA').textContent = 'Your board (Board ' + bd + '): you play ' + nm(col) + ' vs ' + CN[g.seatOf(bd, col === 'w' ? 'b' : 'w')];
+  $('board2Wrap').querySelector('.lbl').textContent = "Partner's board (Board " + ob + '): ' + CN[partner] + ' plays ' + nm(pcol);
   const b2 = $('board2'); b2.style.width = '62%';
   drawBugBoard(b2, ob, pcol, false, cell * 0.62);
-  const top = $('handTop'), bot = $('handBot'), txt = h => 'qrbnp'.split('').filter(t => h[t] > 0).map(t => GLYPH[t] + '×' + h[t]).join(' ') || '—';
+  const top = $('handTop'), bot = $('handBot'), txt = h => 'qrbnp'.split('').filter(t => h[t] > 0).map(t => GLYPH[t] + '×' + h[t]).join(' ') || 'none';
   top.innerHTML = ''; bot.innerHTML = ''; top.classList.add('others');
-  top.textContent = 'Hands — partner ' + CN[partner] + ': ' + txt(g.hand(partner)) + '  ·  opponents: ' +
+  top.textContent = 'Hands: partner ' + CN[partner] + ': ' + txt(g.hand(partner)) + '  ·  opponents: ' +
     g.seats.filter(c => g.teams[c] !== g.teams[mySeat]).map(c => CN[c] + ' ' + txt(g.hand(c))).join(', ');
   const hand = g.hand(mySeat);
   'qrbnp'.split('').forEach(t => {
@@ -3670,7 +4150,7 @@ function renderMulti() {
           sp.innerHTML = bossQuarter(X > 0 ? 1 : 0, Y > 0 ? 0 : 1);
         }
       }
-      d.appendChild(sp);
+      sp.dataset.pc = '1'; d.appendChild(sp);
       if (p.t === Engine.NEUTRAL_T.boss && p.c !== 'n' && g.bossCooldown && g.bossCooldown(p.bid) > 0 && g.moves(x, y).length === 0) { d.classList.add('bcd'); const cd = document.createElement('span'); cd.className = 'cd'; cd.textContent = '⏳'; cd.title = 'Your Boss is resting: it can move again after your next turn'; d.appendChild(cd); }
       if (p.aim) { const a = document.createElement('span'); a.className = 'aim'; a.textContent = aimArrow(viewSeat(mySeat), p.aim); a.title = 'Aiming: it charges this way next round'; d.appendChild(a); }
     }
@@ -3727,7 +4207,7 @@ function renderMulti() {
     if (prev) rs.value = prev;
   }
   $('history').textContent = 'Order: ' + g.seats.map(c => CN[c] + (g.alive(c) ? '' : ' ✖')).join(' → ') +
-    (g.oct && g.neutral ? '   |   Wild neutrals (dashed ring): Boar — aims (arrow), then charges; Hound — hunts the nearest piece; Burrower — leaves a hole behind; Golem — only rooks/queens can take it; Boss — 2×2, crushes what it rolls over. Taking a Boss cell costs your piece.' : g.neutral ? '   |   Neutral (purple, dashed ring): shield = commoner (1 step any way), horned face = imp (knight jump), ghost = wraith (up to 2 diagonally), bull = ox (up to 2 straight). They always capture when they can. Capture one to tame it — drop it on your own arm.' : '');
+    (g.oct && g.neutral ? '   |   Wild neutrals (dashed ring): Boar: aims (arrow), then charges; Hound: hunts the nearest piece; Burrower: leaves a hole behind; Golem: only rooks/queens can take it; Boss: 2×2, crushes what it rolls over. Taking a Boss cell costs your piece.' : g.neutral ? '   |   Neutral (purple, dashed ring): shield = commoner (1 step any way), horned face = imp (knight jump), ghost = wraith (up to 2 diagonally), bull = ox (up to 2 straight). They always capture when they can. Capture one to tame it: drop it on your own arm.' : '');
   if (A4) $('history').textContent = a4ScoreLine() + '   |   ' + $('history').textContent;
 }
 
@@ -3748,7 +4228,7 @@ function sendChat() {
   const t = $('chatIn').value.trim(), img = pendingImg && pendingImg.url;
   if (!t && !img) return;
   const clearAtt = () => { pendingImg = null; showAttPrev(); };
-  if (img && Date.now() - lastImgSent < 2600) { addChat('', 'One picture every few seconds, please — your picture is still attached, press Send again in a moment.', true); return; }
+  if (img && Date.now() - lastImgSent < 2600) { addChat('', 'One picture every few seconds, please. Your picture is still attached, press Send again in a moment.', true); return; }
   if (img) lastImgSent = Date.now();
   if (spectating) {
     if (!specChatAllowed) { addChat('', 'The host has not switched spectator chat on.', true); return; }
@@ -3793,7 +4273,7 @@ $('newBtn').onclick = () => {
   if (replay) exitReplay();
   const m = $('modeSel2').value, swap = $('swapChk').checked;
   if (!!MODES[mode].multi !== !!MODES[m].multi || (MODES[m].multi && MODES[m].all.length < (mseats || []).length)) {
-    addChat('', "Can't switch between 2-player and multiplayer modes in one room — create a new room.", true); $('modeSel2').value = mode; return;
+    addChat('', "Can't switch between 2-player and multiplayer modes in one room. Create a new room.", true); $('modeSel2').value = mode; return;
   }
   if (MODES[m].match4) {                                    // Austang 4-player: a brand-new match, everybody builds again
     newGame(m, null, { gs: readGS(), seats: mseats }); sel = null;
