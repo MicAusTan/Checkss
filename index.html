@@ -3066,7 +3066,7 @@ function updateAustUI() {
   $('austSettings').classList.toggle('hidden', !AUST_CFG[v]); if (AUST_CFG[v]) syncAustSettings(v);
   const op = (MODES[v] && MODES[v].opts) || [];
   tcAllowed = clkOk(v); $('gsClock').classList.toggle('hidden', !tcAllowed); fillClockSel(v);
-  const colOk = !MODES[v].multi && !room; $('gsColor').classList.toggle('hidden', !colOk);
+  const colOk = !!MODES[v] && !MODES[v].multi && !room;      // (a guest has no mode picker: v is empty) $('gsColor').classList.toggle('hidden', !colOk);
   $('gsBox').classList.toggle('hidden', !op.length && !tcAllowed && !colOk);
   $('gsDrop').classList.toggle('hidden', !op.includes('drop'));
   $('gsFog').classList.toggle('hidden', !op.includes('fog'));
