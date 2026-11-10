@@ -300,7 +300,9 @@ const Engine = (() => {
   const OCT_FIRST = { r: 1, b: 1, y: 1, g: 1 };                               // the first seat of each side takes the files 13..20 (the other one 3..10)
   const OCT_TEAMS = {
     pairs: { r: 0, y: 0, o: 1, t: 1, b: 2, g: 2, p: 3, m: 3 },                // 2v2v2v2: every seat is teamed with the army opposite it
-    halves: { r: 0, b: 0, y: 0, g: 0, o: 1, p: 1, t: 1, m: 1 }                // 4v4: alternate seats around the board
+    halves: { r: 0, b: 0, y: 0, g: 0, o: 1, p: 1, t: 1, m: 1 },               // 4v4: alternate seats around the board
+    sides: { r: 0, o: 0, b: 1, p: 1, y: 2, t: 2, g: 3, m: 3 },                // 2v2v2v2: the two armies of one side of the board are partners
+    wings: { r: 0, o: 0, b: 0, p: 0, y: 1, t: 1, g: 1, m: 1 }                 // 4v4: the bottom and left sides against the top and right sides
   };
   const octShape = (x, y) => x >= 0 && y >= 0 && x < 24 && y < 24 && !((x < 3 || x > 20) && (y < 3 || y > 20))
     && !((y < 2 || y > 21) && (x === 11 || x === 12)) && !((x < 2 || x > 21) && (y === 11 || y === 12));
@@ -1009,6 +1011,10 @@ const Engine = (() => {
       yard: c => (yard[c] || []).slice(),
       freeLeft: () => (HERALD ? Math.max(0, GRAND_RULES.herN - (S.fn || 0)) : 0),
       reach: (x, y, asType) => { const p = b[idx(x, y)]; if (!p) return []; if (!asType || asType === p.t) return pseudo(b, x, y, false); const B = b.slice(); B[idx(x, y)] = Object.assign({}, p, { t: asType }); return pseudo(B, x, y, false); },
+      range: (x, y) => { const p = b[idx(x, y)]; if (!p || p.dead) return []; const def = D(p.c)[p.t] || {}, out = [], mk = (tx, ty) => out.push({ fx: x, fy: y, tx, ty, shot: true, rng: true });      // every square this piece could shoot if a target stood there (shots only exist when there is a target, so the range has to be asked separately)
+        for (const [sx, sy] of def.shootRay || []) { let tx = x + sx, ty = y + sy, n = 1; while (valid(tx, ty) && n <= (def.shootMax || 99)) { const t = b[idx(tx, ty)]; if (t && t.c === p.c) break; mk(tx, ty); if (t) break; tx += sx; ty += sy; n++; } }
+        for (const [sx, sy] of def.shootLob || []) { const tx = x + sx, ty = y + sy; if (valid(tx, ty)) mk(tx, ty); }
+        return out; },
       hand: c => Object.assign({}, hands[c]),
       drops: () => legalDrops(S.turn),
       alive: c => !!alive[c],
@@ -1484,6 +1490,7 @@ const Engine = (() => {
       valid, kingPos,
       at: (x, y) => b[idx(x, y)],
       moves: (x, y) => { const p = b[idx(x, y)]; return p && p.c === S.turn ? legalAt(x, y) : []; },
+      reach: (x, y) => { const p = b[idx(x, y)]; return p && !p.dead ? pseudo(b, x, y, false) : []; },      // enemy-move preview: where this piece could go (ignores whose turn it is and check)
       sees(c) {
         const set = new Set();
         for (let i = 0; i < N * N; i++) {
@@ -2048,6 +2055,10 @@ const Engine = (() => {
       at: (x, y) => S.b[idx(x, y)],
       moves: (x, y) => { const p = S.b[idx(x, y)]; return p && p.c === S.turn ? legal(S, x, y) : []; },
       reach: (x, y, asType) => { const p = S.b[idx(x, y)]; if (!p) return []; if (!asType || asType === p.t) return pseudo(S, x, y, false); const nb = S.b.slice(); nb[idx(x, y)] = Object.assign({}, p, { t: asType }); return pseudo(Object.assign({}, S, { b: nb }), x, y, false); },
+      range: (x, y) => { const p = S.b[idx(x, y)]; if (!p) return []; const def = D2(p.c)[p.t] || {}, out = [], mk = (tx, ty) => out.push({ fx: x, fy: y, tx, ty, shot: true, rng: true });      // every square this piece could shoot if a target stood there
+        for (const [dx, dy] of def.shootRay || []) { let tx = x + dx, ty = y + dy, n = 1; while (inB(tx, ty) && n <= (def.shootMax || 99)) { const t = S.b[idx(tx, ty)]; if (t && t.c === p.c) break; mk(tx, ty); if (t) break; tx += dx; ty += dy; n++; } }
+        for (const [dx, dy] of def.shootLob || []) { const tx = x + dx, ty = y + dy; if (inB(tx, ty)) mk(tx, ty); }
+        return out; },
       // Fog of war: your own pieces plus every square they could move to or attack.
       sees(c) {
         const set = new Set();

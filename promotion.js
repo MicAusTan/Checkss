@@ -645,7 +645,8 @@ const Promotion = (() => {
       valid: (x, y) => inB(x, y),
       moves: (x, y) => legal(S, x, y),
       allMoves: () => all(S),
-      reach: (x, y) => { const p = S.b[idx(x, y)]; return p ? pseudo(Object.assign({}, S, { turn: p.c }), x, y, false) : []; },      // enemy-move preview (ignores check and whose turn it is)
+      reach: (x, y) => { const p = S.b[idx(x, y)]; return p ? pseudo(Object.assign({}, S, { turn: p.c }), x, y, false) : []; },
+      range: (x, y) => { const p = S.b[idx(x, y)]; if (!p) return []; const out = []; for (const a of D[p.t] || []) if (a.shot) for (const [dx, dy] of a.shot) { if (inB(x + dx, y + dy)) out.push({ fx: x, fy: y, tx: x + dx, ty: y + dy, shot: true, rng: true }); } return out; },      // every square a shooter (the Tyrant) could hit if a target stood there      // enemy-move preview (ignores check and whose turn it is)
       move(m) {
         if (!m || ['checkmate', 'stalemate', 'draw'].includes(status())) return false;
         const key = l => [l.tx, l.ty, l.promo || '', l.px == null ? -1 : l.px, l.py == null ? -1 : l.py, l.vx == null ? -1 : l.vx, l.vy == null ? -1 : l.vy, l.late ? 1 : 0, l.castle ? 1 : 0, l.swap ? 1 : 0, l.shot ? 1 : 0, l.gem ? 1 : 0, l.bump ? 1 : 0, l.squish ? 1 : 0, l.exit ? 1 : 0, l.reenter ? 1 : 0, l.push ? l.push.join('/') : ''].join('|');

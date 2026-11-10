@@ -395,7 +395,15 @@ const Imperial = (() => {
       at: (x, y) => at(S.B, x, y), cut,
       moves: (x, y) => legal(S, x, y),
       allMoves: () => all(S),
-      reach(x, y) { const p = at(S.B, x, y); return !p || p.wall || p.dead ? [] : pseudo({ B: S.B, turn: p.c, ply: S.ply, ep: S.ep }, x, y); },   // enemy-move preview: pseudo-legal, ignores whose turn it is
+      reach(x, y) { const p = at(S.B, x, y); return !p || p.wall || p.dead ? [] : pseudo({ B: S.B, turn: p.c, ply: S.ply, ep: S.ep }, x, y); },
+      range(x, y) {                                                 // every square this piece could shoot if a target stood there
+        const p = at(S.B, x, y); if (!p || p.wall || p.dead) return [];
+        const B = S.B, inf = info(B), saveS = S; let list; S = { B, turn: p.c, ply: S.ply, ep: S.ep };
+        try { list = gen(B, x, y, inf); } finally { S = saveS; }
+        const seen = new Set(), out = [];
+        for (const r of list) { if (!r.shoot || cut(r.tx, r.ty) || (r.tx === x && r.ty === y)) continue; const t = B[r.ty * W + r.tx]; if (t && (t.wall || team(t.c) === team(p.c))) continue; const k = r.tx + ',' + r.ty; if (seen.has(k)) continue; seen.add(k); out.push({ fx: x, fy: y, tx: r.tx, ty: r.ty, shoot: true, shot: true, rng: true }); }
+        return out;
+      },   // enemy-move preview: pseudo-legal, ignores whose turn it is
       move(m) {
         if (!m || over() || (!MULTI && ['bare', 'checkmate', 'stalemate', 'draw'].includes(status().r))) return false;
         const same = l => l.tx === m.tx && l.ty === m.ty && (l.promo || null) === (m.promo || null);
