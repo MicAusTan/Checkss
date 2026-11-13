@@ -414,8 +414,8 @@ King's Indian Attack|Nf3 d5 g3`;
     S.clocks.push(cap || p.t === 'p' ? 0 : S.clocks[S.clocks.length - 1] + 1);
     const key = posKey(g); S.keys.push(key); S.ana.length = S.moves.length + 1;
     S.sel = null; S.hint = null;
-    if (st === 'checkmate') S.over = { text: 'Checkmate — ' + (c === 'w' ? 'White' : 'Black') + ' wins', win: c, mate: true };
-    else if (st === 'stalemate') S.over = { text: 'Stalemate — draw', win: null, rule: true };
+    if (st === 'checkmate') S.over = { text: 'Checkmate: ' + (c === 'w' ? 'White' : 'Black') + ' wins', win: c, mate: true };
+    else if (st === 'stalemate') S.over = { text: 'Stalemate: draw', win: null, rule: true };
     else if (st === 'draw') S.over = { text: 'Draw (insufficient material)', win: null, rule: true };
     else if (S.keys.filter(k => k === key).length >= 3) S.over = { text: 'Draw by threefold repetition', win: null, rule: true };
     else if (S.clocks[S.clocks.length - 1] >= 100) S.over = { text: 'Draw by the fifty-move rule', win: null, rule: true };
@@ -626,7 +626,7 @@ King's Indian Attack|Nf3 d5 g3`;
     left.appendChild(col); row.appendChild(left);
     // ---- side panel
     const side = el('div', 'prside');
-    const status = s.over ? (s.imported ? 'Imported game — ' : '') + s.over.text + '.' : s.thinking ? 'Stockfish is thinking…' : s.waiting && botTurn() ? 'Your move is in. Press ▶ Bot move when you are ready.' : g.turn === s.human && live ? 'Your move (' + (s.human === 'w' ? 'White' : 'Black') + ')' + (g.inCheck() ? ' — check!' : '') : live ? '…' : 'Looking at move ' + v + ' of ' + s.moves.length;
+    const status = s.over ? (s.imported ? 'Imported game: ' : '') + s.over.text + '.' : s.thinking ? 'Stockfish is thinking…' : s.waiting && botTurn() ? 'Your move is in. Press ▶ Bot move when you are ready.' : g.turn === s.human && live ? 'Your move (' + (s.human === 'w' ? 'White' : 'Black') + ')' + (g.inCheck() ? ' · Check!' : '') : live ? '…' : 'Looking at move ' + v + ' of ' + s.moves.length;
     side.appendChild(el('div', null, '<b>' + status + '</b> ' + (s.imported ? '<span class="dim">(analysis)</span>' : '<span class="dim">vs Stockfish ' + (s.elo >= 3200 ? '(max)' : s.elo) + '</span>')));
     if (rt) {
       const mv = s.moves[rt.k], R = RATE[s.rate[rt.k]], A = s.ana[rt.k], bm = A && A.lines[0] && findUciIn(rt.k, A.lines[0].pv[0]), nx = retryList().find(k => k > rt.k);
@@ -670,9 +670,9 @@ King's Indian Attack|Nf3 d5 g3`;
           fb = '<b>' + mv.san + '</b> <span class="rt" style="background:' + R.col + '">' + R.sym + '</span> ' + R.name;
           if (H('explain') && rt !== 'book') {
             const w = whyText(lk, rt), bad = ['good', 'inaccuracy', 'mistake', 'miss', 'blunder'].includes(rt), line = bad && A && A.lines[0] ? pvSan(lk, A.lines[0].pv, 5) : '';
-            fb += (bad && bm ? ' — the best move was <b>' + bm + '</b>' : '') + (w ? '<br><span class="dim">' + w + '</span>' : '') + (line ? '<br><span class="dim">Engine line: ' + line + '</span>' : '');
+            fb += (bad && bm ? ', the best move was <b>' + bm + '</b>' : '') + (w ? '<br><span class="dim">' + w + '</span>' : '') + (line ? '<br><span class="dim">Engine line: ' + line + '</span>' : '');
           }
-        } else fb = '<b>' + mv.san + '</b> — checking…';
+        } else fb = '<b>' + mv.san + '</b>: checking…';
       }
       side.appendChild(el('div', 'prfb', fb || '<span class="dim">Your move ratings appear here.</span>'));
     }
@@ -722,7 +722,7 @@ King's Indian Attack|Nf3 d5 g3`;
     const sides = s.both ? [['w', 'White'], ['b', 'Black']] : [[s.human, 'You'], [s.human === 'w' ? 'b' : 'w', s.imported ? 'Opponent' : 'Stockfish']];
     sides.forEach(([c, name], i) => {
       const st = reviewStats(c); if (st.acc == null) return;
-      box.appendChild(el('div', null, name + ' — accuracy <b>' + st.acc.toFixed(0) + '%</b>' + (s.both || i === 0 ? '<br><span style="font-size:.9em">' + tallyOf(st) + '</span>' : '')));
+      box.appendChild(el('div', null, name + ': accuracy <b>' + st.acc.toFixed(0) + '%</b>' + (s.both || i === 0 ? '<br><span style="font-size:.9em">' + tallyOf(st) + '</span>' : '')));
     });
     const key = []; s.moves.forEach((m, k) => { if (mine(m.c) && ['brilliant', 'great', 'miss', 'mistake', 'blunder'].includes(s.rate[k])) key.push(k); });
     if (key.length) {

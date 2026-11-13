@@ -140,6 +140,12 @@ const Engine = (() => {
   const BOT_VAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0, c: 2, i: 3, w: 3, o: 3, a: 6, l: 6 };
   const bv = t => BOT_VAL[t] || 0;
   function botChoose(game, seat, level) {
+    const rw = game.reward ? game.reward() : null;           // a Boss was just killed by this bot: bring back its most valuable fallen piece
+    if (rw && rw.c === seat) {
+      const best = rw.kinds.slice().sort((x, y) => bv(y) - bv(x))[0], sq = best ? game.rewardFor(best) : [];
+      if (!best || !sq.length) return { reward: true, skip: true };
+      const pick = sq[Math.floor(Math.random() * sq.length)]; return { reward: true, t: best, tx: pick.x, ty: pick.y };
+    }
     if (game.cls && CLASSES[game.cls[seat]] && CLASSES[game.cls[seat]].secret) return null;      // bots never play a secret class (Glitch)
     const rand = a => a[Math.floor(Math.random() * a.length)];
     let cands;
@@ -150,21 +156,21 @@ const Engine = (() => {
         if (game.valid && !game.valid(x, y)) continue;
         for (const m of (game.layers ? game.moves(x, y, l) : game.moves(x, y))) {
           const t = game.layers ? game.at(m.tx, m.ty, m.fl) : game.at(m.tx, m.ty);
-          cands.push({ m, cap: t && t.c !== seat ? t.t : null, threat: 0, check: false, mate: false, pos: 0 });
+          cands.push({ m, cap: t && t.c !== seat ? t.t : null, dull: !!(t && t.c !== seat && (t.dead || (t.c === 'n' && t.o))), threat: 0, check: false, mate: false, pos: 0 });
         }
       }
       if (game.drops) game.drops().forEach(m => cands.push({ m, cap: null, threat: 0, check: false, mate: false, pos: 0 }));
     }
     if (!cands.length) return null;
     if (level === 'easy') {
-      const caps = cands.filter(x => x.cap);
+      const caps = cands.filter(x => x.cap && !x.dull);      // (a knocked-out army's grey or fallen pieces are not worth hunting)
       if (caps.length && Math.random() < 0.6) { const best = Math.max(...caps.map(x => bv(x.cap))); return rand(caps.filter(x => bv(x.cap) === best)).m; }
       return rand(cands).m;
     }
     let best = -1e9, pool = [];
     for (const x of cands) {
       const m = x.m;
-      let sc = bv(x.cap) - 0.95 * x.threat + (x.check ? 0.4 : 0) + (x.mate ? 100 : 0) + 0.08 * x.pos + Math.random() * 0.35;
+      let sc = bv(x.cap) * (x.dull ? 0.06 : 1) - 0.95 * x.threat + (x.check ? 0.4 : 0) + (x.mate ? 100 : 0) + 0.08 * x.pos + Math.random() * 0.35;
       if (m.promo) sc += m.promo === 'q' ? 8 : 1.5;
       if (m.drop) sc += 0.3;
       if (m.castle) sc += 0.3;
@@ -606,7 +612,7 @@ const Engine = (() => {
         }
         return false;
       };
-      const can = (t, tx, ty) => !(t.t === T.golem && !golemKiller(p, nt)) && !(t.t === T.boss && p.t === 'k') && !t.wall && !(p.fx && (p.fx.dis || p.fx.phn)) && !(!atk && guarded(B, p, t, tx, ty)) && (t.dead || (teamOf(t.c) !== teamOf(p.c) && (atk || t.t !== 'k') && !blocked(t, tx, ty)) ||
+      const can = (t, tx, ty) => !(t.t === T.golem && !golemKiller(p, nt)) && !t.wall && !(p.fx && (p.fx.dis || p.fx.phn)) && !(!atk && guarded(B, p, t, tx, ty)) && (t.dead || (teamOf(t.c) !== teamOf(p.c) && (atk || t.t !== 'k') && !blocked(t, tx, ty)) ||
         (!atk && !nt && t.c === p.c && t.t !== 'k' && TR[p.c] === 'friendlyFire'));      // Friendly Fire trait (a disarmed piece can't capture)
       if (p.t === '\u03c1') {                              // Berolina pawn: steps diagonally forward (2 diagonal squares from its own 2nd rank), captures straight ahead, promotes on the promotion rank
         const [dx, dy] = FWD[p.c], pp = dx === 0 ? [1, 0] : [0, 1];
@@ -864,7 +870,7 @@ const Engine = (() => {
       if (p.t === T.boss) return p.c === S.turn ? bossMoves(idx(x, y)).filter(m => !kingAttacked(bossBoard(m).B2, p.c)) : [];
       const ms = pseudo(b, x, y);       // (an extended-reach king in check may use its full reach: the 'must not end attacked' test below is enough)
       let out = ms.filter(m => !kingAttacked(sim(m, p), p.c));
-      if (v.boss) out = out.reduce((a, m) => { const q = !m.rev && !m.drop && b[idx(m.tx, m.ty)]; if (q && q.t === T.boss && bossCells(q.bid).length === 1) { const kinds = v.drops ? [] : [...new Set(yard[p.c] || [])]; (kinds.length ? kinds : [null]).forEach(t => a.push(Object.assign({}, m, { claim: false, ret: t }))); a.push(Object.assign({}, m, { claim: true })); } else a.push(m); return a; }, []);
+      if (v.boss) out = out.reduce((a, m) => { const q = !m.rev && !m.drop && b[idx(m.tx, m.ty)]; if (q && q.t === T.boss && bossCells(q.bid).length === 1) { a.push(Object.assign({}, m, { claim: false })); a.push(Object.assign({}, m, { claim: true })); } else a.push(m); return a; }, []);
       return withFree ? out.concat(freeSteps(x, y)) : out;      // (free Herald steps never count as "having a move")
     }
     // Crazyhouse-style drops. dropZone 'own' = your own arm + the centre (cross) / your own half (wide).
@@ -885,6 +891,16 @@ const Engine = (() => {
       return out;
     }
     const legalDrops = c => (alive[c] ? dropCands(c).filter(m => !kingAttacked(sim(m), c)) : []);
+    function rewardSquares(c, t) {                    // empty squares on the player's own side (the arm, or their half on wide boards); pawns not on the first rank or a promotion rank
+      const out = [];
+      for (let y = 0; y < BH; y++) for (let x = 0; x < BW; x++) {
+        if (!valid(x, y) || b[idx(x, y)]) continue;
+        const rk = rankOf(c, x, y); if (wide ? rk >= BH / 2 : rk >= 3) continue;
+        if (t === 'p' && (rk === 0 || rk >= promoRank)) continue;
+        out.push({ x, y });
+      }
+      return out;
+    }
     function hasMove(c) {
       for (let i = 0; i < SZ; i++) { const p = b[i]; if (p && p.c === c && !p.dead && legalAt(i % BW, Math.floor(i / BW)).length) return true; }
       return dropCands(c).some(m => !kingAttacked(sim(m), c));
@@ -1007,7 +1023,9 @@ const Engine = (() => {
       neutralNext: nextNeutral, neutralApply,
       valid, kingPos,
       at: (x, y) => b[idx(x, y)],
-      moves: (x, y) => { const p = b[idx(x, y)]; return p && p.c === S.turn ? legalAt(x, y, true) : []; },
+      moves: (x, y) => { const p = b[idx(x, y)]; return p && p.c === S.turn && !S.rew ? legalAt(x, y, true) : []; },
+      reward: () => (S.rew ? { c: S.rew.c, kinds: [...new Set(yard[S.rew.c] || [])] } : null),                  // set while the killer of a Boss has to choose what to bring back
+      rewardFor: t => (S.rew ? rewardSquares(S.rew.c, t) : []),                                             // where that piece may be placed
       yard: c => (yard[c] || []).slice(),
       freeLeft: () => (HERALD ? Math.max(0, GRAND_RULES.herN - (S.fn || 0)) : 0),
       reach: (x, y, asType) => { const p = b[idx(x, y)]; if (!p) return []; if (!asType || asType === p.t) return pseudo(b, x, y, false); const B = b.slice(); B[idx(x, y)] = Object.assign({}, p, { t: asType }); return pseudo(B, x, y, false); },
@@ -1067,7 +1085,7 @@ const Engine = (() => {
           const check = seats.some(s2 => alive[s2] && enemyOf(s2) && kingAttacked(B2, s2));
           const pos = (m.drop || (p && p.t === 'k')) ? 0 : Math.hypot(m.fx - cx, m.fy - cy) - Math.hypot(m.tx - cx, m.ty - cy);
           const own = !!vic && vic.c === c;
-          out.push({ m, cap: vic && !own ? vic.t : null, threat: threat + (own ? bv(vic.t) + 1 : 0), check, mate: false, pos });
+          out.push({ m, cap: vic && !own ? vic.t : null, dull: !!(vic && !own && (vic.dead || (vic.c === 'n' && vic.o))), threat: threat + (own ? bv(vic.t) + 1 : 0), check, mate: false, pos });
         }
         return out;
       },
@@ -1108,6 +1126,20 @@ const Engine = (() => {
       move(m) {
         if (over() || (NEU && S.pending && nextNeutral() !== null)) return false;
         const c = S.turn;
+        if (S.rew) {                                   // a defeated Boss: its killer may bring ONE fallen piece back onto their own side (or skip)
+          if (!m.reward || S.rew.c !== c) return false;
+          if (m.skip) hist.push({ c, reward: true, skip: true, cap: null });
+          else {
+            const k = (yard[c] || []).indexOf(m.t);
+            if (k < 0 || !rewardSquares(c, m.t).some(s => s.x === m.tx && s.y === m.ty)) return false;
+            yard[c].splice(k, 1); b[idx(m.tx, m.ty)] = { t: m.t, c, m: true };
+            hist.push({ c, reward: true, t: m.t, tx: m.tx, ty: m.ty, cap: null });
+          }
+          S.rew = null; trapCheck(); S.left--;
+          if (S.left > 0 && alive[c] && hasMove(c)) return true;
+          pass(c); if (NEU && S.pending) S.needSettle = true; else settle();
+          return true;
+        }
         if (m.swap) {
           if (TR[c] !== 'swap' || swapUsed.has(c) || !valid(m.fx, m.fy) || !valid(m.tx, m.ty) || (m.fx === m.tx && m.fy === m.ty)) return false;
           const A = b[idx(m.fx, m.fy)], B2 = b[idx(m.tx, m.ty)];
@@ -1153,12 +1185,12 @@ const Engine = (() => {
             if (!baseMs.some(l => l.tx === ok.tx && l.ty === ok.ty && (l.promo || null) === (ok.promo || null))) { rev.add(c); events.push({ e: 'trait', c, id: TR[c] }); }
           }
           if (v.drops && vic && vic.t !== 'k' && vic.t !== T.boss && (!NEU || vic.c === 'n')) hands[c][vic.pr ? 'p' : ((vic.fx && vic.fx.xt) || vic.t)] = (hands[c][vic.pr ? 'p' : ((vic.fx && vic.fx.xt) || vic.t)] || 0) + 1;
-          if (vic && vic.t === T.boss) {                   // taking a cell of the Boss costs the capturing piece too; the last cell can be killed (and a captured piece returns) or claimed
+          if (vic && vic.t === T.boss) {                   // the capturer lives: it simply takes the cell. The last cell can be claimed, or killed (then the killer may bring a fallen piece back, see S.rew)
             const left = bossCells(vic.bid).length - 1;
-            b[idx(ok.tx, ok.ty)] = null; b[idx(ok.fx, ok.fy)] = null;
+            b[idx(ok.tx, ok.ty)] = { t: ok.promo || p.t, c, m: true, pr: !!ok.promo || undefined, pt: ok.promo ? p.t : p.pt, rc: p.rc, champ: ok.promo ? undefined : p.champ, fx: p.fx }; b[idx(ok.fx, ok.fy)] = null;
             if (left === 0) {
               if (ok.claim) spawnBoss(c);
-              else if (ok.ret) { const yl = yard[c], k = yl ? yl.indexOf(ok.ret) : -1; if (k >= 0) { yl.splice(k, 1); b[idx(ok.fx, ok.fy)] = { t: ok.ret, c, m: true }; } }
+              else if (!v.drops && yard[c] && yard[c].length && rewardSquares(c, null).length) S.rew = { c };
             }
           } else if (ok.c960) {
             b[idx(ok.fx, ok.fy)] = null; b[idx(ok.rx, ok.ry)] = null;
@@ -1170,10 +1202,11 @@ const Engine = (() => {
           }
           if (p.t === T.burrower && !ok.shot && (ok.tx !== ok.fx || ok.ty !== ok.fy) && octShape(ok.fx, ok.fy)) dyn.set(ok.fy * 24 + ok.fx, 4);
           if (ok.castle && !ok.c960) { b[idx(ok.rx, ok.ry)] = null; b[idx(ok.rtx, ok.rty)] = { t: 'r', c, m: true }; }
-          hist.push({ c, fx: ok.fx, fy: ok.fy, tx: ok.tx, ty: ok.ty, promo: ok.promo || null, shot: !!ok.shot, cap: vic ? vic.t : null, castle: !!ok.castle, inplace: !!ok.inplace });
+          hist.push({ c, fx: ok.fx, fy: ok.fy, tx: ok.tx, ty: ok.ty, promo: ok.promo || null, shot: !!ok.shot, cap: vic ? vic.t : null, castle: !!ok.castle, inplace: !!ok.inplace, claim: ok.claim || undefined });      // (claim is recorded so a replay claims the Boss too)
           if (v.austang) tick(c, -1);
           }
         }
+        if (S.rew) return true;                                    // a Boss was just killed: the turn waits for the reward choice
         trapCheck();
         S.left--;
         if (S.left > 0 && alive[c] && hasMove(c)) return true;     // Marseillais: same player moves again
@@ -1183,6 +1216,7 @@ const Engine = (() => {
       },
       resign(c) {
         if (!alive[c]) return;
+        if (S.rew && S.rew.c === c) S.rew = null;
         const wasTurn = S.turn === c;
         eliminate(c, 'resign');
         if (wasTurn) pass(c);
@@ -2101,7 +2135,7 @@ const Engine = (() => {
           const check = inCheck(S2, o), mate = check && S2.turn === o && all(S2).length === 0;
           const pos = (m.drop || !src || src.t === 'k') ? 0 : Math.hypot(m.fx - cx, m.fy - cy) - Math.hypot(m.tx - cx, m.ty - cy);
           const own = !!vic && vic.c === c;
-          out.push({ m, cap: vic && !own ? vic.t : null, threat: threat + (own ? bv(vic.t) + 1 : 0), check, mate, pos });
+          out.push({ m, cap: vic && !own ? vic.t : null, dull: !!(vic && !own && (vic.dead || (vic.c === 'n' && vic.o))), threat: threat + (own ? bv(vic.t) + 1 : 0), check, mate, pos });
         }
         return out;
       },

@@ -51,7 +51,16 @@
   #turnStrip.compact .tchip { flex:none; } #turnStrip.compact .tchip:not(.now):not(.next) { padding:3px; } #turnStrip.compact .tchip:not(.now):not(.next) .tn { display:none; }
   #gameMain.nohands .hand:empty { display:none; }
   #pieceDemo.hidden { display:none; }
-  .sq.rng:not(.hint)::after { content:''; position:absolute; inset:24%; border:2px dotted rgba(235,125,20,.9); border-radius:50%; pointer-events:none; }
+  #rewardBox { margin:6px 0; padding:8px 12px; background:var(--panel); border:1px solid #e0a43a; border-radius:10px; } #rewardBox button { margin:6px 6px 0 0; } #rewardBox .sel { outline:2px solid #ffe26a; }
+  .sq.rew::after { background:#e0a43a !important; opacity:.9; }
+  span[data-face] { position:relative; } span[data-face]::after { content:''; position:absolute; width:0; height:0; border:.15em solid transparent; pointer-events:none; filter:drop-shadow(0 0 1px #000); }
+  span[data-face=up]::after { left:50%; top:-.12em; margin-left:-.15em; border-top-width:0; border-bottom-color:#ffd54a; }
+  span[data-face=down]::after { left:50%; bottom:-.12em; margin-left:-.15em; border-bottom-width:0; border-top-color:#ffd54a; }
+  span[data-face=left]::after { top:50%; left:-.12em; margin-top:-.15em; border-left-width:0; border-right-color:#ffd54a; }
+  span[data-face=right]::after { top:50%; right:-.12em; margin-top:-.15em; border-right-width:0; border-left-color:#ffd54a; }
+  .sq.rng:not(.hint)::after { content:''; position:absolute; inset:17%; border:3px dotted rgba(235,125,20,.95); border-radius:50%; background:rgba(235,125,20,.14); pointer-events:none; }
+  .sq.rng.rngf:not(.hint)::after { border-color:rgba(150,95,235,.95); background:rgba(140,80,230,.16); }      /* a previewed piece's range is purple, like its moves */
+  .sq.foe.foec::before { width:82%; height:82%; background:none; border:4px solid rgba(95,45,175,.8); }      /* squares it could capture on: a ring, like your own capture hints */
   .rpick, #seatPick { display:inline-flex; align-items:center; gap:5px; margin-left:8px; vertical-align:middle; }
   #seatPick { display:flex; margin:6px 0; flex-wrap:wrap; } #seatPick.hidden { display:none; } #seatPick .dim { flex-basis:100%; }
   .swt.dice { background:#3a3a3a; font-size:12px; line-height:14px; } .swt.big { width:26px; height:26px; }
@@ -326,7 +335,7 @@
   <details id="ctlGuide" open><summary><b>Controls</b></summary>
     <div class="ctl">
       <div><b>Move:</b> click a piece, then a square. Or drag the piece there (Esc puts it back).</div>
-      <div><b>Premove:</b> while it is not your turn, drag one of your pieces to a square (clicking does nothing, so no accidents). You can queue several; the pieces show where they will be, so you can move them again. The first is played when your turn comes if it is still legal, otherwise the queue is cancelled and the chat says so. Esc or a click on the board cancels them. Not available in hidden-move modes.</div>
+      <div><b>Premove:</b> while it is not your turn, drag one of your pieces to a square (clicking does nothing, so no accidents). You can queue as many as you like; the pieces show where they will be, so you can move them again. The first is played when your turn comes if it is still legal, otherwise the queue is cancelled and the chat says so. Esc or a click on the board cancels them. Not available in hidden-move modes.</div>
       <div><b>Arrows and circles:</b> right-drag draws an arrow, right-click a square draws a circle. Shift = red, Alt = yellow. Only you see them; a click on the board, Esc or the next move clears them.</div>
       <div><b>Suggest a move to your team:</b> hold Ctrl and right-drag from a piece to the square it should go to. You see the arrow as you drag. Dashed arrows are suggestions, you can make several, and bots take the advice for their teammates. Pointing at an <i>opponent's</i> piece shows what you expect it to do (dotted arrow, never advice). Only your team sees them. Ctrl + right-click a square removes the suggestions touching it, or all of yours if none does.</div>
       <div><b>Big boards:</b> mouse wheel zooms, dragging empty space pans, <i>Fit all</i> shows everything.</div>
@@ -435,6 +444,7 @@
   <div id="promo" class="hidden"></div>
   <div id="voidTray" class="hidden"></div>
   <div id="stackPick" class="hidden"></div>
+  <div id="rewardBox" class="hidden"></div>
   <div id="clkTopRow" class="clkrow hidden"></div>
   <div id="handTop" class="hand"></div>
   <div id="capA" class="lbl hidden">Board A</div>
@@ -460,7 +470,7 @@
   <details id="octBox" class="hidden"><summary>8-Player Chess rules &amp; new pieces</summary><div id="octBody">
 <h4>Board</h4><ul><li>24×24 cross: a 18×18 centre with a 3-deep arm on every side. Each arm holds <b>two armies</b> side by side, separated by a 2-square gap with a notch cut 2 deep, so neighbours can't slide along each other's back ranks. 524 squares.</li><li>Turn order goes around the board: Red → Orange → Blue → Pink → Yellow → Teal → Green → Purple. With fewer than 8 players the seats are spread evenly and empty seats have no army.</li><li>Teams: <b>2v2v2v2</b> (you and the army opposite you) or <b>4v4</b> (seats alternate around the board). A team is out when all its kings are.</li></ul>
 <h4>Promotion &amp; holes</h4><ul><li>Pawns promote 10 ranks from their start (halfway across the board).</li><li><b>Holes</b> are squares that don't exist: nothing can enter them, sliders stop in front of them, knights jump over them. A pawn with a hole directly in front of it <b>promotes where it stands</b>. Select the pawn and click the hole.</li><li>Hole layouts: none, four small, one big, or random (mirrored for fairness, or truly random). Random layouts are revealed when the game starts and never wall anybody in.</li></ul>
-<h4>Neutral pieces &amp; the Boss</h4><ul><li>Neutrals (dashed ring) move by themselves once after every full round. Nothing here gives check. Only the first owner counts: a piece that has been owned and is captured again is gone for good.</li><li>With <b>neutral drops</b> on, capturing a wild Boar, Hound, Burrower or Golem puts it in your hand and you can drop it as your own piece.</li><li><b>Boss</b>: a 2×2 monster that starts in the middle. It rolls over what it moves onto, crushing everything but kings, and gets faster as it loses cells. <b>Capturing one of its cells also costs the piece that captured it.</b> Taking the last cell lets you <b>kill</b> it (with drops off, a captured piece of yours comes back) or <b>claim</b> it: it re-enters in the middle as your own 2×2 piece, crushing everything there, kings included. An owned Boss moves up to 2 squares in straight lines, and with 3 or 4 cells it must rest a turn after moving.</li></ul>
+<h4>Neutral pieces &amp; the Boss</h4><ul><li>Neutrals (dashed ring) move by themselves once after every full round. Nothing here gives check. Only the first owner counts: a piece that has been owned and is captured again is gone for good.</li><li>With <b>neutral drops</b> on, capturing a wild Boar, Hound, Burrower or Golem puts it in your hand and you can drop it as your own piece.</li><li><b>Boss</b>: a 2×2 monster that starts in the middle. It rolls over what it moves onto, crushing everything but kings, and gets faster as it loses cells. <b>The piece that captures one of its cells survives</b> (a king may do it too, as long as the square is safe). Taking the last cell lets you <b>kill</b> it (with drops off, you may then bring one of your fallen pieces back: you choose which, and place it on a free square on your own side) or <b>claim</b> it: it re-enters in the middle as your own 2×2 piece, crushing everything there, kings included. An owned Boss moves up to 2 squares in straight lines, and with 3 or 4 cells it must rest a turn after moving.</li></ul>
 <h4>Piece guide</h4><div id="octGuide"></div></div></details>
   <details id="promoBox" class="hidden"><summary>Promotion Chess rules</summary><div id="promoBody"></div></details>
   <details id="promoGuide" class="hidden"><summary>Piece guide (every form)</summary><div id="promoGuideBody"></div></details>
@@ -754,7 +764,7 @@ const LET = 'abcdefghijklmnopqrstuvwxyz';
 const sqName = (x, y) => (x < 26 ? LET[x] : LET[Math.floor(x / 26) - 1] + LET[x % 26]) + (y + 1);
 let mySeat = 'r', conns = [], mstarted = false, lobbyBase = '', mseats = null, gs = { dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false };
 let nBusy = false, gtraits = null, draft = null, revealedAll = false;
-let rngSet = null, foeSel = null, foeSet = null, rmarkSet = null, clipMap = null, selIdx = 0, glitchSeen = 0, mirageSeen = 0, mineSet = null, gclasses = null, abFrom = null, chargeSq = null, abMode = null, abSet = null, revealedCl = false, pendTraits = null, abSeenG = null, abSeen = 0;
+let rewardPick = null, rewSet = null, rngSet = null, rngF = false, foeSel = null, foeSet = null, rmarkSet = null, clipMap = null, selIdx = 0, glitchSeen = 0, mirageSeen = 0, mineSet = null, gclasses = null, abFrom = null, chargeSq = null, abMode = null, abSet = null, revealedCl = false, pendTraits = null, abSeenG = null, abSeen = 0;
 let myToken = null, roomCode = null, spectateMode = false, spectating = false, specs = [], everJoined = false, peerToken = null;
 let resignLog = [], replay = null, retryTimer = null, retries = 0;
 let bots = {}, bots2p = null, lobbyBots = [], botTimer = null, inRoom = false;      // inRoom: the host sent everybody back to the room between games
@@ -1080,7 +1090,7 @@ function showPromo(cands, onPick) {
     const b = document.createElement('button');
     const big = t => FAIRY_SVG[t] || '<span style="font-size:2.1rem;line-height:1">' + GLYPH[t] + '</span>';
     b.innerHTML = game.promotion ? (m.promo ? big(m.promo) + '<span>' + (PNAMES[m.promo] || '') + (m.px != null ? ' → ' + sqName(m.px, m.py) : '') + '</span>' : (game.at(m.fx, m.fy) ? big(game.at(m.fx, m.fy).t) : '') + '<span>' + (m.shot ? 'Shoot (stay put)' : m.swap ? 'Swap' : m.exit ? 'Leave the board' : m.bump ? 'Bump (it holds)' : m.push ? 'Push it' : m.squish ? 'Squish it' : m.vx != null ? 'via ' + sqName(m.vx, m.vy) : cands.some(x => x.promo) ? 'Stay' : 'Move') + '</span>')
-      : m.claim ? '⚔ Claim the Boss' : m.claim === false ? '☠ Kill it' + (m.ret ? ' + ' + glyphHTML(m.ret) + ' back' : '') : m.promo ? glyphHTML(m.promo) : m.rev ? '↺ ' + glyphHTML(m.rev) : m.free ? 'Free step' : 'Move';
+      : m.claim ? '⚔ Claim the Boss' : m.claim === false ? '☠ Kill it (then bring a fallen piece back)' : m.promo ? glyphHTML(m.promo) : m.rev ? '↺ ' + glyphHTML(m.rev) : m.free ? 'Free step' : 'Move';
     b.title = m.promo && game.promotion ? 'Promote to ' + (PNAMES[m.promo] || '') + (m.px != null ? ', placed on ' + sqName(m.px, m.py) : '') : !m.promo && game.promotion ? (m.shot ? 'Capture it without moving' : m.swap ? 'Swap places' : m.exit ? 'Leave the board here: nothing can touch it while it is outside' : m.bump ? 'The Juggernaut survives the first capture attempt: you stop next to it and your turn is over' : m.push ? 'Push it one square' : m.squish ? 'Squish it (it has nowhere to go)' : m.vx != null ? 'First leg on ' + sqName(m.vx, m.vy) + ', then one more step' : cands.some(x => x.promo) ? 'Stay as it is (no promotion)' : 'Move there') : m.promo ? 'Promote' : m.rev ? 'Revive ' + PNAMES[m.rev] : m.free ? 'Herald: free step (your turn goes on)' : 'Normal move';
     b.onclick = () => { p.classList.add('hidden'); if (onPick) onPick(m); else play(m); };
     p.appendChild(b);
@@ -1156,6 +1166,7 @@ function bugStatus() {
 
 function multiStatus() {
   if (game.bug) return bugStatus();
+  { const rw = game.reward && game.reward(); if (rw && !game.winner()) return rw.c === mySeat ? 'The Boss is dead! Choose a fallen piece to bring back, then a square on your side.' : CN[rw.c] + ' killed the Boss and is choosing a piece to bring back.'; }
   if (game.drawn) return 'Game drawn: ' + (drawWhy() || 'nobody left can move') + '.';
   const w = game.winner();
   if (w) return 'Game over: ' + teamNames(w) + (sameSide(w, mySeat) ? ' (you) win!' : game.teams ? ' win.' : ' wins.');
@@ -1684,20 +1695,25 @@ const canPing = owner => !!game && game.multi && !!owner && owner !== 'n' && gam
 function cleanPing(p) {
   if (!game || !game.multi || !p) return null;
   const n = v => (Number.isInteger(v) ? v : -1);
-  const o = { id: String(p.id || '').slice(0, 40), from: String(p.from || ''), owner: String(p.owner || ''), t: String(p.t || '').slice(0, 3), sx: n(p.sx), sy: n(p.sy), tx: n(p.tx), ty: n(p.ty), promo: p.promo ? String(p.promo).slice(0, 3) : null, born: Number.isInteger(p.born) ? p.born : 0 };
-  if (!game.seats.includes(o.from) || !game.seats.includes(o.owner) || [o.sx, o.sy, o.tx, o.ty].some(v => v < 0) || o.sx >= game.w || o.tx >= game.w || o.sy >= game.h || o.ty >= game.h) return null;
+  const o = { id: String(p.id || '').slice(0, 40), from: String(p.from || ''), owner: String(p.owner || ''), t: String(p.t || '').slice(0, 3), sx: n(p.sx), sy: n(p.sy), tx: n(p.tx), ty: n(p.ty), promo: p.promo ? String(p.promo).slice(0, 3) : null, born: Number.isInteger(p.born) ? p.born : 0, mark: !!p.mark };
+  if (!game.seats.includes(o.from) || (!o.mark && !game.seats.includes(o.owner)) || [o.sx, o.sy, o.tx, o.ty].some(v => v < 0) || o.sx >= game.w || o.tx >= game.w || o.sy >= game.h || o.ty >= game.h) return null;
   return o;
 }
 // a suggestion lives until its piece's owner has moved (or the piece is gone)
 function livePings() {
   if (!game || !game.multi || ended()) { pings = []; return pings; }
   const h = game.history();
-  pings = pings.filter(pg => { const p = game.at(pg.sx, pg.sy); return p && p.c === pg.owner && p.t === pg.t && !h.slice(pg.born).some(m => m.c === pg.owner); });
+  pings = pings.filter(pg => { if (pg.mark) return h.length === pg.born; const p = game.at(pg.sx, pg.sy); return p && p.c === pg.owner && p.t === pg.t && !h.slice(pg.born).some(m => m.c === pg.owner); });      // a marker lasts until the next move
   return pings;
 }
-const PING_MAX = 8;
+const PING_MAX = 8, PING_SHADES = [0, 0.38, -0.32, 0.62, -0.5, 0.2, -0.18, 0.5];
+function shadeHex(hex, f) {                                  // f > 0 mixes with white, f < 0 with black
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return hex; const n = parseInt(m[1], 16), c = [n >> 16, (n >> 8) & 255, n & 255].map(v => Math.round(f >= 0 ? v + (255 - v) * f : v * (1 + f)));
+  return '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
+}
+const pingColor = pg => { const i = pings.filter(q => q.from === pg.from).indexOf(pg); return shadeHex(seatCol(pg.from), PING_SHADES[(i < 0 ? 0 : i) % PING_SHADES.length]); };      // the sender's colour; each further suggestion of theirs a different shade
 const addPing = pg => {
-  pings = pings.filter(q => !(q.from === pg.from && q.sx === pg.sx && q.sy === pg.sy)); pings.push(pg);        // pointing at the same piece again replaces its suggestion
+  pings = pings.filter(q => !(q.from === pg.from && q.sx === pg.sx && q.sy === pg.sy && q.tx === pg.tx && q.ty === pg.ty && !!q.mark === !!pg.mark)); pings.push(pg);        // drawing the very same arrow again replaces it; a piece can have several
   const mine = pings.filter(q => q.from === pg.from); if (mine.length > PING_MAX) { const drop = new Set(mine.slice(0, mine.length - PING_MAX)); pings = pings.filter(q => !drop.has(q)); }
   render();
 };
@@ -1712,8 +1728,19 @@ function makePing(sx, sy, tx, ty, promo) {
   addPing(pg);
   if (isHost) relayPing(pg, null); else if (game.teams) send({ type: 'ping', sx, sy, tx, ty, promo: pg.promo, id: pg.id });
 }
+function makeMark(x, y) {                                    // Ctrl + right-click a square: "look here" (at the piece standing there, if any)
+  const p = game.at(x, y), piece = p && !p.wall ? p : null;
+  const pg = { id: mySeat + '-' + (++pingSeq) + '-' + Date.now().toString(36), from: mySeat, owner: piece ? piece.c : '', t: piece ? piece.t : '', sx: x, sy: y, tx: x, ty: y, promo: null, mark: true, born: game.history().length };
+  addPing(pg);
+  if (isHost) relayPing(pg, null); else if (game.teams) send({ type: 'ping', mark: true, sx: x, sy: y, id: pg.id });
+}
 function hostPing(c, msg) {
   if (!c.seat || !game.alive(c.seat) || !game.teams) return;
+  if (msg.mark) {
+    const p = game.at(msg.sx, msg.sy), piece = p && !p.wall ? p : null;
+    const mk = cleanPing({ id: msg.id, from: c.seat, owner: piece ? piece.c : '', t: piece ? piece.t : '', sx: msg.sx, sy: msg.sy, tx: msg.sx, ty: msg.sy, born: game.history().length, mark: true });
+    if (!mk) return; if (sameTeam(c.seat, mySeat)) addPing(mk); relayPing(mk, c); return;
+  }
   if (msg.clear) { const at = pingAt(msg.at); pings = pings.filter(q => !(q.from === c.seat && pingTouches(q, at))); conns.forEach(o => { if (o !== c && o.open && o.seat && sameTeam(o.seat, c.seat)) o.send({ type: 'pinged', clear: true, from: c.seat, at }); }); render(); return; }
   const p = game.at(msg.sx, msg.sy); if (!p) return;
   const pg = cleanPing({ id: msg.id, from: c.seat, owner: p.c, t: p.t, sx: msg.sx, sy: msg.sy, tx: msg.tx, ty: msg.ty, promo: msg.promo, born: game.history().length });
@@ -1722,14 +1749,14 @@ function hostPing(c, msg) {
   relayPing(pg, c);
 }
 function adviseBot(pg) {                                    // host only: a teammate pointed at a bot's piece = advice for that bot's next turn
-  if (!isHost || !bots[pg.owner] || pg.from === pg.owner || !sameTeam(pg.from, pg.owner) || !$('adviseChk').checked || !game.alive(pg.owner)) return;
+  if (pg.mark || !isHost || !bots[pg.owner] || pg.from === pg.owner || !sameTeam(pg.from, pg.owner) || !$('adviseChk').checked || !game.alive(pg.owner)) return;
   advice[pg.owner] = { sx: pg.sx, sy: pg.sy, tx: pg.tx, ty: pg.ty, promo: pg.promo, from: pg.from };
   addChat('', seatName(pg.from) + ' advised ' + seatName(pg.owner) + '.', true);
   if (botTimer && botSeatToMove() === pg.owner) { clearTimeout(botTimer); botTimer = setTimeout(() => { botTimer = null; botStep(); }, 900); }
 }
 const pingBad = pg => { try { return !game.movesFor(pg.sx, pg.sy).some(m => m.tx === pg.tx && m.ty === pg.ty && (!pg.promo || m.promo === pg.promo)); } catch (e) { return false; } };
 function pingBubble(pg) {
-  const b = document.createElement('span'); b.className = 'pingbub'; b.style.setProperty('--pc', seatCol(pg.from));
+  const b = document.createElement('span'); b.className = 'pingbub'; b.style.setProperty('--pc', pingColor(pg));
   const sp = document.createElement('span'); setGlyph(sp, pg.t); sp.className = 'pc-' + pg.owner + (FAIRY.includes(pg.t) ? ' fairy' : ''); b.appendChild(sp);
   if (pg.promo) { const pr = document.createElement('span'); pr.className = 'pbadge'; const q = document.createElement('span'); setGlyph(q, pg.promo); q.className = 'pc-' + pg.owner + (FAIRY.includes(pg.promo) ? ' fairy' : ''); pr.appendChild(q); b.appendChild(pr); }
   b.title = seatName(pg.from) + ' suggests this ' + (PNAMES[pg.t] || 'piece') + ' goes here' + (pg.promo ? ', promoting to ' + (PNAMES[pg.promo] || pg.promo) : '');
@@ -1765,7 +1792,7 @@ let rcSrc = null, pingPrev = null;
 const cellXY = e => { const c = e.target.closest && e.target.closest('.sq'); return c && c.dataset.x != null ? { x: +c.dataset.x, y: +c.dataset.y } : null; };
 $('board').addEventListener('contextmenu', e => { if (game) e.preventDefault(); });
 $('board').addEventListener('mousedown', e => { if (e.button === 2 && (e.ctrlKey || e.metaKey) && game && game.multi && !spectating && !replay && !draft) rcSrc = cellXY(e); });
-document.addEventListener('mouseup', e => { if (e.button !== 2 || !rcSrc) return; const s = rcSrc; rcSrc = null; const d = cellXY(e); if (!d || !game || !game.multi) return; pingPrev = null; if (d.x === s.x && d.y === s.y) { clearMyPings({ x: d.x, y: d.y }); return; } startPing(s, d); });
+document.addEventListener('mouseup', e => { if (e.button !== 2 || !rcSrc) return; const s = rcSrc; rcSrc = null; pingPrev = null; const d = cellXY(e); if (!d || !game || !game.multi) return; if (d.x === s.x && d.y === s.y) { const at = { x: d.x, y: d.y }; if (pings.some(q => q.from === mySeat && pingTouches(q, at))) clearMyPings(at); else makeMark(d.x, d.y); return; } startPing(s, d); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && (pingMode || pingSrc)) { pingMode = false; pingSrc = null; if (game) render(); } });
 
 
@@ -2015,9 +2042,19 @@ function mkFlyer(node, sq, cls) {
   d.style.cssText = 'position:fixed;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;font-size:' + (parseFloat(cs.fontSize) * k) + 'px;pointer-events:none;z-index:40;background:none;overflow:visible;cursor:default';
   d.appendChild(node.cloneNode(true)); document.body.appendChild(d); return d;
 }
+function markFacing() {                                     // Imperial: a small marker on each Catapult showing where it is aimed
+  document.querySelectorAll('#board span[data-face]').forEach(e => { delete e.dataset.face; });
+  if (!game || !game.facings) return;
+  game.facings().forEach(f => {
+    const a = boardSq(f.x, f.y), sp = a && a.querySelector(':scope > span[data-pc]'); if (!sp) return;
+    const ahead = boardSq(f.x + f.fx, f.y + f.fy), behind = boardSq(f.x - f.fx, f.y - f.fy), ra = a.getBoundingClientRect();
+    let dx, dy; if (ahead) { const r = ahead.getBoundingClientRect(); dx = r.left - ra.left; dy = r.top - ra.top; } else if (behind) { const r = behind.getBoundingClientRect(); dx = ra.left - r.left; dy = ra.top - r.top; } else return;
+    sp.dataset.face = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+  });
+}
 function animAfter() {
   clkEnsure(); clkSync(); clkRender();
-  dragRefresh(); drawOverlay(); preRun();
+  dragRefresh(); drawOverlay(); markFacing(); drawReward(); preRun();
   const job = animJob; animJob = null; if (!job) return;
   const after = snapBoard(), before = job.before, m = job.m, mk = (x, y) => x + ',' + y;
   const rem = [...before.keys()].filter(k => !after.has(k) || after.get(k).key !== before.get(k).key);
@@ -2075,8 +2112,9 @@ function animAfter() {
 
 let dg = null;
 function dragEligible(x, y) {
+  if (game && game.reward && game.reward()) return false;
   if (!$('dragChk').checked || !game || replay || spectating || draft || ended() || swapMode || abMode || (typeof pingMode !== 'undefined' && pingMode)) return false;
-  if (!isMyTurn()) return preOn() && preQ.length < PRE_MAX && preMineAt(x, y);          // not your turn: dragging a piece queues a premove
+  if (!isMyTurn()) return preOn() && preMineAt(x, y);          // not your turn: dragging a piece queues a premove
   const p = game.at(x, y); if (!p || p.wall || p.dead) return false;
   if (!(game.multi ? p.c === mySeat && game.alive(mySeat) : p.c === myColor)) return false;
   return !(game.multi && game.neutralPending);
@@ -2168,7 +2206,16 @@ const preLoad = (k, d) => { try { const v = localStorage.getItem(k); return v ==
 $('preChk').checked = preLoad('chessPremove', true);
 $('preChk').onchange = e => { try { localStorage.setItem('chessPremove', e.target.checked ? '1' : '0'); } catch (x) { /* ignore */ } if (!e.target.checked) { preQ = []; drawOverlay(); } };
 let arrows = [], circles = [], rcA = null, arrowPrev = null, preQ = [], preGame = null, preBusy = false;
-const PRE_MAX = 5;
+const rewardMine = () => !!game && game.multi && !spectating && !replay && !!game.reward && !!game.reward() && game.reward().c === mySeat;
+function drawReward() {                                       // the killer of a Boss: pick which fallen piece comes back (then click a square on your side)
+  const box = $('rewardBox'), rw = game && game.multi && game.reward ? game.reward() : null;
+  if (!rewardMine()) { rewardPick = null; box.classList.add('hidden'); return; }
+  if (rewardPick && !rw.kinds.includes(rewardPick)) rewardPick = null;
+  box.innerHTML = ''; box.classList.remove('hidden');
+  const h = document.createElement('div'); h.innerHTML = '<b>The Boss is dead!</b> Bring one of your fallen pieces back. ' + (rewardPick ? 'Now click a highlighted square on your side.' : 'Which one?'); box.appendChild(h);
+  rw.kinds.forEach(t => { const b = document.createElement('button'); b.type = 'button'; b.innerHTML = glyphHTML(t); b.title = 'Bring this piece back'; if (rewardPick === t) b.classList.add('sel'); b.onclick = () => { rewardPick = rewardPick === t ? null : t; render(); }; box.appendChild(b); });
+  const sk = document.createElement('button'); sk.type = 'button'; sk.textContent = 'Skip'; sk.onclick = () => { rewardPick = null; playMulti({ reward: true, skip: true }); }; box.appendChild(sk);
+}
 const isMyTurn = () => !!game && (game.multi ? game.turn === mySeat && game.alive(mySeat) : game.turn === myColor);
 const preOn = () => $('preChk').checked && !!game && !(MODES[mode].v && MODES[mode].v.hidden) && !game.bug && !ended() && !replay && !spectating && !draft;
 const curSel = () => isMyTurn() ? sel : null;
@@ -2239,7 +2286,11 @@ function drawOverlay() {
   }
   circles.forEach(c => { const g = geo(c.x, c.y); if (g) add('circle', { cx: g.cx, cy: g.cy, r: (g.w + g.h) / 4 * 0.9, fill: 'none', stroke: OV_COL[c.c], 'stroke-width': (g.w + g.h) / 2 * 0.07, opacity: .85 }); });
   arrows.forEach(a => arrow(a, OV_COL[a.c], .82));
-  pingList.forEach(pg => { const opp = !sameTeam(pg.owner, pg.from); arrow({ fx: pg.sx, fy: pg.sy, tx: pg.tx, ty: pg.ty }, seatCol(pg.from), .92, opp ? [0.09, 0.13] : [0.3, 0.17]); });      // dashed: a suggestion; dotted: what you expect an opponent to do
+  pingList.forEach(pg => {
+    const col = pingColor(pg);
+    if (pg.mark) { const g = geo(pg.sx, pg.sy); if (g) { const r = (g.w + g.h) / 4; add('circle', { cx: g.cx, cy: g.cy, r: r * 1.02, fill: 'none', stroke: col, 'stroke-width': r * 0.2, opacity: .95 }); add('circle', { cx: g.cx, cy: g.cy, r: r * 0.6, fill: col, opacity: .3 }); } return; }
+    const opp = !sameTeam(pg.owner, pg.from); arrow({ fx: pg.sx, fy: pg.sy, tx: pg.tx, ty: pg.ty }, col, .92, opp ? [0.09, 0.13] : [0.3, 0.17]);
+  });      // dashed: a suggestion; dotted: what you expect an opponent to do
   if (pingPrev) arrow(pingPrev, seatCol(pingPrev.from), .55, pingPrev.opp ? [0.09, 0.13] : [0.3, 0.17]);
   if (prev) { if (prev.fx === prev.tx && prev.fy === prev.ty) { const g = geo(prev.fx, prev.fy); if (g) add('circle', { cx: g.cx, cy: g.cy, r: (g.w + g.h) / 4 * 0.9, fill: 'none', stroke: OV_COL[prev.c], 'stroke-width': (g.w + g.h) / 2 * 0.07, opacity: .5 }); } else arrow(prev, OV_COL[prev.c], .5); }
   board.appendChild(svg);
@@ -2265,8 +2316,10 @@ document.addEventListener('mouseup', e => {
   const el = document.elementFromPoint(e.clientX, e.clientY), d = el && el.closest ? cellXY({ target: el }) : null;
   if (d && game) {
     if (d.x === a.x && d.y === a.y) {
-      const i = circles.findIndex(c => c.x === d.x && c.y === d.y);
-      if (i >= 0 && circles[i].c === a.c) circles.splice(i, 1); else if (i >= 0) circles[i].c = a.c; else circles.push({ x: d.x, y: d.y, c: a.c });
+      const i = circles.findIndex(c => c.x === d.x && c.y === d.y), ends = q => (q.fx === d.x && q.fy === d.y) || (q.tx === d.x && q.ty === d.y);
+      if (i >= 0 && circles[i].c === a.c) circles.splice(i, 1); else if (i >= 0) circles[i].c = a.c;
+      else if (arrows.some(ends)) arrows = arrows.filter(q => !ends(q));      // right-click an end of an arrow to remove it
+      else circles.push({ x: d.x, y: d.y, c: a.c });
     } else {
       const i = arrows.findIndex(q => q.fx === a.x && q.fy === a.y && q.tx === d.x && q.ty === d.y);
       if (i >= 0 && arrows[i].c === a.c) arrows.splice(i, 1); else if (i >= 0) arrows[i].c = a.c; else arrows.push({ fx: a.x, fy: a.y, tx: d.x, ty: d.y, c: a.c });
@@ -2275,13 +2328,24 @@ document.addEventListener('mouseup', e => {
   drawOverlay();
 });
 $('boardWrap').addEventListener('pointerdown', e => { if (e.button === 0 && (arrows.length || circles.length)) { arrows = []; circles = []; drawOverlay(); } }, true);
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && game && (arrows.length || circles.length || preQ.length)) { arrows = []; circles = []; preQ = []; drawOverlay(); } });
-// a plain click on the board cancels the queued premoves (a drag does not: the release click is swallowed)
-$('boardWrap').addEventListener('click', () => { if (preQ.length) { preQ = []; drawOverlay(); } }, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && game && (arrows.length || circles.length || preQ.length || (game.multi && pings.some(q => q.from === mySeat)))) { arrows = []; circles = []; preQ = []; if (game.multi && pings.some(q => q.from === mySeat)) clearMyPings(null); else drawOverlay(); } });
+function removePremove(i) {                                  // drop one premove, and the later ones that were chained onto its piece
+  const dead = new Set([preQ[i].tx + ',' + preQ[i].ty]);
+  preQ = preQ.filter((q, j) => { if (j < i) return true; if (j === i) return false; const f = q.fx + ',' + q.fy; if (dead.has(f)) { dead.add(q.tx + ',' + q.ty); return false; } return true; });
+  drawOverlay();
+}
+$('boardWrap').addEventListener('click', e => {             // click a queued premove to remove it; Ctrl + click anywhere else removes them all
+  if (!preQ.length) return;
+  const sq = e.target.closest ? e.target.closest('#board .sq[data-x]') : null; if (!sq) return;
+  const x = +sq.dataset.x, y = +sq.dataset.y, hit = preQ.findIndex(q => (q.fx === x && q.fy === y) || (q.tx === x && q.ty === y));
+  if (hit >= 0) { removePremove(hit); e.stopPropagation(); e.preventDefault(); }
+  else if (e.ctrlKey || e.metaKey) { preQ = []; drawOverlay(); e.stopPropagation(); e.preventDefault(); }
+}, true);
 
 function preToast(msg) { addChat('', msg, true); }
 function preRun() {                                          // when your turn comes, the first queued premove is played if it is still legal; otherwise the whole queue is dropped
   if (!preQ.length || preBusy) return;
+  if (game && game.reward && game.reward()) return;
   if (!game || game !== preGame || ended() || replay || draft || spectating || !preOn()) { preQ = []; drawOverlay(); return; }
   const q = preQ[0], p = game.at(q.fx, q.fy);
   if (!p || !(game.multi ? p.c === mySeat : p.c === myColor)) { preQ = []; drawOverlay(); preToast('Premove cancelled: that piece was taken or has moved.'); return; }
@@ -2489,7 +2553,7 @@ const PIECE_GUIDE = [
   ['f', 'Jester', 'Never captures by itself. Hops to the opposite-colour squares of its 5×5 (light ↔ dark). Also copies the moves (and captures) of any FRIENDLY piece within its 3×3 (never enemy pieces) except Imperials, other Jesters and ranged pieces (Archer, Catapult, Lancer thrust, Princess shots). Pawns can promote to it.'],
   ['u', 'Archer', 'Steps 1–2 straight. Shoots 12 squares around it (the 5×5 ring without corners and without the squares right beside it) without moving, can’t be blocked.'],
   ['s', 'Sapper', 'Leaps 1 diagonal or 2 straight; never captures. After moving it may place a wall next to itself (once per 2 turns).'],
-  ['t', 'Catapult', 'Walks 1 in any direction (all 8 around it) or 1–3 straight. Fires on 7 squares ahead; hitting the middle of the far row splashes both sides. Reloads for 2 turns after firing, and can’t move at all on the first turn after firing.'],
+  ['t', 'Catapult', 'Walks 1 in any direction (all 8 around it) or 1–3 straight. It faces one way (a small marker shows which; it starts facing forward) and turns to face the direction of every straight walk (up, down, left or right); a diagonal step keeps its facing. Fires on 7 squares ahead of where it faces; hitting the middle of the far row splashes both sides. Reloads for 2 turns after firing, and can’t move at all on the first turn after firing.'],
   ['p', 'Pawn', 'Steps 1 (up to 3 on its first move), captures diagonally. In the king’s aura it steps 2. On the 4-player cross board pawns walk 2 after their first move and 3 in the aura (the wide 2v2 board is like the 2-player board).'],
   ['v', 'Pikeman', 'Pawn that also captures straight ahead. Promotes to a Lancer too.'],
   ['m', 'Skirmisher', 'Pawn that can also step sideways. Promotes to a Raider too.'],
@@ -2541,7 +2605,7 @@ const OCT_GUIDE = [
   [Engine.NEUTRAL_T.hound, 'Hound', 'Wild: hunts the nearest piece, up to 2 squares a round, capturing what it reaches (never a king). With neutral drops on you can capture it into your hand and drop it: then it is yours but <b>moves by itself</b>. You can never move it, and it never leaves your king in check. If it is captured again it is gone for good.', false],
   [Engine.NEUTRAL_T.burrower, 'Burrower', 'Wild: steps like a king, and every square it leaves becomes a <b>hole for 3 rounds</b>. A host option lets those holes also promote pawns. Owned: see the diagram.', true],
   [Engine.NEUTRAL_T.golem, 'Golem', 'Wild: steps like a king but only every second round. <b>Only rooks, queens and other straight sliders can capture it</b> (not pawns, knights, bishops or kings). Owned: see the diagram.', true],
-  [Engine.NEUTRAL_T.boss, 'Boss', 'A 2×2 monster. See the rules above: crushes what it rolls over, costs your piece for every cell you take, can be killed or claimed on its last cell. It is drawn as one picture across its four cells: capture a cell and that part of the picture is gone.', false]
+  [Engine.NEUTRAL_T.boss, 'Boss', 'A 2×2 monster. See the rules above: crushes what it rolls over (kings are safe), and the piece that takes a cell survives. It can be killed or claimed on its last cell. It is drawn as one picture across its four cells: capture a cell and that part of the picture is gone.', false]
 ];
 let octDone = false;
 function fillOctGuide() {
@@ -2634,6 +2698,7 @@ function mlText(g, e) {
   if (e.drop) return mlLetter(e.drop) + '@' + sq(e.tx, e.ty);
   if (e.rev) return 'revive ' + (GLYPH[e.rev] || '') + '@' + sq(e.tx, e.ty);
   if (e.free) return 'free ' + sq(e.fx, e.fy) + '→' + sq(e.tx, e.ty);
+  if (e.reward) return e.skip ? 'boss reward: skipped' : 'boss reward ' + (GLYPH[e.t] || '') + '@' + sq(e.tx, e.ty);
   const at = (x, y) => (g.bug ? g.at(e.board, x, y) : g.layers ? g.at(x, y, e.fl) : g.at(x, y));
   const p = at(e.fx, e.fy), t = p ? (p.fx && p.fx.msk && !maskSeen(p) ? p.fx.msk : p.t) : '', dest = at(e.tx, e.ty);
   if (t === 'k' && (e.castle || (e.ty === e.fy && Math.abs(e.tx - e.fx) === 2) || (dest && dest.t === 'r' && dest.c === p.c))) return 'castle';
@@ -2867,7 +2932,7 @@ const shownType = p => (p.fx && p.fx.msk && !maskSeen(p) ? p.fx.msk : p.t);
 function foeClick(x, y) {                      // clicking an enemy piece (with nothing selected) previews where it can move
   if (!gs.foeMoves || !game || !game.reach || sel) { if (foeSel) { foeSel = null; render(); } return false; }
   const p = game.at(x, y);
-  if (p && !p.wall && p.c !== meId() && !isMate(p.c)) { foeSel = foeSel && foeSel.x === x && foeSel.y === y ? null : { x, y, h: game.history().length }; render(); return true; }
+  if (p && !p.wall && (p.c !== meId() || !isMyTurn())) { foeSel = foeSel && foeSel.x === x && foeSel.y === y ? null : { x, y, h: game.history().length }; render(); return true; }
   if (foeSel) { foeSel = null; render(); }
   return false;
 }
@@ -2881,16 +2946,17 @@ function markClip(d, x, y, visible) {              // Clipping: dashed outline o
 function abValidate() {                          // drops a stale ability selection and computes the highlighted target squares
   abSet = null;
   mineSet = null; foeSet = null; rmarkSet = null; clipMap = null;
-  rngSet = null;
+  rngSet = null; rngF = false; rewSet = null;
+  if (rewardMine() && rewardPick) { rewSet = new Set(game.rewardFor(rewardPick).map(q => q.x + ',' + q.y)); }
   if (game && game.clips) { const cz = game.clips(); if (cz.length) { clipMap = {}; cz.forEach(z => { clipMap[z.x + ',' + z.y] = z; }); } }
   if (game && game.markers) { const mk = game.markers(); if (mk.length) rmarkSet = new Set(mk.map(m => m.x + ',' + m.y)); }
   if (foeSel && game && game.reach && gs.foeMoves) {
     const fp = game.at(foeSel.x, foeSel.y);
     if (!fp || foeSel.h !== game.history().length) foeSel = null;
-    else foeSet = new Set(game.reach(foeSel.x, foeSel.y, fp.fx && fp.fx.msk && !maskSeen(fp) ? fp.fx.msk : null).map(m => m.tx + ',' + m.ty));      // (a masked piece shows the moves of its fake icon)
+    else foeSet = new Map(game.reach(foeSel.x, foeSel.y, fp.fx && fp.fx.msk && !maskSeen(fp) ? fp.fx.msk : null).map(m => [m.tx + ',' + m.ty, !!game.at(m.tx, m.ty)]));      // (a masked piece shows the moves of its fake icon)
   } else foeSel = null;
   { const rs = sel && sel.drop === undefined && isMyTurn() ? sel : foeSel;                       // a shooter that is selected (or an enemy one being previewed) also shows its range
-    if (rs && game && game.range && game.at(rs.x, rs.y)) { try { const lst = game.range(rs.x, rs.y); if (lst.length) rngSet = new Set(lst.map(m => m.tx + ',' + m.ty)); } catch (e) { rngSet = null; } } }
+    if (rs && game && game.range && game.at(rs.x, rs.y)) { try { const lst = game.range(rs.x, rs.y); if (lst.length) { rngSet = new Set(lst.map(m => m.tx + ',' + m.ty)); rngF = rs === foeSel; } } catch (e) { rngSet = null; } } }
   if (game && game.mines) { const all = spectating || replay || ended(), arr = game.mines(all ? null : meId()); if (arr.length) mineSet = new Set(arr.map(m => m.x + ',' + m.y)); }
   chargeSq = game && game.chargeOf && !spectating && !replay && !draft ? (game.chargeOf(meId()) || (game.overrunOf ? game.overrunOf(meId()) : null)) : null;
   if (!abMode) { abFrom = null; return; }
@@ -3067,8 +3133,9 @@ function renderCore() {
     { const hm = hints.find(m => m.tx === x && m.ty === y); if (hm) { d.classList.add('hint'); if (p) d.classList.add('cap'); if (hm.shot) d.classList.add('shot'); } }
     if (abSet && abSet.has(x + ',' + y)) d.classList.add('hint');
     if (mineSet && mineSet.has(x + ',' + y)) d.classList.add('mine');
-    if (foeSet && foeSet.has(x + ',' + y)) d.classList.add('foe');
-    if (rngSet && rngSet.has(x + ',' + y)) { d.classList.add('rng'); if (!d.title) d.title = 'In range: it can shoot here if something stands on it'; }
+    if (foeSet && foeSet.has(x + ',' + y)) { d.classList.add('foe'); if (foeSet.get(x + ',' + y)) d.classList.add('foec'); }
+    if (rewSet && rewSet.has(x + ',' + y)) { d.classList.add('hint'); d.classList.add('rew'); }
+    if (rngSet && rngSet.has(x + ',' + y)) { d.classList.add('rng'); if (rngF) d.classList.add('rngf'); if (!d.title) d.title = 'In range: it can shoot here if something stands on it'; }
     if (rmarkSet && rmarkSet.has(x + ',' + y)) d.classList.add('rmark');
     markClip(d, x, y, !fogged);
     if (promoHint && game.inPromo(x, y, meId())) d.classList.add('promoz');
@@ -3945,7 +4012,7 @@ function announceMulti() {
   if (game.oct) {                                                           // the Boss and its cells
     const h = game.history(), m = h[h.length - 1], bossT = Engine.NEUTRAL_T.boss;
     if (m && m.c !== 'n' && m.cap === bossT) { let left = 0; for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) { const q = game.at(x, y); if (q && q.t === bossT) left++; }
-      addChat('', CN[m.c] + ' took a cell of the Boss and lost the piece that did it' + (left ? ' (' + left + ' cell' + (left > 1 ? 's' : '') + ' left).' : '. The Boss is dead or claimed!'), true); }
+      addChat('', CN[m.c] + ' took a cell of the Boss' + (left ? ' (' + left + ' cell' + (left > 1 ? 's' : '') + ' left).' : '. The Boss is dead or claimed!'), true); }
     if (m && m.boss && m.c !== 'n') addChat('', CN[m.c] + ' moved their Boss' + (m.cap ? ' and crushed ' + m.cap.length + ' piece' + (m.cap.length > 1 ? 's' : '') + '!' : '.'), true);
   }
   game.drainEvents().forEach(e => {
@@ -4022,6 +4089,7 @@ function fromView(c, X, Y, N = 14) {
 function clickMulti(x, y) {
   $('promo').classList.add('hidden');
   if (draft || replay || spectating) return;
+  if (rewardMine()) { if (rewardPick && rewSet && rewSet.has(x + ',' + y)) { const t = rewardPick; rewardPick = null; playMulti({ reward: true, t, tx: x, ty: y }); } return; }
   if (pingMode) return pingClick(x, y);
   if (swapMode) return swapClick(x, y);
   if (abMode) return abClick(x, y);
@@ -4226,8 +4294,9 @@ function renderMulti() {
       if (g.oct && sel && !sel.drop && hints.some(m => m.inplace)) { const f = g.fwd(mySeat); if (x === sel.x + f[0] && y === sel.y + f[1]) d.classList.add('hint'); } }      // a pawn facing a hole: the hole is where you click to promote
     if (abSet && abSet.has(x + ',' + y)) d.classList.add('hint');
     if (mineSet && mineSet.has(x + ',' + y)) d.classList.add('mine');
-    if (foeSet && foeSet.has(x + ',' + y)) d.classList.add('foe');
-    if (rngSet && rngSet.has(x + ',' + y)) { d.classList.add('rng'); if (!d.title) d.title = 'In range: it can shoot here if something stands on it'; }
+    if (foeSet && foeSet.has(x + ',' + y)) { d.classList.add('foe'); if (foeSet.get(x + ',' + y)) d.classList.add('foec'); }
+    if (rewSet && rewSet.has(x + ',' + y)) { d.classList.add('hint'); d.classList.add('rew'); }
+    if (rngSet && rngSet.has(x + ',' + y)) { d.classList.add('rng'); if (rngF) d.classList.add('rngf'); if (!d.title) d.title = 'In range: it can shoot here if something stands on it'; }
     if (rmarkSet && rmarkSet.has(x + ',' + y)) d.classList.add('rmark');
     markClip(d, x, y, !fogged);
     if (promoHint && game.inPromo(x, y, meId())) d.classList.add('promoz');
@@ -4248,7 +4317,7 @@ function renderMulti() {
       if (p.t === Engine.NEUTRAL_T.boss && p.c !== 'n' && g.bossCooldown && g.bossCooldown(p.bid) > 0 && g.moves(x, y).length === 0) { d.classList.add('bcd'); const cd = document.createElement('span'); cd.className = 'cd'; cd.textContent = '⏳'; cd.title = 'Your Boss is resting: it can move again after your next turn'; d.appendChild(cd); }
       if (p.aim) { const a = document.createElement('span'); a.className = 'aim'; a.textContent = aimArrow(viewSeat(mySeat), p.aim); a.title = 'Aiming: it charges this way next round'; d.appendChild(a); }
     }
-    livePg.forEach(pg => { if (pg.tx === x && pg.ty === y) d.appendChild(pingBubble(pg)); });
+    livePg.forEach(pg => { if (!pg.mark && pg.tx === x && pg.ty === y) d.appendChild(pingBubble(pg)); });
     if (pingSrc && pingSrc.x === x && pingSrc.y === y) { d.classList.add('pingsrc'); d.style.setProperty('--pc', seatCol(mySeat)); }
     d.onclick = () => clickMulti(x, y);
   };
@@ -4301,7 +4370,7 @@ function renderMulti() {
     if (prev) rs.value = prev;
   }
   $('history').textContent = 'Order: ' + g.seats.map(c => CN[c] + (g.alive(c) ? '' : ' ✖')).join(' → ') +
-    (g.oct && g.neutral ? '   |   Wild neutrals (dashed ring): Boar: aims (arrow), then charges; Hound: hunts the nearest piece; Burrower: leaves a hole behind; Golem: only rooks/queens can take it; Boss: 2×2, crushes what it rolls over. Taking a Boss cell costs your piece.' : g.neutral ? '   |   Neutral (purple, dashed ring): shield = commoner (1 step any way), horned face = imp (knight jump), ghost = wraith (up to 2 diagonally), bull = ox (up to 2 straight). They always capture when they can. Capture one to tame it: drop it on your own arm.' : '');
+    (g.oct && g.neutral ? '   |   Wild neutrals (dashed ring): Boar: aims (arrow), then charges; Hound: hunts the nearest piece; Burrower: leaves a hole behind; Golem: only rooks/queens can take it; Boss: 2×2, crushes what it rolls over. The piece that takes a Boss cell survives.' : g.neutral ? '   |   Neutral (purple, dashed ring): shield = commoner (1 step any way), horned face = imp (knight jump), ghost = wraith (up to 2 diagonally), bull = ox (up to 2 straight). They always capture when they can. Capture one to tame it: drop it on your own arm.' : '');
   if (A4) $('history').textContent = a4ScoreLine() + '   |   ' + $('history').textContent;
 }
 

@@ -46,7 +46,7 @@ const Imperial = (() => {
     const B0 = new Array(W * H).fill(null);
     const put = (row, r, c) => { for (let i = 0; i < 13; i++) { const [x, y] = G.place(c, i, r), q = { t: row[i], c, m: false, o: true }; if (!alive0[c]) q.dead = true; B0[y * W + x] = q; } };
     SEATS.forEach(c => { put(BACK, 0, c); put(R2, 1, c); put(FRONT, 2, c); });
-    if (o.pieces) { B0.fill(null); for (const q of o.pieces) B0[q.y * W + q.x] = { t: q.t, c: q.c, m: !!q.m, o: !!q.o }; }
+    if (o.pieces) { B0.fill(null); for (const q of o.pieces) B0[q.y * W + q.x] = Object.assign({ t: q.t, c: q.c, m: !!q.m, o: !!q.o }, q.face ? { face: q.face } : {}); }
     let S = { B: B0, turn: active[0], ply: 0, alive: alive0 }; const hist = [], cache = new Map(); let events = [];
 
     const at = (B, x, y) => (cut(x, y) ? null : B[y * W + x]);
@@ -181,7 +181,7 @@ const Imperial = (() => {
           const since = p.fired === undefined ? Infinity : S.ply - p.fired;
           if (since <= NS) break;
           slide(OR, 3, { cap: false }); leap(DG, { cap: false });
-          if (since > 2 * NS) CAT.forEach(([a, b]) => addR(a, b, { mv: false, shoot: true }));
+          if (since > 2 * NS) { const f = p.face || rot(c, 0, 1); CAT.forEach(([a, b]) => add(a * f[1] + b * f[0], -a * f[0] + b * f[1], { mv: false, shoot: true })); }      // aimed along its facing: it turns by walking (see apply)
           break;
         }
         case 'j': {                                       // Lancer
@@ -274,8 +274,9 @@ const Imperial = (() => {
         const hits = [{ x: m.tx, y: m.ty, t: dead.t }];
         if (p.t === 't') {
           B[m.fy * W + m.fx] = Object.assign({}, p, { fired: St.ply });
-          if (m.tx - m.fx === 4 * Fx && m.ty - m.fy === 4 * Fy) for (const s of [-1, 1]) {
-            const [sdx, sdy] = rot(p.c, s, 0), sx = m.tx + sdx, sy = m.ty + sdy, q = at(St.B, sx, sy);
+          const fc = p.face || [Fx, Fy];
+          if (m.tx - m.fx === 4 * fc[0] && m.ty - m.fy === 4 * fc[1]) for (const s of [-1, 1]) {
+            const sdx = s * fc[1], sdy = -s * fc[0], sx = m.tx + sdx, sy = m.ty + sdy, q = at(St.B, sx, sy);
             if (q && !q.wall && canTake(St.B, p, q, inf) && !IMP.includes(q.t) && !protectedFrom(St.B, p, q, sx, sy, inf)) { B[sy * W + sx] = null; hits.push({ x: sx, y: sy, t: q.t }); }
           }
         }
@@ -285,7 +286,9 @@ const Imperial = (() => {
       B[m.fy * W + m.fx] = null;
       let cap = dead;
       if (m.ep && St.ep) { cap = B[St.ep.ly * W + St.ep.lx]; B[St.ep.ly * W + St.ep.lx] = null; }
-      B[m.ty * W + m.tx] = Object.assign({}, p, { t: m.promo || p.t, m: true, o: m.promo && !GRAND[p.t] ? false : p.o, cd: m.castle ? St.ply : p.cd });
+      let face = p.face;
+      if (p.t === 't') { const ddx = m.tx - m.fx, ddy = m.ty - m.fy; if ((ddx === 0) !== (ddy === 0)) face = [Math.sign(ddx), Math.sign(ddy)]; }
+      B[m.ty * W + m.tx] = Object.assign({}, p, { t: m.promo || p.t, m: true, o: m.promo && !GRAND[p.t] ? false : p.o, cd: m.castle ? St.ply : p.cd }, face !== p.face ? { face } : {});
       if (PF.includes(p.t)) {                           // aura memory: leaving the king's aura by this move grants one more turn of it (not renewable by using it)
         const q = B[m.ty * W + m.tx], was = kingAura(St.B, m.fx, m.fy, p.c), now = kingAura(B, m.tx, m.ty, p.c);
         if (was && !now) q.ag = St.ply; else delete q.ag;
@@ -396,6 +399,7 @@ const Imperial = (() => {
       moves: (x, y) => legal(S, x, y),
       allMoves: () => all(S),
       reach(x, y) { const p = at(S.B, x, y); return !p || p.wall || p.dead ? [] : pseudo({ B: S.B, turn: p.c, ply: S.ply, ep: S.ep }, x, y); },
+      facings() { const out = []; for (let i = 0; i < S.B.length; i++) { const p = S.B[i]; if (p && p.t === 't' && !p.wall) { const f = p.face || rot(p.c, 0, 1); out.push({ x: i % W, y: (i / W) | 0, fx: f[0], fy: f[1] }); } } return out; },      // where each Catapult is aimed (board directions)
       range(x, y) {                                                 // every square this piece could shoot if a target stood there
         const p = at(S.B, x, y); if (!p || p.wall || p.dead) return [];
         const B = S.B, inf = info(B), saveS = S; let list; S = { B, turn: p.c, ply: S.ply, ep: S.ep };

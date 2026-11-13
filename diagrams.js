@@ -65,7 +65,7 @@ const Diagrams = (() => {
     const build = target => {
       const ps = [];
       [['E', 5], ['X', 8], ['H', 11]].forEach(([k, x]) => { if (keep.includes(k) && k !== t) ps.push({ t: k, c: 'w', x, y: 0 }); ps.push({ t: k, c: 'b', x, y: 15 }); });
-      ps.push({ t, c: 'w', x: cx, y: cy, m: !!o.moved });
+      ps.push({ t, c: 'w', x: cx, y: cy, m: !!o.moved, face: o.face });
       (o.extra || []).forEach(e => ps.push({ t: e.t, c: e.c, x: cx + e.dx, y: cy + e.dy, m: true }));
       if (target) ps.push({ t: 'b', c: 'b', x: target[0], y: target[1] });      // a plain black bishop: no Imperial immunity, no aura or Guard protection, so every attacker can take it
       return Imperial.create({ pieces: ps });
@@ -134,6 +134,7 @@ const Diagrams = (() => {
     if (t === 'k') st.push({ label: 'With a friendly piece 2 squares away (here a Pawn up-right): it can step next to it; captures only inside its own 5×5', o: { extra: [{ t: 'p', c: 'w', dx: 2, dy: 2 }] } });
     if ('pvm'.includes(t)) { st[0].label = 'First move'; st.push({ label: 'Later moves', o: { moved: true } }); st.push({ label: 'Later moves, near a friendly King (aura)', o: { moved: true, extra: [{ t: 'k', c: 'w', dx: 0, dy: -1 }] } }); }
     if (t === 'f') st.push({ label: 'With a friendly Knight next to it (it borrows its moves)', o: { extra: [{ t: 'n', c: 'w', dx: 1, dy: 0 }] } });
+    if (t === 't') { st[0].label = 'Facing forward (where it starts)'; st.push({ label: 'After walking left (it turns to face left; walking right, up or down turns it that way too; a diagonal step keeps its facing)', o: { face: [-1, 0] } }); }
     return st;
   }
   return { grid2p, gridImp, gridOct, states, clear: () => cache.clear() };
