@@ -8,7 +8,91 @@
  *   castling    true/false (king 'k' + rooks 'r' that have not moved)
  * New pieces = new entries in `pieces`. Classes/spells would hook into move()/apply().
  */
+/* Generic look-ahead search for the Hard bot (used by Imperial, Promotion, Alice, Hex and the multi-seat engines).
+   One search for every game: the engine describes itself through a small "adapter" and this file does the rest.
+
+   Search.run(ad, opts) -> the best move (or null when there is none)
+     ad.state                       the current position (any object; the search never changes it, it only passes it to the adapter)
+     ad.moves(s)                    every move to try in position s (empty = the side to move is stuck)
+     ad.apply(s, m)                 the position after m (must return a NEW position or restore what it changed)
+     ad.max(s)                      true when the side to move belongs to the bot's own team (it picks the best move for the team);
+                                    every other side is assumed to play the move that is WORST for the bot ("paranoid" search, which
+                                    is a fair model for a free-for-all and exact for 2 players)
+     ad.eval(s)                     static score for the bot's team (bigger = better for the bot)
+     ad.stuck(s, ply)               score when the side to move has no move (mate / stalemate), from the bot's point of view
+     ad.score(s, m)                 (optional) a guess how good a move is, for move ordering (captures first)
+     ad.loud(s, m)                  (optional) true for a move that must be followed to the end (captures, promotions)
+     ad.end(s, ply)                 (optional) score when the game is already decided, else null
+     ad.rootBonus(m)                (optional) added to a root move's score (e.g. a crazyhouse drop spends a piece from the hand)
+   opts.accept(d): (optional) which finished depths may decide the move (see multi-seat engines)
+   opts: depth (max iterative-deepening depth), ms (time cap; depth 1 always finishes), beam (how many moves are tried at a non-root node;
+         the ordering decides which ones), qdepth (how deep captures are followed, 0 = off), rootBeam (optional cap on root moves), rand (noise)
+   Returns { move, score, depth, nodes } through Search.last as well. */
+const Search = (() => {
+  const MATE = 100000;
+  function run(ad, o) {
+    o = o || {};
+    const t0 = Date.now(), limit = o.ms || 1200, maxD = o.depth || 3, beam = o.beam || 1e9, qMax = o.qdepth === undefined ? 4 : o.qdepth, rand = o.rand || 0;
+    let nodes = 0, timeout = false, hard = false;
+    const sc = ad.score || (() => 0), loud = ad.loud || (() => false);
+    const order = (s, ms) => { const a = ms.map(m => [sc(s, m), m]); a.sort((x, y) => y[0] - x[0]); return a.map(x => x[1]); };
+    const tick = () => { if ((++nodes & 31) === 0 && hard && Date.now() - t0 > limit) timeout = true; return timeout; };
+    function qs(s, alpha, beta, ply, qd) {
+      const max = ad.max(s), stand = ad.eval(s);
+      if (qd >= qMax) return stand;
+      if (max) { if (stand >= beta) return stand; if (stand > alpha) alpha = stand; } else { if (stand <= alpha) return stand; if (stand < beta) beta = stand; }
+      let best = stand;
+      const ms = ad.moves(s).filter(m => loud(s, m));
+      for (const m of order(s, ms)) {
+        if (tick()) return 0;
+        const v = qs(ad.apply(s, m), alpha, beta, ply + 1, qd + 1);
+        if (timeout) return 0;
+        if (max) { if (v > best) best = v; if (best > alpha) alpha = best; } else { if (v < best) best = v; if (best < beta) beta = best; }
+        if (alpha >= beta) break;
+      }
+      return best;
+    }
+    function ab(s, d, alpha, beta, ply) {
+      if (tick()) return 0;
+      if (ad.end) { const e = ad.end(s, ply); if (e !== null && e !== undefined) return e; }
+      const max = ad.max(s), all = ad.moves(s);
+      if (!all.length) return ad.stuck(s, ply);
+      if (d <= 0) return qMax > 0 && ad.loud ? qs(s, alpha, beta, ply, 0) : ad.eval(s);
+      let ms = order(s, all); if (ms.length > beam) ms = ms.slice(0, beam);
+      let best = max ? -Infinity : Infinity;
+      for (const m of ms) {
+        const v = ab(ad.apply(s, m), d - 1, alpha, beta, ply + 1);
+        if (timeout) return 0;
+        if (max) { if (v > best) best = v; if (best > alpha) alpha = best; } else { if (v < best) best = v; if (best < beta) beta = best; }
+        if (alpha >= beta) break;
+      }
+      return best;
+    }
+    const s0 = ad.state;
+    let root = ad.moves(s0); if (!root.length) return null;
+    root = order(s0, root.sort(() => Math.random() - 0.5));          // (shuffled first, so equal moves vary)
+    if (o.rootBeam && root.length > o.rootBeam) root = root.slice(0, o.rootBeam);
+    let best = root[0], bestScore = 0, done = 0;
+    for (let d = 1; d <= maxD; d++) {
+      hard = d > 1; let alpha = -Infinity, cur = null, curScore = -Infinity;
+      for (const m of root) {
+        const v = ab(ad.apply(s0, m), d - 1, alpha, Infinity, 1) + (rand ? Math.random() * rand : 0) + (ad.rootBonus ? ad.rootBonus(m) : 0);
+        if (timeout) break;
+        if (v > curScore) { curScore = v; cur = m; if (v > alpha) alpha = v; }
+      }
+      if (timeout || !cur) break;
+      if (!o.accept || o.accept(d) || !done) { best = cur; bestScore = curScore; done = d; }      // (accept: some depths end on the bot's own move and are too optimistic; they only guide the ordering)
+      root = [cur].concat(root.filter(x => x !== cur));
+      if (curScore > MATE / 2) break;
+    }
+    run.last = { score: bestScore, depth: done, nodes, ms: Date.now() - t0 };
+    return best;
+  }
+  return { run, MATE };
+})();
+
 const Engine = (() => {
+  const SR = Search;
   const ROOK = [[1,0],[-1,0],[0,1],[0,-1]], BISHOP = [[1,1],[1,-1],[-1,1],[-1,-1]],
         ALL = ROOK.concat(BISHOP),
         KNIGHT = [[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]];
@@ -127,12 +211,45 @@ const Engine = (() => {
         stC.set(S, r); return r;
       },
       history: () => hist.slice(),
-      perft(d) { const rec = (S, d) => { if (!d) return 1; let n = 0; for (const m of all(S)) n += rec(apply(S, m), d - 1); return n; }; return rec(S, d); }
+      perft(d) { const rec = (S, d) => { if (!d) return 1; let n = 0; for (const m of all(S)) n += rec(apply(S, m), d - 1); return n; }; return rec(S, d); },
+      /* Hard bot: alpha-beta over the real rules (search.js) */
+      search(o) {
+        o = o || {};
+        const me = S.turn, PV = { p: 1, n: 3, b: 3.2, r: 5, q: 9, k: 0 }, vv = t => (t in PV ? PV[t] : 3);
+        const ev = N => { let sc = 0; for (let l = 0; l < 2; l++) for (let i = 0; i < 64; i++) { const q = N.L[l][i]; if (!q) continue; let v = vv(q.t); if (q.t === 'p') v += 0.04 * (q.c === 'w' ? (i >> 3) : 7 - (i >> 3)); sc += q.c === me ? v : -v; } return sc; };
+        const ad = {
+          state: S, moves: all, apply, max: N => N.turn === me, eval: ev,
+          stuck: (N, ply) => (inCheckS(N, N.turn) ? (N.turn === me ? -SR.MATE + ply : SR.MATE - ply) : 0),
+          score: (N, m) => { const t = N.L[m.fl][idx(m.tx, m.ty)]; return (t ? 10 * vv(t.t) - vv(N.L[m.fl][idx(m.fx, m.fy)].t) : 0) + (m.promo ? 6 : 0); },
+          loud: (N, m) => !!m.promo || !!N.L[m.fl][idx(m.tx, m.ty)]
+        };
+        return SR.run(ad, { depth: o.depth || 4, ms: o.ms || 1200, beam: 24, qdepth: 3 });
+      }
     };
   }
 
 
 
+
+
+  // ================= Hard bot for the multi-seat engines (cross / 8-seat / Hex / 4-player Alice) =================
+  // They keep their board in mutable closures, so the search works on COPIES of the board with the engine's own move generator (pseudo-legal moves: no
+  // check test inside the tree, which would be far too slow). The move that is finally played is always one of the engine's exact legal moves, and mates
+  // in one are looked for at the root. Seats of the bot's team maximise, every other seat minimises ("paranoid": exact for 2 sides, cautious for free-for-alls).
+  // env: ring (seats in turn order from the mover), team(c), gen(B,c), apply(B,m), cap(B,m) (value taken), mat(B,me) (static score), root (exact moves), bonus(m)
+  function seatSearch(env, o) {
+    o = o || {};
+    if (!SR) return null;
+    const ring = env.ring, n = ring.length, me = ring[0], mt = env.team(me);
+    const ad = {
+      state: { B: env.B, i: 0 }, moves: s => (s.i === 0 && env.root ? env.root : env.gen(s.B, ring[s.i % n])), apply: (s, m) => ({ B: env.apply(s.B, m), i: s.i + 1 }),
+      max: s => env.team(ring[s.i % n]) === mt, eval: s => env.mat(s.B, mt), stuck: () => 0,
+      score: (s, m) => env.cap(s.B, m), loud: (s, m) => env.cap(s.B, m) > 0, rootBonus: env.bonus
+    };
+    const depthMax = o.depth || Math.max(3, 2 * n);
+    const accept = d => env.team(ring[(d - 1) % n]) !== mt;      // a depth that ends on one of our own moves would be too optimistic about what we just took
+    return SR.run(ad, { depth: depthMax, ms: o.ms || 1200, beam: o.beam || 7, qdepth: 0, accept });
+  }
 
   // ================= simple bots (run by the host) =================
   // Easy: mostly random, sometimes grabs the biggest piece it can. Normal: picks the move with the best
@@ -147,6 +264,7 @@ const Engine = (() => {
       const pick = sq[Math.floor(Math.random() * sq.length)]; return { reward: true, t: best, tx: pick.x, ty: pick.y };
     }
     if (game.cls && CLASSES[game.cls[seat]] && CLASSES[game.cls[seat]].secret) return null;      // bots never play a secret class (Glitch)
+    if (level === 'hard' && game.search) { const hm = game.multi || game.layers ? game.search({}) : game.search({ ms: 1200, depth: (game.w * game.h > 100 ? 3 : 4) }); if (hm) return hm; }      // hard: a real look-ahead search (every engine that has one); anything else falls through to Normal
     const rand = a => a[Math.floor(Math.random() * a.length)];
     let cands;
     if (game.evalMoves) cands = game.evalMoves(seat);
@@ -835,9 +953,9 @@ const Engine = (() => {
       for (let i = 0; i < SZ; i++) { const p = B[i]; if (p && p.t === 'k' && p.c === c && !p.dead) return sqAttacked(B, i % BW, Math.floor(i / BW), c); }
       return false;
     }
-    function sim(m, p) {
+    function sim(m, p, base) {
       if (m.boss) return bossBoard(m).B2;
-      const B = b.slice();
+      const B = (base || b).slice();
       if (m.drop) { B[idx(m.tx, m.ty)] = { t: m.drop, c: m.c, m: true }; return B; }
       if (m.c960) {
         B[idx(m.fx, m.fy)] = null; B[idx(m.rx, m.ry)] = null;
@@ -1089,6 +1207,35 @@ const Engine = (() => {
         }
         return out;
       },
+      /* Hard bot: look-ahead on board copies (see seatSearch). Neutral pieces are treated as fixed obstacles; hands count 0.85 of a piece. */
+      search(o) {
+        if (over() || !alive[S.turn]) return null;
+        const ring = []; { let c = S.turn; do { ring.push(c); c = nextActive(c); } while (c !== S.turn && ring.length < seats.length); }
+        const me = S.turn, cx = (BW - 1) / 2, cy = (BH - 1) / 2, sv = t => (t in BOT_VAL ? BOT_VAL[t] : 3.5);
+        const genMoves = (B, c) => { const out = []; for (let i = 0; i < SZ; i++) { const p = B[i]; if (!p || p.c !== c || p.dead || p.auto || p.t === T.boss) continue; for (const m of pseudo(B, i % BW, Math.floor(i / BW))) if (!m.rev && !m.free && !m.boss) out.push(m); } return out; };
+        const ev0 = this && this.evalMoves ? this.evalMoves(me) : null, thr = new Map();      // the Normal bot's 'what can they take back next' number is added as a safety net (the tree cannot see every seat that moves later)
+        const root = ev0 ? ev0.map(x => { thr.set(x.m, x.threat || 0); return x.m; }) : [];
+        if (!ev0) { for (let i = 0; i < SZ; i++) { const p = b[i]; if (p && p.c === me && !p.dead) legalAt(i % BW, Math.floor(i / BW)).forEach(m => root.push(m)); } legalDrops(me).forEach(m => root.push(m)); }
+        if (!root.length) return null;
+        const saveB = b.slice(), foes = ring.filter(c => teamOf(c) !== teamOf(me)), mateBonus = new Map();
+        const mated = B2 => { let n = 0; for (const f of foes) { if (!kingAttacked(B2, f)) continue; for (let i = 0; i < SZ; i++) b[i] = B2[i]; try { if (!hasMove(f)) n++; } finally { for (let i = 0; i < SZ; i++) b[i] = saveB[i]; } } return n; };
+        const bonus = m => { if (mateBonus.has(m)) return mateBonus.get(m); const B2 = sim(m, m.drop ? null : b[idx(m.fx, m.fy)]); const v = 8 * mated(B2) - (m.drop ? 0.85 * sv(m.drop) : 0) - 0.95 * (thr.get(m) || 0); mateBonus.set(m, v); return v; };
+        const env = {
+          B: b, ring, team: teamOf, root, bonus,
+          gen: genMoves, apply: (B, m) => sim(m, B[idx(m.fx, m.fy)], B),
+          cap: (B, m) => { const t = m.drop ? null : B[idx(m.tx, m.ty)]; return t && t.c !== 'n' && !t.dead && teamOf(t.c) !== teamOf(B[idx(m.fx, m.fy)] ? B[idx(m.fx, m.fy)].c : me) ? sv(t.t) : 0; },
+          mat: (B, mt) => {
+            let mine = 0, foe = 0;
+            for (let i = 0; i < SZ; i++) { const p = B[i]; if (!p || p.c === 'n' || p.t === 'k' || p.t === T.boss) continue; const x = i % BW, y = Math.floor(i / BW);
+              let v = sv(p.t) + (p.t === 'p' ? 0.05 * rankOf(p.c, x, y) : 0.02 * (7 - Math.hypot(x - cx, y - cy)) * (p.t === 'n' || p.t === 'b' ? 1 : 0));
+              if (p.dead || !alive[p.c]) v *= 0.06;
+              if (teamOf(p.c) === mt) mine += v; else foe += v; }
+            for (const c of ring) { const h = hands[c]; if (h) for (const t in h) { const v = 0.85 * sv(t) * h[t]; if (teamOf(c) === mt) mine += v; else foe += v; } }
+            return mine - foe / Math.max(1, new Set(foes.map(teamOf)).size);
+          }
+        };
+        return seatSearch(env, o || {});
+      },
       canSwap: c => TR[c] === 'swap' && !!alive[c] && !swapUsed.has(c),
       winner: () => (!S.drawn && liveTeams() === 1 ? seats.find(c => alive[c]) : null),
       get drawn() { return S.drawn; },
@@ -1308,8 +1455,8 @@ const Engine = (() => {
       return null;
     }
     function kingAttacked(Ls, c) { const k = kingLoc(Ls, c); return k ? sqAttacked(Ls[k.l], k.x, k.y, c) : false; }
-    function sim(m, p) {
-      const Ls = [L[0].slice(), L[1].slice()];
+    function sim(m, p, base) {
+      const src = base || L, Ls = [src[0].slice(), src[1].slice()];
       Ls[m.fl][idx(m.fx, m.fy)] = null; Ls[m.fl][idx(m.tx, m.ty)] = null;           // capture happens on the mover's layer
       Ls[1 - m.fl][idx(m.tx, m.ty)] = { t: m.promo || p.t, c: p.c, m: true };       // the piece lands on the other layer
       return Ls;
@@ -1350,6 +1497,24 @@ const Engine = (() => {
       valid,
       at: (x, y, l = 0) => L[l][idx(x, y)],
       moves: (x, y, l = 0) => { const p = L[l][idx(x, y)]; return p && p.c === S.turn ? legalAt(x, y, l) : []; },
+      /* Hard bot (see seatSearch) */
+      search(o) {
+        if (over() || !alive[S.turn]) return null;
+        const ring = []; { let c = S.turn; do { ring.push(c); c = nextActive(c); } while (c !== S.turn && ring.length < seats.length); }
+        const me = S.turn, PV = { p: 1, n: 3, b: 3.2, r: 5, q: 9 }, sv = t => (t in PV ? PV[t] : 3.5), foes = ring.filter(c => teamOf(c) !== teamOf(me));
+        const gen = (Ls, c) => { const out = []; for (let l = 0; l < 2; l++) for (let i = 0; i < SZ; i++) { const p = Ls[l][i]; if (!p || p.c !== c || p.dead) continue; for (const m of pseudo(Ls[l], i % BW, Math.floor(i / BW))) if (!Ls[1 - l][idx(m.tx, m.ty)]) out.push(Object.assign({ fl: l }, m)); } return out; };
+        const root = []; for (let l = 0; l < 2; l++) for (let i = 0; i < SZ; i++) { const p = L[l][i]; if (p && p.c === S.turn && !p.dead) legalAt(i % BW, Math.floor(i / BW), l).forEach(m => root.push(m)); }
+        if (!root.length) return null;
+        const save = [L[0].slice(), L[1].slice()], bonusMap = new Map();
+        const mated = Ls => { let n = 0; for (const f of foes) { if (!kingAttacked(Ls, f)) continue; for (let l = 0; l < 2; l++) for (let i = 0; i < SZ; i++) L[l][i] = Ls[l][i]; try { if (!hasMove(f)) n++; } finally { for (let l = 0; l < 2; l++) for (let i = 0; i < SZ; i++) L[l][i] = save[l][i]; } } return n; };
+        const bonus = m => { if (!bonusMap.has(m)) bonusMap.set(m, 8 * mated(sim(m, L[m.fl][idx(m.fx, m.fy)]))); return bonusMap.get(m); };
+        return seatSearch({
+          B: L, ring, team: teamOf, root, bonus, gen,
+          apply: (Ls, m) => sim.call(null, m, Ls[m.fl][idx(m.fx, m.fy)], Ls),
+          cap: (Ls, m) => { const t = Ls[m.fl][idx(m.tx, m.ty)], f = Ls[m.fl][idx(m.fx, m.fy)]; return t && !t.dead && f && teamOf(t.c) !== teamOf(f.c) ? sv(t.t) : 0; },
+          mat: (Ls, mt) => { let mine = 0, foe = 0; for (let l = 0; l < 2; l++) for (let i = 0; i < SZ; i++) { const p = Ls[l][i]; if (!p || p.t === 'k') continue; let v = sv(p.t) + (p.t === 'p' ? 0.05 * rankOf(p.c, i % BW, Math.floor(i / BW)) : 0); if (p.dead || !alive[p.c]) v *= 0.06; if (teamOf(p.c) === mt) mine += v; else foe += v; } return mine - foe / Math.max(1, new Set(foes.map(teamOf)).size); }
+        }, o || {});
+      },
       kingPos: c => kingLoc(L, c),
       alive: c => !!alive[c],
       winner: () => (!S.drawn && liveTeams() === 1 ? seats.find(c => alive[c]) : null),
@@ -1535,6 +1700,24 @@ const Engine = (() => {
           pseudo(b, x, y, false).concat(pseudo(b, x, y, true)).forEach(m => set.add(idx(m.tx, m.ty)));
         }
         return set;
+      },
+      /* Hard bot (see seatSearch) */
+      search(o) {
+        if (activeCount() <= 1 || S.drawn) return null;
+        const ring = []; { let c = S.turn; do { ring.push(c); c = nextActive(c); } while (c !== S.turn && ring.length < seats.length); }
+        const me = S.turn, PV = { p: 1, n: 3, b: 3.2, r: 5, q: 9 }, sv = t => (t in PV ? PV[t] : 3.5), foes = ring.filter(c => c !== me);
+        const gen = (B, c) => { const out = []; for (let i = 0; i < N * N; i++) { const p = B[i]; if (p && p.c === c && !p.dead) out.push(...pseudo(B, i % N, Math.floor(i / N), false)); } return out; };
+        const root = []; for (let i = 0; i < N * N; i++) { const p = b[i]; if (p && p.c === S.turn && !p.dead) legalAt(i % N, Math.floor(i / N)).forEach(m => root.push(m)); }
+        if (!root.length) return null;
+        const save = b.slice(), bonusMap = new Map();
+        const mated = B2 => { let n = 0; for (const f of foes) { if (!kingAttacked(B2, f)) continue; for (let i = 0; i < N * N; i++) b[i] = B2[i]; try { if (!hasMove(f)) n++; } finally { for (let i = 0; i < N * N; i++) b[i] = save[i]; } } return n; };
+        const app = (B, m) => { const B2 = B.slice(), p = B2[idx(m.fx, m.fy)]; B2[idx(m.tx, m.ty)] = { t: m.promo || p.t, c: p.c, m: true }; B2[idx(m.fx, m.fy)] = null; return B2; };
+        const bonus = m => { if (!bonusMap.has(m)) bonusMap.set(m, 8 * mated(app(b, m))); return bonusMap.get(m); };
+        return seatSearch({
+          B: b, ring, team: c => c, root, bonus, gen, apply: app,
+          cap: (B, m) => { const t = B[idx(m.tx, m.ty)]; return t && !t.dead && t.t !== 'k' ? sv(t.t) : 0; },
+          mat: (B, mt) => { let mine = 0, foe = 0; for (let i = 0; i < N * N; i++) { const p = B[i]; if (!p || p.t === 'k') continue; let v = sv(p.t); if (p.dead || !alive[p.c]) v *= 0.06; if (p.c === mt) mine += v; else foe += v; } return mine - foe / Math.max(1, foes.length); }
+        }, o || {});
       },
       alive: c => !!alive[c],
       winner: () => (!S.drawn && activeCount() === 1 ? seats.find(c => alive[c]) : null),
@@ -2080,10 +2263,77 @@ const Engine = (() => {
       return n;
     }
 
+
+    // ---- Hard bot: iterative-deepening alpha-beta (captures searched to the end), material + a little position. Used by Engine.botChoose(..., 'hard').
+    const PVAL = { p: 1, n: 3, b: 3.2, r: 5, q: 9, k: 0 }, pv = t => (t in PVAL ? PVAL[t] : 3.5);
+    function searchBest(S0, o) {
+      const root = S0.turn, t0 = Date.now(), maxD = o.depth || 4, limit = o.ms || 1200, MATE = 100000, cx = (w - 1) / 2, cy = (h - 1) / 2;
+      let nodes = 0, timeout = false, hard = false;
+      const evalS = S => {
+        let sc = 0;
+        for (let i = 0; i < w * h; i++) {
+          const q = S.b[i]; if (!q) continue; const x = i % w, y = (i - x) / w;
+          let val = pv(q.t);
+          if (q.t === 'p') val += 0.05 * (q.c === 'w' ? y : h - 1 - y) + (Math.abs(x - cx) < 1.6 ? 0.04 : 0);
+          else if (q.t === 'n' || q.t === 'b') val -= 0.05 * (Math.abs(x - cx) + Math.abs(y - cy)) / 2;
+          sc += q.c === root ? val : -val;
+        }
+        if (S.hands) for (const c of ['w', 'b']) for (const t in S.hands[c]) sc += (c === root ? 1 : -1) * 0.85 * pv(t) * S.hands[c][t];
+        return sc;
+      };
+      const victim = (S, m) => (m.drop || m.c960 ? null : (S.b[idx(m.tx, m.ty)] || (m.ep ? S.b[idx(m.tx, m.fy)] : null)));
+      const order = (S, ms) => ms.map(m => {
+        const vic = victim(S, m), src = m.drop ? null : S.b[idx(m.fx, m.fy)];
+        let k = 0; if (vic && vic.c !== S.turn) k += 10 * pv(vic.t) - (src ? pv(src.t) : 0); if (m.promo) k += 8 * pv(m.promo) / 9 + 5; return [k, m];
+      }).sort((a, b) => b[0] - a[0]).map(a => a[1]);
+      const loud = (S, m) => { const vic = victim(S, m); return !!m.promo || (vic && vic.c !== S.turn); };
+      function qs(S, alpha, beta, ply, qd, ms) {
+        const max = S.turn === root, stand = evalS(S);
+        if (qd >= 5) return stand;
+        if (max) { if (stand >= beta) return stand; if (stand > alpha) alpha = stand; } else { if (stand <= alpha) return stand; if (stand < beta) beta = stand; }
+        let best = stand;
+        for (const m of order(S, ms.filter(x => loud(S, x)))) {
+          const S2 = apply(S, m), sc = qs(S2, alpha, beta, ply + 1, qd + 1, all(S2));
+          if (max) { if (sc > best) best = sc; if (best > alpha) alpha = best; } else { if (sc < best) best = sc; if (best < beta) beta = best; }
+          if (alpha >= beta) break;
+        }
+        return best;
+      }
+      function ab(S, d, alpha, beta, ply) {
+        if ((++nodes & 63) === 0 && hard && Date.now() - t0 > limit) timeout = true;
+        if (timeout) return 0;
+        const max = S.turn === root, ms = all(S);
+        if (!ms.length) return inCheck(S, S.turn) ? (max ? -MATE + ply : MATE - ply) : 0;
+        if (d <= 0) return qs(S, alpha, beta, ply, 0, ms);
+        let best = max ? -Infinity : Infinity;
+        for (const m of order(S, ms)) {
+          const sc = ab(apply(S, m), d - 1, alpha, beta, ply + 1); if (timeout) return 0;
+          if (max) { if (sc > best) best = sc; if (best > alpha) alpha = best; } else { if (sc < best) best = sc; if (best < beta) beta = best; }
+          if (alpha >= beta) break;
+        }
+        return best;
+      }
+      let rootMs = all(S0); if (!rootMs.length) return null;
+      rootMs = order(S0, rootMs.sort(() => Math.random() - 0.5));      // (shuffled first, so equal moves vary)
+      let bestMove = rootMs[0];
+      for (let d = 1; d <= maxD; d++) {
+        hard = d > 1; let alpha = -Infinity, cur = null;
+        for (const m of rootMs) {
+          const sc = ab(apply(S0, m), d - 1, alpha, Infinity, 1); if (timeout) break;
+          if (sc > alpha) { alpha = sc; cur = m; }
+        }
+        if (timeout || !cur) break;
+        bestMove = cur; rootMs = [cur].concat(rootMs.filter(x => x !== cur));
+        if (alpha > MATE / 2) break;
+      }
+      return bestMove;
+    }
+
     const api = {
       w, h, cyl,
       get turn() { return S.turn; },
       get left() { return S.left; },
+      search: o => searchBest(S, o || {}),      // the hard bot's move (see botChoose)
       yard: c => (S.yard ? S.yard[c].slice() : []),                         // captured pieces that a Sacrificer / Reviver could bring back
       freeLeft: () => (HERALD ? Math.max(0, GRAND_RULES.herN - (S.fn || 0)) : 0),
       at: (x, y) => S.b[idx(x, y)],
@@ -2992,7 +3242,7 @@ const Engine = (() => {
   const AUSTANG4 = Object.assign({}, FOUR, { castling: false, austang: true, board: 'austang', promoteTo: AUSTANG_GRAND.promoteTo });
   const AUSTANG4_WIDE = Object.assign({}, FOUR, { castling: false, austang: true, board: 'wide', width: 20, height: 14, promoteTo: AUSTANG_GRAND.promoteTo });
 
-  return { create, OCTO, NEUTRAL_T, OCT_ORDER, OCT_TEAMS, octoHoles, GRAND_RULES, STANDARD, AUSTANG_GRAND, AUSTANG4, AUSTANG4_WIDE, GRAND_PIECES, CRAZYHOUSE, MARSEILLAIS, INFINITE, ALICE, FOUR, THREE, BUGHOUSE, TRAITS, randomBack960, botChoose, CLASSES, CLASS_DEFAULTS, withClasses, classPass, ROOK, BISHOP, ALL, KNIGHT };
+  return { Search, create, OCTO, NEUTRAL_T, OCT_ORDER, OCT_TEAMS, octoHoles, GRAND_RULES, STANDARD, AUSTANG_GRAND, AUSTANG4, AUSTANG4_WIDE, GRAND_PIECES, CRAZYHOUSE, MARSEILLAIS, INFINITE, ALICE, FOUR, THREE, BUGHOUSE, TRAITS, randomBack960, botChoose, CLASSES, CLASS_DEFAULTS, withClasses, classPass, ROOK, BISHOP, ALL, KNIGHT };
 })();
 
 if (typeof module !== 'undefined') module.exports = Engine;

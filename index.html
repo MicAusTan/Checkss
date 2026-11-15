@@ -24,6 +24,7 @@
   #prefs select { padding:3px 6px; font-size:.85rem; }
   .sq svg { display:block; width:1em; height:1em; }
   .fairy svg { filter:drop-shadow(0 0 1px #000); }
+  #practice svg { display:block; width:1em; height:1em; filter:drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000); }      /* Practice draws its pieces itself (its own class names), so it gets the same outline here */
   #moveBox { margin:8px 0; font-size:.85rem; }
   #moveBox summary { cursor:pointer; opacity:.85; }
   #moveList { display:flex; flex-wrap:wrap; gap:3px 5px; max-height:150px; overflow:auto; margin-top:4px; }
@@ -107,7 +108,7 @@
   #chatBox.dragover { outline:2px dashed #ffe26a; outline-offset:2px; }
   #lightbox { position:fixed; inset:0; background:#000c; z-index:90; display:flex; align-items:center; justify-content:center; cursor:zoom-out; } #lightbox.hidden { display:none; } #lightbox img { max-width:94vw; max-height:94vh; border-radius:6px; }
   .sq.pingsrc { box-shadow:inset 0 0 0 3px #fff, inset 0 0 0 6px var(--pc,#ffe26a); }      /* a crisp double ring (the check effect is a soft red glow) */
-  .pingbub { position:absolute; left:50%; top:50%; transform:translate(-50%,-52%); width:82%; height:82%; background:#fffffff2; border:2px solid var(--pc,#ffe26a); border-radius:50% 50% 50% 10%; display:flex; align-items:center; justify-content:center; z-index:6; pointer-events:none; box-shadow:0 2px 8px #0009; font-size:.82em; }
+  .pingbub { position:absolute; right:3%; top:3%; left:auto; transform:none; width:50%; height:50%; background:#fffffff2; border:2px solid var(--pc,#ffe26a); border-radius:50% 50% 50% 10%; display:flex; align-items:center; justify-content:center; z-index:6; pointer-events:none; box-shadow:0 2px 8px #0009; font-size:.82em; }
   .pingbub.bad { border-color:#e5534b; background:#ffe3e1f2; } .pingbub .pbadge { position:absolute; right:-7px; bottom:-7px; background:#fff; border:2px solid var(--pc,#ffe26a); border-radius:50%; width:52%; height:52%; display:flex; align-items:center; justify-content:center; font-size:.62em; }
   .tchip .tag.adv { color:#ffe26a; }
   #emojiRow { display:flex; flex-wrap:wrap; gap:4px; margin:4px 0; } #emojiRow.hidden { display:none; } #emojiRow button { margin:0; padding:3px 8px; font-size:1.25rem; background:var(--panel); border:1px solid var(--line); }
@@ -166,8 +167,9 @@
   .sq.sel { background:var(--sel); }
   .sq.last { box-shadow:inset 0 0 0 100px rgba(255,255,0,.25); }
   .sq.check { box-shadow:inset 0 0 20px 6px rgba(255,0,0,.7); }
-  .sq.hint::after { content:""; width:28%; height:28%; border-radius:50%; background:var(--move); position:absolute; }
-  .sq.hint.cap::after { width:90%; height:90%; background:none; border:4px solid var(--move); }
+  :root { --mvOk:rgba(46,170,84,.78); --mvCap:rgba(226,62,62,.85); }
+  .sq.hint::after { content:""; width:28%; height:28%; border-radius:50%; background:var(--mvOk); position:absolute; }
+  .sq.hint.cap::after { width:90%; height:90%; background:none; border:4px solid var(--mvCap); }
   .sq.hint.shot::after { width:90%; height:90%; background:linear-gradient(#e07a00,#e07a00) center/3px 100% no-repeat,linear-gradient(#e07a00,#e07a00) center/100% 3px no-repeat; border:4px solid #e07a00; }
   .pc-r,.pc-b,.pc-y,.pc-g,.pc-dead { text-shadow:0 0 2px #000,0 0 2px #000,0 0 2px #000; }
   .pc-r { color:var(--sr); } .pc-b { color:var(--sb); } .pc-y { color:var(--sy); } .pc-g { color:var(--sg); }
@@ -180,7 +182,7 @@
   .pc-o.fairy svg, .pc-p.fairy svg, .pc-t.fairy svg, .pc-m.fairy svg { filter:drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000); }
   .sq.void { background:#0b0e13; box-shadow:inset 0 0 14px 4px #000; cursor:default; }
   .sq.void .vn { position:absolute; left:3px; top:1px; font-size:.5em; color:#7fe0a0; }
-  .sq.void.hint::after { background:var(--move); }
+  .sq.void.hint::after { background:var(--mvOk); }
   .sq .aim { position:absolute; top:0; right:2px; font-size:.6em; font-weight:bold; color:#ff5050; text-shadow:0 0 2px #000,0 0 3px #000; pointer-events:none; }
   .sq.bcd svg { opacity:.45; } .sq .cd { position:absolute; right:1px; bottom:-1px; font-size:.6em; pointer-events:none; text-shadow:0 0 2px #000; }
   .sq.bossc span { display:block; width:100%; height:100%; } .sq.bossc svg { width:100%; height:100%; filter:none !important; } .sq.neu.bossc::before { display:none; }      /* the Boss picture fills all four cells edge to edge */
@@ -202,7 +204,44 @@
   #chatLog .sys { opacity:.6; font-style:italic; }
   #chatIn { width:calc(100% - 80px); }
   #promo { display:flex; gap:6px; margin-bottom:8px; }
-  #promo.hidden { display:none; }      /* (the id rule above used to beat .hidden, so the chooser never went away) */
+  #skinEd { position:fixed; inset:0; z-index:300; background:rgba(0,0,0,.62); display:flex; align-items:center; justify-content:center; padding:10px; }
+  #skinEd .sked { background:#2b2a27; color:#eee; border-radius:12px; width:min(960px,100%); max-height:94vh; display:flex; flex-direction:column; box-shadow:0 10px 40px rgba(0,0,0,.7); }
+  #skinEd .skh { display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center; padding:10px 14px; border-bottom:1px solid #444; } #skinEd .skh b { font-size:1.05rem; margin-right:8px; }
+  #skinEd .skb { display:flex; gap:14px; padding:12px 14px; overflow:auto; flex:1; min-height:0; flex-wrap:wrap; }
+  #skinEd .skl { flex:1 1 360px; min-width:260px; } #skinEd .skr { flex:0 0 290px; }
+  #skinEd h4 { margin:10px 0 6px; font-size:.82rem; text-transform:uppercase; letter-spacing:.05em; color:#aaa; }
+  #skinEd .skg { display:flex; flex-wrap:wrap; gap:6px; }
+  #skinEd .skp { width:68px; padding:4px 2px 3px; background:#3a3935; border:2px solid transparent; border-radius:8px; color:#ddd; font-size:.66rem; line-height:1.1; cursor:pointer; text-align:center; position:relative; }
+  #skinEd .skp.sel { border-color:#8fc15a; } #skinEd .skp .ic { display:flex; align-items:center; justify-content:center; width:44px; height:44px; margin:0 auto 2px; font-size:36px; background:#b58863; color:#e8e0d0; border-radius:6px; --det:#000; --dets:#000; }
+  #skinEd .skp .ic svg { width:1em; height:1em; } #skinEd .skp i { position:absolute; top:3px; right:5px; width:8px; height:8px; border-radius:50%; background:#8fc15a; }
+  #skinEd .skboxes { display:flex; gap:8px; } #skinEd .skbox { width:136px; height:136px; font-size:104px; display:flex; align-items:center; justify-content:center; border-radius:8px; --det:#000; --dets:#000; }
+  #skinEd .skbox svg { width:1em; height:1em; } #skinEd label.row { display:flex; align-items:center; gap:8px; margin:6px 0; font-size:.85rem; } #skinEd input[type=range] { flex:1; }
+  #skinEd .skf { display:flex; flex-wrap:wrap; gap:8px; padding:10px 14px; border-top:1px solid #444; align-items:center; } #skinEd .skf .dim { flex:1; }
+  #skinEd button, #skinEd select { margin:0; padding:6px 10px; font-size:.88rem; } #skinEd .primary { background:#5f8f3a; }
+  .skn { display:block; position:relative; width:1em; height:1em; }
+  .skn.bc { width:100%; height:100%; overflow:hidden; } .skn.bc > svg { position:absolute; inset:0; width:100%; height:100%; } .skn .bimg { position:absolute; background:var(--im) center / 100% 100% no-repeat; isolation:isolate; }
+  .skn.bc.m2 { -webkit-mask:var(--mk) center/100% 100% no-repeat; mask:var(--mk) center/100% 100% no-repeat; filter:drop-shadow(0 0 1px currentColor); overflow:visible; }
+  .skn.t::after, .skn .ov.t::after, .skn .bimg.t::after { content:''; position:absolute; inset:0; background:currentColor; mix-blend-mode:color; }      /* "colour it with the owner's colour" */
+  .b4 { display:grid; grid:1fr 1fr / 1fr 1fr; width:100%; height:100%; } .b4 > span { position:relative; display:block; min-width:0; min-height:0; } .b4 svg { width:100%; height:100%; }
+  .skn.m { -webkit-mask:var(--mk) center/contain no-repeat; mask:var(--mk) center/contain no-repeat; background:var(--im) no-repeat; background-size:calc(var(--s,100) * 1%) auto; background-position:calc(50% + var(--x,0) * 1%) calc(50% + var(--y,0) * 1%); filter:drop-shadow(0 0 1px currentColor); }
+  .skn.o { overflow:hidden; border-radius:12%; } .skn.o > svg { position:absolute; inset:0; width:100%; height:100%; }
+  .skn.o .ov { position:absolute; inset:0; background:var(--im) no-repeat; background-size:calc(var(--s,100) * 1%) auto; background-position:calc(50% + var(--x,0) * 1%) calc(50% + var(--y,0) * 1%); }
+  #promo.hidden, #promo.pop.hidden { display:none; }
+  /* the promotion chooser: a floating column (or, for many / named pieces, a panel) next to the square the pawn is going to */
+  #promo.pop { position:fixed; z-index:200; display:flex; flex-direction:column; gap:0; margin:0; padding:0; background:#f2ede2; border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.6); overflow:visible; }
+  #promo.pop.up { flex-direction:column-reverse; }
+  #promo.pop button { width:var(--s); height:var(--s); padding:0; margin:0; background:transparent; border:0; border-radius:0; display:flex; align-items:center; justify-content:center; font-size:calc(var(--s) * .78); line-height:1; cursor:pointer; color:#222; }
+  #promo.pop button:first-child { border-radius:8px 8px 0 0; } #promo.pop.up button:first-child { border-radius:0 0 8px 8px; }
+  #promo.pop button:hover, #promo.pop button:focus-visible { background:radial-gradient(circle, #8fc15a 0 66%, transparent 68%); outline:none; }
+  #promo.pop button svg { width:1em; height:1em; display:block; }
+  #promo.pop button.x { height:calc(var(--s) * .56); font-size:calc(var(--s) * .3); color:#555; background:#e4ddcc; border-radius:0 0 8px 8px; } #promo.pop.up button.x { border-radius:8px 8px 0 0; }
+  #promo.pop button.x:hover { background:#d9a0a0; }
+  #promo.pop.panel { flex-direction:row; flex-wrap:wrap; justify-content:center; gap:4px; padding:6px; width:max-content; max-width:min(94vw, calc(var(--s) * 6.2)); }
+  #promo.pop.panel button { width:calc(var(--s) * 1.3); height:auto; flex-direction:column; gap:2px; padding:6px 4px; border-radius:8px; font-size:calc(var(--s) * .66); }
+  #promo.pop.panel button small { font-size:.72rem; line-height:1.15; text-align:center; color:#333; font-weight:600; }
+  #promo.pop.panel button.x { width:calc(var(--s) * 1.3); height:auto; font-size:1rem; padding:6px 4px; border-radius:8px; }
+  #promo .ptipbox { position:absolute; top:0; background:#1f1e1c; color:#eee; border:1px solid #555; border-radius:8px; padding:8px 10px; box-shadow:0 6px 22px rgba(0,0,0,.6); width:max-content; max-width:260px; font-size:.78rem; pointer-events:none; z-index:2; }
+  #promo .ptipbox .pt-name { font-weight:700; margin-bottom:4px; } #promo .ptipbox .dgcap { display:none; } #promo .ptipbox .dgl { font-size:.68rem; }      /* (the id rule above used to beat .hidden, so the chooser never went away) */
   #promoGuideBody h4 { margin:14px 0 4px; } #promoGuideBody h5 { margin:10px 0 2px; font-size:.95rem; } .pcond { opacity:.8; font-size:.85rem; margin:2px 0 4px; } .ptip { font-size:.88rem; opacity:.9; margin-top:2px; }
   #voidTray { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; align-items:center; } #voidTray.hidden { display:none; } #voidTray .vt { opacity:.85; font-size:.85rem; }
   #voidTray button { display:flex; flex-direction:column; align-items:center; gap:2px; padding:5px 10px; min-width:68px; font-size:.78rem; background:var(--panel); color:#fff; --det:var(--panel); --dets:var(--panel); } #voidTray button svg { width:36px; height:36px; }
@@ -213,9 +252,10 @@
   .hand { min-height:42px; display:flex; gap:4px; align-items:center; }
   .hand button.on { background:#779556; }
   .hand.picker { flex-direction:column; align-items:stretch; gap:6px; }
-  .hand.picker .pkg { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
-  .hand.picker .pkl { flex:0 0 100%; font-size:.72rem; opacity:.6; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
-  .hand.picker button { font-size:1.35rem; padding:3px 9px; display:inline-flex; align-items:center; gap:3px; }
+  .hand.picker .pkg { display:grid; grid-template-columns:repeat(auto-fill,minmax(54px,1fr)); gap:5px; align-items:stretch; }
+  .hand.picker .pkl { grid-column:1/-1; flex:0 0 100%; font-size:.72rem; opacity:.6; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+  .hand.picker button { font-size:1.35rem; padding:2px 2px 3px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; height:56px; min-width:0; position:relative; line-height:1.1; }
+  .hand.picker button .pc { order:3; } .hand.picker button small { position:absolute; top:2px; right:3px; margin:0; } .hand.picker button em.lk { position:absolute; inset:auto 0 0 0; font-style:normal; font-size:.5rem; background:rgba(0,0,0,.55); border-radius:0 0 4px 4px; }
   .hand.picker button .pc { font-size:.6em; opacity:.8; } .hand.picker button small { font-size:.45em; opacity:.8; margin-left:2px; }
   .hand.picker button.full:not(.on) { opacity:.45; }
   #history { font-size:.9rem; opacity:.8; margin-top:8px; }
@@ -251,7 +291,7 @@
   .sq.clip { outline:3px dashed rgba(160,90,230,.95); outline-offset:-3px; }
   .sq .stk { position:absolute; left:2px; top:1px; font-size:.34em; line-height:1; padding:.15em .3em; border-radius:3px; background:#6a2fb0e6; color:#fff; font-family:sans-serif; font-weight:bold; pointer-events:none; }
   #austLimits { display:flex; flex-wrap:wrap; gap:6px 12px; margin-top:4px; }
-  #austLimits input { width:3.4em; }
+  #austLimits input, #austUnlock input { width:3.4em; } #austUnlock { display:flex; flex-wrap:wrap; gap:6px 12px; margin-top:4px; }
   #promo button svg, .hand button svg, #stackPick button svg { width:1em; height:1em; display:inline-block; vertical-align:-.12em; }
   .dgbtn { margin:2px 0; padding:1px 8px; font-size:.85em; }
   .dgwrap { margin:4px 0 8px; } .dgstate { display:inline-block; vertical-align:top; margin:0 12px 8px 0; max-width:270px; width:100%; } .dgcap { font-size:.82em; opacity:.85; margin:0 0 3px; min-height:1.2em; }
@@ -311,6 +351,10 @@
   <div class="dsec"><div class="dlabel">Your profile</div>
     <div class="profrow"><span class="av big" id="profAv2"></span><div class="profcol"><input id="nameIn" maxlength="24" placeholder="Your name" autocomplete="off"><div class="profbtns"><label class="filebtn">Choose picture<input type="file" id="pfpIn" accept="image/*" hidden></label><button id="pfpClear" class="small">Remove</button></div></div></div>
     <div class="dim">Other players see this. It is saved only in this browser. You can change it any time.</div></div>
+  <div class="dsec"><div class="dlabel">Piece skins</div>
+    <label><input type="checkbox" id="skinShowChk" checked> Show other players' piece skins</label>
+    <div class="profbtns"><button id="skinEditBtn" type="button">Customize my pieces…</button></div>
+    <div class="dim" id="skinNow"></div></div>
   <div class="dsec"><div class="dlabel">Chat</div><label><input type="checkbox" id="showImgChk" checked> Show pictures and GIFs in chat</label></div>
   <div class="dsec"><div class="dlabel">Sound</div>
   <label><input type="checkbox" id="soundChk" checked> Sounds on</label>
@@ -337,7 +381,7 @@
       <div><b>Move:</b> click a piece, then a square. Or drag the piece there (Esc puts it back).</div>
       <div><b>Premove:</b> while it is not your turn, drag one of your pieces to a square (clicking does nothing, so no accidents). You can queue as many as you like; the pieces show where they will be, so you can move them again. The first is played when your turn comes if it is still legal, otherwise the queue is cancelled and the chat says so. Esc or a click on the board cancels them. Not available in hidden-move modes.</div>
       <div><b>Arrows and circles:</b> right-drag draws an arrow, right-click a square draws a circle. Shift = red, Alt = yellow. Only you see them; a click on the board, Esc or the next move clears them.</div>
-      <div><b>Suggest a move to your team:</b> hold Ctrl and right-drag from a piece to the square it should go to. You see the arrow as you drag. Dashed arrows are suggestions, you can make several, and bots take the advice for their teammates. Pointing at an <i>opponent's</i> piece shows what you expect it to do (dotted arrow, never advice). Only your team sees them. Ctrl + right-click a square removes the suggestions touching it, or all of yours if none does.</div>
+      <div><b>Suggest a move to your team:</b> hold Ctrl and right-drag from a piece to the square it should go to. You see the arrow as you drag. Dashed arrows are suggestions, you can make several, and bots take the advice for their teammates. Pointing at an <i>opponent's</i> piece shows what you expect it to do (dotted arrow, never advice). Only your team sees them. Ctrl + right-click a square removes the suggestions touching it, or else drops a "look here" marker on it. Ctrl + right-click outside the board removes all of yours. Your suggestions always have your own colour.</div>
       <div><b>Big boards:</b> mouse wheel zooms, dragging empty space pans, <i>Fit all</i> shows everything.</div>
       <div><b>Turning things off:</b> the gear at the top right has switches for sliding pieces, dragging, premoves and sounds.</div>
     </div>
@@ -363,10 +407,10 @@
   <div id="seatPick" class="hidden"></div>
   <div id="copyRow" class="hidden"><button id="copyCodeBtn">Copy code</button><button id="copyLinkBtn">Copy link</button><button id="copySpecBtn">Copy spectator link</button><button id="leaveRoomBtn" class="ghost" title="Close this room and go back to the start screen">Cancel room</button></div>
   <canvas id="roomPreview" class="hidden"></canvas><div id="roomPreviewNote" class="hidden"></div>
-  <div id="botLobby" class="hidden"><span class="dim">Nobody to play with? Start against a bot:</span><div><button id="botEasy">Easy bot</button> <button id="botNormal">Normal bot</button></div></div>
+  <div id="botLobby" class="hidden"><span class="dim">Nobody to play with? Start against a bot:</span><div><button id="botEasy">Easy bot</button> <button id="botNormal">Normal bot</button> <button id="botHard">Hard bot</button></div></div>
   <div id="lobbyCtl" class="hidden">
     <div id="roster"></div>
-    <div id="botAdd">Fill empty seats with bots: <button id="addBotEasy">+ Bot (Easy)</button> <button id="addBotNormal">+ Bot (Normal)</button></div>
+    <div id="botAdd">Fill empty seats with bots: <button id="addBotEasy">+ Bot (Easy)</button> <button id="addBotNormal">+ Bot (Normal)</button> <button id="addBotHard" title="Looks several moves ahead (about a second per move)">+ Bot (Hard)</button></div>
     <label><input type="checkbox" id="autoChk"> Start automatically when the room is full</label><br>
     <button id="startBtn">Start game</button>
   </div>
@@ -488,7 +532,7 @@
   <details id="hostCtl" class="panel hidden" open>
     <summary>Host controls</summary>
     <div class="hrow"><span class="hl">Next game</span><select id="modeSel2" title="Mode for the next game"></select><label id="swapLbl" title="Swap who plays which colour in the next game"><input type="checkbox" id="swapChk" checked> swap colours</label><button id="newBtn" title="Start a new game with the options above">New game</button><button id="roomBtn" class="hidden" title="Go back to the room: change teams, mode and options with everybody still connected, then press Start">Back to room</button></div>
-    <div class="hrow"><span class="hl">Bots</span><label><input type="checkbox" id="adviseChk" checked> let players advise bot teammates</label><label>bots wait <select id="botWaitSel"><option value="0">0</option><option value="3">3</option><option value="5">5</option><option value="10">10</option></select> s for advice</label></div>
+    <div class="hrow"><span class="hl">Bots</span><label>bot speed <select id="botSpeedSel" title="How long a bot pauses before it moves (the Hard bot also needs about a second to think)"><option value="0">instant</option><option value="250">fast</option><option value="700" selected>normal</option><option value="1600">slow</option></select></label><label><input type="checkbox" id="adviseChk" checked> let players advise bot teammates</label><label>bots wait <select id="botWaitSel"><option value="0">0</option><option value="3">3</option><option value="5">5</option><option value="10">10</option></select> s for advice</label></div>
     <div class="hrow"><span class="hl">Room</span><button id="specLinkBtn" title="Copy a link that lets people watch without playing">Copy spectator link</button><label id="specChatLbl"><input type="checkbox" id="specChatChk"> let spectators chat</label></div>
     <div class="hrow"><span class="hl">Players</span><select id="removeSel" class="hidden"></select><button id="removeBtn" class="hidden">Remove player</button><button id="botTakeBtn" class="hidden" title="Choose a seat in the list, then let a bot play it">Bot takes over the selected seat</button></div>
     <div class="hrow"><span class="hl">Round</span><button id="endRoundBtn" class="hidden">End round (draw)</button></div>
@@ -525,6 +569,7 @@
   <label>Piece cap <input id="sCap" type="number" value="24" min="1"></label>
   <label>Rounds <input id="sRounds" type="number" value="5" min="1"></label>
   <div id="austLimitsBox"><b>Piece limits</b> <span class="dim">(per player, per round; leave a box empty for no limit)</span><br><div id="austLimits"></div></div>
+  <div id="austUnlockBox"><b>Unlock round</b> <span class="dim">(a piece can't be bought before this round; empty = from round 1)</span><br><div id="austUnlock"></div></div>
 </div>
 
 <script src="engine.js"></script>
@@ -574,7 +619,7 @@ function teamLook(on) { const oct = !!(game && game.oct); on = on && !oct; docum
 const PREFIX = 'chessfriends-';
 // c/i/w/o are the neutral-mode fairy pieces; they use the hollow glyphs so they never look like real pieces.
 const GLYPH = { p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', c:'♔', i:'♘', w:'♗', o:'♖', a:'A', l:'L' };
-const FAIRY = Object.values(Engine.NEUTRAL_T).join('') + Object.values(Promotion.CODE).join('') + 'ciwoalEXHRBNghustyzjdvmf#\u03b1\u03c7\u03c9\u03bd\u03b3\u03b6\u03b4\u03b7\u03ba\u03b2\u03c0\u03b8\u03c6\u03c8\u03be\u03c4\u03c1\u03bc\u03b9\u03b5\u03bb\u03c5\u03bf';
+const FAIRY = Object.values(Engine.NEUTRAL_T).join('') + Object.values(Promotion.CODE).join('') + 'pnbrqkciwoalEXHRBNghustyzjdvmf#\u03b1\u03c7\u03c9\u03bd\u03b3\u03b6\u03b4\u03b7\u03ba\u03b2\u03c0\u03b8\u03c6\u03c8\u03be\u03c4\u03c1\u03bc\u03b9\u03b5\u03bb\u03c5\u03bf';
 const SVG = inner => '<svg viewBox="0 0 24 24" aria-hidden="true">' + inner + '</svg>';
 const FAIRY_SVG = {   // custom icons for the neutral / fairy pieces (they take the owner's colour)
   c: SVG('<path d="M12 2.5l8 3v6c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10v-6z" fill="currentColor"/><path d="M12 7v9M8 11h8" stroke="#000a" stroke-width="1.6" fill="none"/>'),
@@ -598,7 +643,60 @@ const FAIRY_SVG = {   // custom icons for the neutral / fairy pieces (they take 
 const BOSS_BIG = '<path d="M6 44V22C6 11 14 4 24 4s18 7 18 18v22H34v-6h-4v6h-4v-6h-4v6h-4v-6h-4v6z" fill="currentColor"/><path d="M4 18 1 4l10 7zM44 18 47 4l-10 7z" fill="currentColor"/><path d="M10 12 14 4l5 6 5-8 5 8 5-6 4 8z" fill="currentColor" opacity=".9"/><ellipse cx="17" cy="24" rx="4.6" ry="5.4" fill="#000b"/><ellipse cx="31" cy="24" rx="4.6" ry="5.4" fill="#000b"/><circle cx="17" cy="25" r="1.8" fill="#ff4d4d"/><circle cx="31" cy="25" r="1.8" fill="#ff4d4d"/><path d="M24 29l-3.4 7h6.8z" fill="#000b"/><path d="M14 38h20" stroke="#000b" stroke-width="1.6"/><path d="M18 38v3M22 38v3M26 38v3M30 38v3" stroke="#000b" stroke-width="1.4"/>';
 const bossFull = '<svg viewBox="0 0 48 48" aria-hidden="true">' + BOSS_BIG + '</svg>';
 const bossQuarter = (sx, sy) => '<svg viewBox="' + (sx * 24) + ' ' + (sy * 24) + ' 24 24" aria-hidden="true">' + BOSS_BIG + '</svg>';
-const glyphHTML = t => FAIRY_SVG[t] || GLYPH[t];
+/* ================= PIECE SKINS (phase 1) =================
+   A player can put one picture on each piece type (256px WebP, centre-cropped square). Per piece: "mask" (the picture is cut to the piece's shape) or "overlay"
+   (the picture sits on top of the piece), plus move (x, y) and size (s, %). Presets live in IndexedDB; the active one is described to everybody as
+   { type: { h: image hash, m: 0|1, x, y, s } } (tiny, sent with the profile) and the pictures themselves travel ONCE, keyed by hash, through the host
+   (`skinPut` guest -> host, `skinData` host -> everybody, only what a connection has not got yet). Everything incoming is validated (`safeSkinImg`, hash check, `cleanSk`).
+   Pieces with no owner (neutrals) and pieces whose owner has no skin for that type use the default art; a piece always shows its CURRENT owner's skin (drops, captures). */
+const skLs = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } };
+const skLsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* private mode */ } };
+const SKIN = { show: skLs('cwfShowSkins', '1') !== '0', mine: Object.create(null), imgs: new Map(), css: null, doneImg: new Set(), maskIdx: new Map(), preset: null };
+const skHash = s => { let a = 0x811c9dc5, b = 5381; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a ^= c; a = Math.imul(a, 16777619) >>> 0; b = (Math.imul(b, 33) + c) >>> 0; } return a.toString(16).padStart(8, '0') + b.toString(16).padStart(8, '0'); };
+const safeSkinImg = d => typeof d === 'string' && d.length <= 70000 && /^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+\/=]+$/.test(d);
+const skNum = (v, lo, hi, d) => { v = +v; return isFinite(v) ? Math.max(lo, Math.min(hi, Math.round(v))) : d; };
+const cleanSk = o => {
+  const r = Object.create(null); if (!o || typeof o !== 'object') return r;
+  Object.keys(o).slice(0, 80).forEach(t => { const e = o[t]; if (t === '__proto__' || t.length > 3 || !e || typeof e.h !== 'string' || !/^[0-9a-f]{16}$/.test(e.h)) return; r[t] = { h: e.h, m: e.m ? 1 : 0, c: e.c ? 1 : 0, x: skNum(e.x, -60, 60, 0), y: skNum(e.y, -60, 60, 0), s: skNum(e.s, 20, 400, 100) }; });
+  return r;
+};
+function skinCss(rule) { if (!SKIN.css) { SKIN.css = document.createElement('style'); document.head.appendChild(SKIN.css); } SKIN.css.appendChild(document.createTextNode(rule)); }
+function skinImgClass(h) { const d = SKIN.imgs.get(h); if (!d) return null; if (!SKIN.doneImg.has(h)) { SKIN.doneImg.add(h); skinCss('.si-' + h + '{--im:url("' + d + '")}'); } return 'si-' + h; }
+const skBase = t => (game && game.imperial && IMP_KQ[t]) || FAIRY_SVG[t] || null;
+function skinMaskClass(t, baseSvg) {                          // the piece's own shape, all one colour, used as the mask for a "mask" skin
+  if (SKIN.maskIdx.has(t)) return 'sm-' + SKIN.maskIdx.get(t);
+  const base = baseSvg || skBase(t); if (!base) return null;
+  const svg = base.replace(/currentColor/g, '#000').replace(/var\(--det[sS]?\)/g, '#000').replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
+  const n = SKIN.maskIdx.size; SKIN.maskIdx.set(t, n); skinCss('.sm-' + n + '{--mk:url("data:image/svg+xml,' + encodeURIComponent(svg) + '")}'); return 'sm-' + n;
+}
+function ownerSk(owner) {
+  if (!game || owner == null || owner === 'n') return null;
+  const me = game.multi ? mySeat : myColor;
+  if (owner === me) return SKIN.mine;
+  if (!SKIN.show) return null;
+  return game.multi ? (seatInfo[owner] && seatInfo[owner].k) || null : (peerInfo && peerInfo.k) || null;
+}
+function skinHTML(t, owner) { const k = ownerSk(owner); return k && k[t] ? skinEntryHTML(t, k[t]) : null; }      // null when this piece has no skin (then the default art is drawn)
+function skinEntryHTML(t, e) {
+  const ic = skinImgClass(e.h); if (!ic) return null;
+  const st = '--x:' + e.x + ';--y:' + e.y + ';--s:' + e.s;
+  if (e.m) { const mc = skinMaskClass(t); return mc ? '<span class="skn m' + (e.c ? ' t' : '') + ' ' + ic + ' ' + mc + '" style="' + st + '"></span>' : null; }
+  const b = skBase(t); return '<span class="skn o">' + (b || '<span>' + (GLYPH[t] || '') + '</span>') + '<span class="ov' + (e.c ? ' t' : '') + ' ' + ic + '" style="' + st + '"></span></span>';
+}
+/* The Boss is one picture over its 2x2 cells: every cell shows its own quarter (qx, qy = 0/1 as the viewer sees it), so a lost cell simply stops being drawn. */
+function skinBossHTML(e, qx, qy) {
+  const ic = skinImgClass(e.h); if (!ic) return null;
+  const W = 2 * e.s / 100, L = (2 - W) / 2 + 2 * e.x / 100 - qx, T = (2 - W) / 2 + 2 * e.y / 100 - qy;
+  const st = 'width:' + W * 100 + '%;height:' + W * 100 + '%;left:' + L * 100 + '%;top:' + T * 100 + '%';
+  const q = bossQuarter(qx, qy), img = '<span class="bimg' + (e.c ? ' t' : '') + ' ' + ic + '" style="' + st + '"></span>';
+  if (e.m) { const mc = skinMaskClass('bq' + qx + qy, q); return '<span class="skn bc m2 ' + mc + '">' + img + '</span>'; }
+  return '<span class="skn bc">' + q + img + '</span>';
+}
+function skinBossPreview(e) {                                   // all four cells together (editor)
+  const cell = (qx, qy) => '<span>' + ((e && e.img && skinBossHTML(e, qx, qy)) || bossQuarter(qx, qy)) + '</span>';
+  return '<span class="b4">' + cell(0, 0) + cell(1, 0) + cell(0, 1) + cell(1, 1) + '</span>';
+}
+const glyphHTML = (t, owner) => (owner != null && skinHTML(t, owner)) || FAIRY_SVG[t] || GLYPH[t];
 GLYPH['#'] = '▒'; GLYPH.f = 'Ⓙ';
 Object.assign(GLYPH, { '\u03b1': 'Ca', '\u03c7': 'Ma', '\u03c9': 'Am', '\u03bd': 'Nr', '\u03b3': 'Cm', '\u03b6': 'Zb', '\u03b4': 'DK', '\u03b7': 'DH', '\u03ba': 'Ce', '\u03b2': 'Bi', '\u03c0': 'Cn', '\u03b8': 'Gh', '\u03c6': 'Fe', '\u03c8': 'Wz', '\u03be': 'Al', '\u03c4': 'Db', '\u03c1': 'Bp', '\u03bc': 'Sa', '\u03b9': 'Rv', '\u03b5': 'He', '\u03bb': 'Sn', '\u03c5': 'Mo', '\u03bf': 'Ba' });      // Austang Grand pieces (notation text; the board uses the icons below)
 {
@@ -732,7 +830,68 @@ const PROMO_ICONS = (() => {
   };
 })();
 Object.keys(Promotion.CODE).forEach(k => { const c = Promotion.CODE[k]; GLYPH[c] = Promotion.NAME[c].slice(0, 2); if (PROMO_ICONS[k]) FAIRY_SVG[c] = PROMO_ICONS[k]; });      // Promotion Chess forms
-const setGlyph = (el, t) => { if (game && game.imperial && IMP_KQ[t]) el.innerHTML = IMP_KQ[t]; else if (FAIRY_SVG[t]) el.innerHTML = FAIRY_SVG[t]; else el.textContent = GLYPH[t]; };
+/* ---- SKINS: the CLASSIC piece art, frozen exactly as it is today (copies made after every icon above has been defined).
+   Nothing reads SKIN_CLASSIC yet: the live look is still drawn from GLYPH / FAIRY_SVG / IMP_KQ. When the icon remake lands, the new set becomes the
+   default and this one stays selectable as the "Classic" skin (one skin per player, sent in hello/info). Do not edit these copies. */
+const SKIN_CLASSIC = Object.freeze({ id: 'classic', name: 'Classic', glyph: Object.freeze(Object.assign({}, GLYPH)), svg: Object.freeze(Object.assign({}, FAIRY_SVG)), impKQ: Object.freeze(Object.assign({}, typeof IMP_KQ !== 'undefined' ? IMP_KQ : {})), promo: Object.freeze(Object.assign({}, PROMO_ICONS)) });
+/* ---- NEW DEFAULT PIECE ART (drawn in the same language as the Imperial / custom pieces: solid body, small base, details cut out in --det).
+   Defined AFTER SKIN_CLASSIC on purpose, so the old classic look (text glyphs + the old neutral art) stays available as that skin. ---- */
+const CL_BASE = '<rect x="5.5" y="19.5" width="13" height="2.6" rx="1" fill="currentColor"/>', CL_DET = 'style="stroke:var(--det)" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"';
+const SKIN_NEW = {
+  p: SVG('<circle cx="12" cy="7.2" r="3.4" fill="currentColor"/><path d="M8.2 11.6h7.6l-.4 1.5c-.5 2 .7 3.200 1.800 4.400V19.500H6.800V17.500c1.100-1.200 2.300-2.400 1.800-4.400z" fill="currentColor"/>' + CL_BASE),
+  r: SVG('<path d="M5.500 10V4.500H8V7h2V4.500h4V7h2V4.500h2.500V10l-1.500 1.500.8 8H6.200l.8-8z" fill="currentColor"/>' + CL_BASE + '<path d="M9.500 14.500v3.500M14.500 14.500v3.500" ' + CL_DET + '/>'),
+  n: SVG('<path d="M6.500 19.500c0-4.200 1.600-6.800 4-9L8 9.600 6.200 7.200 10.800 2.800l1.400 1.400C16.600 5 19.500 8.200 19.500 12.600v6.900z" fill="currentColor"/>' + CL_BASE + '<circle cx="12.600" cy="8.400" r="1.150" style="fill:var(--det)"/><path d="M8.200 11.700l2 .9" ' + CL_DET + '/>'),
+  b: SVG('<path d="M12 3.600c3.200 2.400 5 5 5 8 0 2-1.200 3.600-2.400 4.600V19H9.400v-2.800C8.200 15.200 7 13.600 7 11.600c0-3 1.800-5.600 5-8z" fill="currentColor"/><circle cx="12" cy="2.600" r="1.400" fill="currentColor"/>' + CL_BASE + '<path d="M13.800 6.500l-3.400 5.200" ' + CL_DET + '/>'),
+  q: SVG('<path d="M5.500 19.500L3.800 8.500l4.300 3.600L12 5.400l3.900 6.700 4.300-3.600-1.700 11z" fill="currentColor"/><circle cx="3.600" cy="7" r="1.500" fill="currentColor"/><circle cx="8" cy="4.200" r="1.500" fill="currentColor"/><circle cx="12" cy="3.200" r="1.700" fill="currentColor"/><circle cx="16" cy="4.200" r="1.500" fill="currentColor"/><circle cx="20.400" cy="7" r="1.500" fill="currentColor"/>' + CL_BASE + '<path d="M8.500 15.800h7" ' + CL_DET + '/>'),
+  k: SVG('<path d="M12 8.600c-3.900 0-7 2.600-7 6.200 0 1.800.8 3.300 2 4.700h10c1.200-1.400 2-2.900 2-4.700 0-3.600-3.100-6.200-7-6.200z" fill="currentColor"/>' + CL_BASE + '<path d="M12 1.400v6M9.200 4h5.600" stroke="currentColor" stroke-width="2.100" stroke-linecap="round"/><path d="M8.500 15.600h7" ' + CL_DET + '/>')
+};
+const SKIN_NEW_NEUTRAL = {
+  boar: SVG('<path d="M3.600 9.500L5.800 3.200l3.700 3.300h5L18.200 3.200l2.200 6.300c.2 5.700-2.800 10.300-8.400 10.300S3.400 15.200 3.600 9.500z" fill="currentColor"/><ellipse cx="12" cy="15" rx="4" ry="3" style="fill:var(--det)"/><circle cx="10.400" cy="15" r=".9" fill="currentColor"/><circle cx="13.600" cy="15" r=".9" fill="currentColor"/><circle cx="8" cy="10.200" r="1.200" style="fill:var(--det)"/><circle cx="16" cy="10.200" r="1.200" style="fill:var(--det)"/><path d="M8.600 17.600C6 18 3.600 16.200 3 13.400M15.400 17.600c2.600.4 5-1.400 5.600-4.200" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>'),
+  hound: SVG('<path d="M4.200 2.800l4.600 4.200h6.400l4.600-4.200 1 9.200c0 4.800-3.600 8.600-8.800 9.800C6.800 20.600 3.200 16.800 3.200 12z" fill="currentColor"/><path d="M7.200 10.400l3 1M16.800 10.400l-3 1" ' + CL_DET + '/><path d="M12 12.800v3.400" ' + CL_DET + '/><path d="M9.800 14.600h4.400l-2.200 2.800z" style="fill:var(--det)"/><path d="M9.800 18.400c1.400 1 3 1 4.400 0" ' + CL_DET + '/>'),
+  burrower: SVG('<ellipse cx="12" cy="19.500" rx="9.500" ry="2.800" fill="currentColor"/><ellipse cx="12" cy="19.300" rx="6" ry="1.500" style="fill:var(--det)"/><path d="M12 19c-.3-4.500-4.500-5.500-4-9.500.4-3 3.600-5 6.500-3.500" stroke="currentColor" stroke-width="4.200" fill="none" stroke-linecap="round"/><circle cx="12.600" cy="5.800" r="3.400" fill="currentColor"/><circle cx="11.400" cy="5.200" r=".9" style="fill:var(--det)"/><circle cx="14.200" cy="5.200" r=".9" style="fill:var(--det)"/>')
+};
+Object.assign(FAIRY_SVG, SKIN_NEW);
+{ const NTn = Engine.NEUTRAL_T; FAIRY_SVG[NTn.boar] = SKIN_NEW_NEUTRAL.boar; FAIRY_SVG[NTn.hound] = SKIN_NEW_NEUTRAL.hound; FAIRY_SVG[NTn.burrower] = SKIN_NEW_NEUTRAL.burrower; }
+
+function takeSkins(imgs) {
+  if (!imgs || typeof imgs !== 'object') return 0; let n = 0;
+  for (const hh of Object.keys(imgs).slice(0, 40)) { const d = imgs[hh]; if (!/^[0-9a-f]{16}$/.test(hh) || SKIN.imgs.has(hh) || !safeSkinImg(d) || skHash(d) !== hh) continue; if (SKIN.imgs.size >= 600) break; SKIN.imgs.set(hh, d); n++; }
+  if (n && game) render(); return n;
+}
+function skinWanted() {                                       // the pictures the current players actually refer to (mine only for the pieces this mode can show)
+  const w = new Set(), used = modeTypes(), add = k => { if (k) for (const t in k) w.add(k[t].h); };
+  for (const t in SKIN.mine) if (used.has(t)) w.add(SKIN.mine[t].h);
+  Object.keys(seatInfo || {}).forEach(s => add(seatInfo[s] && seatInfo[s].k)); add(peerInfo && peerInfo.k); (conns || []).forEach(c => add(c.sk)); return w;
+}
+function sendSkins(c) {                                       // host -> one connection: every wanted picture it has not been sent yet, in small batches
+  if (!c || !c.open || !c.send) return; c.skinSent = c.skinSent || new Set(); let batch = {}, n = 0; const want = skinWanted();
+  for (const [hh, d] of SKIN.imgs) { if (c.skinSent.has(hh) || !want.has(hh)) continue; c.skinSent.add(hh); batch[hh] = d; if (++n % 6 === 0) { c.send({ type: 'skinData', imgs: batch }); batch = {}; } }
+  if (Object.keys(batch).length) c.send({ type: 'skinData', imgs: batch });
+}
+let skSentToHost = new Set();
+function guestSendSkins() {                                   // guest -> host: my own pictures, once
+  if (isHost || !conn || !conn.open) return; let batch = {}, n = 0;
+  const used = modeTypes(); for (const t in SKIN.mine) { if (!used.has(t)) continue; const hh = SKIN.mine[t].h; if (skSentToHost.has(hh) || !SKIN.imgs.has(hh)) continue; skSentToHost.add(hh); batch[hh] = SKIN.imgs.get(hh); if (++n % 6 === 0) { conn.send({ type: 'skinPut', imgs: batch }); batch = {}; } }
+  if (Object.keys(batch).length) conn.send({ type: 'skinPut', imgs: batch });
+}
+const SkDB = (() => {                                         // presets: { id, name, pieces: { type: { img, m, x, y, s } } }; falls back to memory when IndexedDB is not available
+  let db = null; const mem = new Map();
+  const open = () => new Promise(res => { if (db) return res(db); try { const rq = indexedDB.open('cwf-skins', 1); rq.onupgradeneeded = () => rq.result.createObjectStore('presets', { keyPath: 'id' }); rq.onsuccess = () => { db = rq.result; res(db); }; rq.onerror = () => res(null); } catch (e) { res(null); } });
+  const run = (mode, fn) => open().then(d => d ? new Promise(res => { try { const tx = d.transaction('presets', mode), os = tx.objectStore('presets'), rq = fn(os); tx.oncomplete = () => res(rq && rq.result); tx.onerror = () => res(null); } catch (e) { res(null); } }) : null);
+  return {
+    all: () => run('readonly', os => os.getAll()).then(r => (r === null ? [...mem.values()] : r || [])),
+    put: p => { mem.set(p.id, p); return run('readwrite', os => os.put(p)); },
+    del: id => { mem.delete(id); return run('readwrite', os => os.delete(id)); }
+  };
+})();
+function skinActivate(p) {                                    // make a preset the one everybody sees (null = none)
+  SKIN.preset = p || null; SKIN.mine = Object.create(null);
+  if (p) Object.keys(p.pieces || {}).forEach(t => { const e = p.pieces[t]; if (!e || !safeSkinImg(e.img)) return; const hh = skHash(e.img); SKIN.imgs.set(hh, e.img); SKIN.mine[t] = { h: hh, m: e.m ? 1 : 0, c: e.c ? 1 : 0, x: skNum(e.x, -60, 60, 0), y: skNum(e.y, -60, 60, 0), s: skNum(e.s, 20, 400, 100) }; });
+  skLsSet('cwfSkinActive', p ? p.id : '');
+  if (typeof announceProfile === 'function') announceProfile(); else if (game) render();
+}
+SkDB.all().then(list => { const id = skLs('cwfSkinActive', ''), p = list.find(q => q.id === id); if (p) skinActivate(p); });
+const setGlyph = (el, t, owner) => { const sk = owner != null ? skinHTML(t, owner) : null; if (sk) el.innerHTML = sk; else if (game && game.imperial && IMP_KQ[t]) el.innerHTML = IMP_KQ[t]; else if (FAIRY_SVG[t]) el.innerHTML = FAIRY_SVG[t]; else el.textContent = GLYPH[t]; };
 const $ = id => document.getElementById(id);
 // In-page confirmation dialog (replaces the browser's confirm box). askConfirm(text, okLabel, danger) -> Promise<boolean>
 function askConfirm(text, okLabel, danger) {
@@ -756,7 +915,8 @@ const AUST_CFG = {
              def: { start: 20, base: 8, step: 2, catchup: 3, cap: 24, rounds: 5 }, lim: { q: 2 } },
   austangGrand: { w: 10, h: 10, palette: ['k', 'p', 'n', 'b', 'r', 'q', '\u03b1', '\u03c7', '\u03c9', '\u03bd', '\u03b3', '\u03b6', '\u03b4', '\u03b7', '\u03ba', '\u03b2', '\u03c0', '\u03b8', '\u03c6', '\u03c8', '\u03be', '\u03c4', '\u03c1', '\u03bc', '\u03b9', '\u03b5', '\u03bb', '\u03c5', '\u03bf'],
                   cost: { k: 0, p: 1, n: 3, b: 3, r: 5, q: 9, '\u03b1': 7, '\u03c7': 8, '\u03c9': 13, '\u03bd': 5, '\u03b3': 2, '\u03b6': 2, '\u03b4': 7, '\u03b7': 5, '\u03ba': 6, '\u03b2': 5, '\u03c0': 5, '\u03b8': 4, '\u03c6': 1, '\u03c8': 2, '\u03be': 2, '\u03c4': 2, '\u03c1': 2, '\u03bc': 6, '\u03b9': 10, '\u03b5': 8, '\u03bb': 6, '\u03c5': 5, '\u03bf': 4 },
-                  def: { start: 30, base: 10, step: 2, catchup: 4, cap: 30, rounds: 5 }, lim: { q: 2, '\u03c9': 1, '\u03b1': 2, '\u03c7': 2, '\u03b4': 2, '\u03ba': 2, '\u03c0': 2, '\u03bc': 2, '\u03b9': 1, '\u03b5': 1, '\u03bb': 2, '\u03c5': 2, '\u03bf': 2 } }
+                  unlock: { q: 4, '\u03c9': 4, '\u03b9': 4, '\u03c7': 4, '\u03b5': 4 },      // strongest pieces: not available before this round (host-editable)
+                  def: { start: 25, base: 10, step: 2, catchup: 4, cap: 30, rounds: 5 }, lim: { q: 2, '\u03c9': 1, '\u03b1': 2, '\u03c7': 2, '\u03b4': 2, '\u03ba': 2, '\u03c0': 2, '\u03bc': 2, '\u03b9': 1, '\u03b5': 1, '\u03bb': 2, '\u03c5': 2, '\u03bf': 2 } }
 };
 const AC = () => AUST_CFG[M.mode];
 AUST_CFG.austang4 = Object.assign({}, AUST_CFG.austangGrand, { w: 10, h: 5 });      // 4-player Austang: every player builds in their own 10x5 arm (same pieces, prices and limits as Austang Grand)
@@ -767,6 +927,7 @@ let nBusy = false, gtraits = null, draft = null, revealedAll = false;
 let rewardPick = null, rewSet = null, rngSet = null, rngF = false, foeSel = null, foeSet = null, rmarkSet = null, clipMap = null, selIdx = 0, glitchSeen = 0, mirageSeen = 0, mineSet = null, gclasses = null, abFrom = null, chargeSq = null, abMode = null, abSet = null, revealedCl = false, pendTraits = null, abSeenG = null, abSeen = 0;
 let myToken = null, roomCode = null, spectateMode = false, spectating = false, specs = [], everJoined = false, peerToken = null;
 let resignLog = [], replay = null, retryTimer = null, retries = 0;
+let succ = null, retryCode = null, keepRetries = false;      // host migration (guests): the host's list of successors (+ a private kit for the first two), and the room id the current reconnect attempt aims at
 let bots = {}, bots2p = null, lobbyBots = [], botTimer = null, inRoom = false;      // inRoom: the host sent everybody back to the room between games
 let specChatOn = false, specChatAllowed = false;            // spectators may chat only if the host switches it on      // optional bot players (host only)   // multiplayer (3/4 players): host is the hub
 function drawWhy() {                             // multiplayer draw reason: only bare kings left, or nobody can move
@@ -904,8 +1065,9 @@ function newGame(m, s, o) {
   gs.foeMoves = !!gs.foeMoves && FOES_MODES.includes(m) && !gs.fog;      // enemy-move preview: off in hidden-information modes
   if (MODES[m].match) {
     const ac = AUST_CFG[m];
-    s = s || Object.assign({}, ac.def, { lim: Object.assign({}, ac.lim) });
+    s = s || Object.assign({}, ac.def, { lim: Object.assign({}, ac.lim), unlock: Object.assign({}, ac.unlock) });
     if (!s.lim) s.lim = {};
+    if (!s.unlock) s.unlock = {};
     const mid = Math.floor(ac.w / 2);
     M = { mode: m, s, round: 1, scores: { w: 0, b: 0 }, pool: { w: s.start, b: s.start },
           setups: { w: { [mid + ',0']: 'k' }, b: { [mid + ',' + (ac.h - 1)]: 'k' } }, phase: 'setup', sentRound: 0, opp: null };
@@ -921,6 +1083,7 @@ function newGame(m, s, o) {
 }
 
 function handleMessage(msg) {
+  if (!isHost && msg && (msg.type === 'init' || msg.type === 'minit' || msg.type === 'resume')) setTimeout(guestSendSkins, 500);
   if (replay && !['chat', 'mchat', 'schat'].includes(msg.type)) { replay.queue.push({ msg }); return; }
   if (isHost && (msg.type === 'move' || msg.type === 'resign' || msg.type === 'drawAccept')) sendSpecs(msg);
   switch (msg.type) {
@@ -937,6 +1100,7 @@ function handleMessage(msg) {
       newGame(msg.mode, null, { seats: msg.seats, gs: msg.gs }); initA4(msg.seats, msg.a4.s, msg.gs); $('modeSel2').value = mode;
       addChat('', 'New match: ' + MODES[mode].name + '. Build your army!', true); render(); break;
     case 'resume':
+      if (retryCode) { roomCode = retryCode; retryCode = null; succ = null; }
       stopRetry(); loadRecord(msg.rec); clkApplySnap(msg.clk);
       if (msg.seat) mySeat = msg.seat;
       if (msg.a4x && A4) a4Apply(msg.a4x);
@@ -946,6 +1110,7 @@ function handleMessage(msg) {
       if (game && game.multi) $('rematchBtn').classList.add('hidden'); else $('rematchBtn').classList.remove('hidden');
       addChat('', msg.resync ? 'Board refreshed from the host.' : 'Reconnected. You are back in the game.', true); render(); break;
     case 'spec':
+      if (retryCode) { roomCode = retryCode; retryCode = null; succ = null; }
       stopRetry(); spectating = true; specChatAllowed = !!msg.chat; loadRecord(msg.rec); clkApplySnap(msg.clk);
       myColor = 'w'; if (game && game.multi) mySeat = game.seats[0];
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
@@ -954,7 +1119,7 @@ function handleMessage(msg) {
     case 'specChatSetting': specChatAllowed = !!msg.on; addChat('', specChatAllowed ? 'The host has switched spectator chat on.' : 'The host has switched spectator chat off.', true); break;
     case 'init':
       if (msg.hostColor) myColor = msg.hostColor === 'w' ? 'b' : 'w';
-      if (msg.from) peerInfo = { n: cleanName(msg.from.n), p: safePfp(msg.from.p) };
+      if (msg.from) peerInfo = { n: cleanName(msg.from.n), p: safePfp(msg.from.p), k: cleanSk(msg.from.sk) };
       newGame(msg.mode, msg.settings, { gs: msg.gs }); if (game) msg.moves.forEach(m => game.move(m));
       if (gs.traits || gs.classes) draft = { kind: gs.traits ? 'trait' : 'class', mine: null, picked: null };
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
@@ -971,10 +1136,13 @@ function handleMessage(msg) {
       addChat('', 'New game: ' + MODES[mode].name + (MODES[mode].multi ? '.' : '. You are ' + (myColor === 'w' ? 'White' : 'Black') + '.'), true);
       render(); break;
     case 'info': seatInfo = cleanInfo(msg.info); renderStrip(); break;
+    case 'succ': succ = cleanSucc(msg); break;
     case 'reacted': if (game && game.multi && REACTS.includes(msg.e) && msg.from !== mySeat && game.seats.includes(msg.from)) showReaction(msg.from, msg.e); break;
     case 'react': if (REACTS.includes(msg.e)) showReaction('opp', msg.e); break;
     case 'pinged': if (msg.clear) { const at = pingAt(msg.at); pings = pings.filter(q => !(q.from === msg.from && pingTouches(q, at))); render(); } else { const pg = cleanPing(msg.p); if (pg && game && game.multi && sameTeam(pg.from, mySeat)) addPing(pg); } break;
-    case 'profile': if (peerInfo || !game || !game.multi) { peerInfo = { n: cleanName(msg.name), p: safePfp(msg.pfp) }; } break;
+    case 'profile': if (peerInfo || !game || !game.multi) { peerInfo = { n: cleanName(msg.name), p: safePfp(msg.pfp), k: cleanSk(msg.sk) }; if (game) render(); } break;
+    case 'skinData': takeSkins(msg.imgs); break;
+    case 'skinPut': if (isHost && !(game && game.multi)) { takeSkins(msg.imgs); if (conn) sendSkins(conn); } break;
     case 'minit':
       newGame(msg.mode, null, { seats: msg.seats, gs: msg.gs }); mySeat = msg.seat; seatInfo = cleanInfo(msg.info);
       if (MODES[msg.mode].match4) {
@@ -1040,11 +1208,12 @@ function setupConn(c) {
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       $('hostCtl').classList.remove('hidden'); $('modeSel2').value = mode;
       applyColorPref();
-      send({ type: 'init', mode, hostColor: myColor, moves: game ? game.history() : [], settings: M && M.s, gs, from: { n: myName(), p: safePfp(profile.pfp) } });
+      send({ type: 'init', mode, hostColor: myColor, moves: game ? game.history() : [], settings: M && M.s, gs, from: { n: myName(), p: safePfp(profile.pfp), sk: SKIN.mine } });
+      sendSkins(conn);
       if (needDraft()) beginDraft();
       render();
     } else {
-      c.send({ type: 'hello', token: myToken, spectate: spectateMode, name: cleanName(profile.name), pfp: safePfp(profile.pfp) });
+      c.send({ type: 'hello', token: myToken, spectate: spectateMode, name: cleanName(profile.name), pfp: safePfp(profile.pfp), sk: SKIN.mine });
     }
   });
   c.on('data', handleMessage);
@@ -1067,6 +1236,7 @@ function host() {
       '<div class="rlink">Spectators watch with: <span>' + location.origin + location.pathname + '?watch=' + code + '</span></div>';
     $('lobbyMsg').innerHTML = lobbyBase + (MODES[mode].multi ? '' : '<div class="rwait">Waiting for them to join…</div>');
     $('botLobby').classList.toggle('hidden', !!(MODES[mode].multi || MODES[mode].match));
+    { const hb = $('botHard'), ok = !!(game && game.search); hb.disabled = !ok; hb.title = ok ? 'Looks several moves ahead (about a second per move)' : 'The hard bot is not available in this mode (Easy and Normal are)'; }
     if (MODES[mode].multi) { $('lobbyCtl').classList.remove('hidden'); $('botAdd').classList.toggle('hidden', !!MODES[mode].bug); renderRoster(); }
   });
   peer.on('connection', acceptConn);
@@ -1084,13 +1254,60 @@ function join(code, asSpec) {
 /* ============ GAME UI ============ */
 function play(m) { if (replay || spectating) return; if (game.multi) return playMulti(m); if (!game.move(m)) { sel = null; render(); return; } send({ type: 'move', m }); sel = game.pend && game.turn === myColor ? { x: game.pend.x, y: game.pend.y } : null; announce(); render(); }
 
+const promoHome = { parent: $('promo').parentNode, next: $('promo').nextSibling };
+const promoMount = pop => { const p = $('promo'); if (pop) { if (p.parentNode !== document.body) document.body.appendChild(p); } else if (p.parentNode === document.body) promoHome.parent.insertBefore(p, promoHome.next); };
+const promoKind = () => (game.imperial ? 'imp' : game.promotion ? 'promo' : game.oct ? 'oct' : MODES[mode] && MODES[mode].grand ? 'grand' : null);
+const pieceName = t => PNAMES[t] || [PIECE_GUIDE, GRAND_GUIDE, OCT_GUIDE].reduce((r, L) => r || (L.find(e => e[0] === t) || [])[1], null) || t;      // (the names live in the piece guides)
+const promoTips = new Map();
+function promoTip(t) {                                      // a movement diagram for a custom piece (the usual four need none); built once per piece
+  const kind = promoKind(); if (!kind || 'qrbn'.includes(t)) return null;
+  const key = kind + '|' + mode + '|' + t; if (promoTips.has(key)) return promoTips.get(key);
+  let node = null; try { node = diagramBlock(kind, t, glyphHTML(t), kind === 'grand' ? MODES[mode].v : undefined); } catch (e) { node = null; }
+  promoTips.set(key, node); return node;
+}
+function showPromoPop(cands, onPick) {                      // returns false when the target square cannot be found (the old bar is used then)
+  const m0 = cands[0], q = (x, y) => document.querySelector('#board .sq[data-x="' + x + '"][data-y="' + y + '"]');
+  const sq = q(m0.tx, m0.ty); if (!sq) return false;
+  const fromSp = (q(m0.fx, m0.fy) || document.createElement('div')).querySelector('span');
+  const cls = fromSp ? fromSp.className : (game.multi ? 'pc-' + mySeat : myColor === 'w' ? 'w-piece' : '');
+  const p = $('promo'); promoMount(true); p.innerHTML = ''; p.style.cssText = ''; p.className = 'pop';
+  const r = sq.getBoundingClientRect(), S = Math.max(44, Math.round(r.width)), br = $('board').getBoundingClientRect();
+  const panel = cands.length > 5 || !!game.promotion || cands.some(m => m.px != null), down = (r.top - br.top) < br.height / 2;
+  p.classList.toggle('panel', panel); p.classList.toggle('up', !down); p.style.setProperty('--s', S + 'px');
+  const tipBox = document.createElement('div'); tipBox.className = 'ptipbox hidden'; p.appendChild(tipBox);
+  const hide = () => { p.classList.add('hidden'); tipBox.classList.add('hidden'); };
+  const showTip = (t, nm) => {
+    const node = promoTip(t); if (!node) { tipBox.classList.add('hidden'); return; }
+    tipBox.innerHTML = ''; const h = document.createElement('div'); h.className = 'pt-name'; h.textContent = nm; tipBox.appendChild(h); tipBox.appendChild(node); tipBox.classList.remove('hidden');
+    const pr = p.getBoundingClientRect(), tw = tipBox.offsetWidth, th = tipBox.offsetHeight;
+    tipBox.style.left = (pr.right + 8 + tw < innerWidth ? pr.width + 8 : -(tw + 8)) + 'px'; tipBox.style.top = Math.min(0, innerHeight - (pr.top + th) - 8) + 'px';
+  };
+  cands.forEach(m => {
+    const b = document.createElement('button'); b.type = 'button';
+    const ic = document.createElement('span'); setGlyph(ic, m.promo, game.multi ? mySeat : myColor); ic.className = cls; b.appendChild(ic);
+    const nm = pieceName(m.promo) + (m.px != null ? ' → ' + sqName(m.px, m.py) : '');
+    if (panel) { const s = document.createElement('small'); s.textContent = nm; b.appendChild(s); }
+    b.title = 'Promote to ' + nm;
+    b.onmouseenter = b.onfocus = () => showTip(m.promo, nm); b.onmouseleave = b.onblur = () => tipBox.classList.add('hidden');
+    b.onclick = () => { hide(); if (onPick) onPick(m); else play(m); };
+    p.appendChild(b);
+  });
+  const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = panel ? '✕ Cancel' : '✕'; x.title = 'Cancel'; x.onclick = hide; p.appendChild(x);
+  p.style.left = '0px'; p.style.top = '0px'; p.classList.remove('hidden');
+  const pw = p.offsetWidth, ph = p.offsetHeight;
+  let left = panel ? r.left + r.width / 2 - pw / 2 : r.left, top = panel ? (down ? r.bottom + 6 : r.top - ph - 6) : (down ? r.top : r.bottom - ph);
+  p.style.left = Math.max(4, Math.min(innerWidth - pw - 4, left)) + 'px'; p.style.top = Math.max(4, Math.min(innerHeight - ph - 4, top)) + 'px';
+  return true;
+}
 function showPromo(cands, onPick) {
-  const p = $('promo'); p.innerHTML = ''; p.classList.toggle('pc', !!game.promotion);
+  const p = $('promo');
+  if (cands.length > 1 && cands.every(m => m.promo && m.tx === cands[0].tx && m.ty === cands[0].ty) && showPromoPop(cands, onPick)) return;
+  promoMount(false); p.style.cssText = ''; p.className = ''; p.innerHTML = ''; p.classList.toggle('pc', !!game.promotion);
   cands.forEach(m => {
     const b = document.createElement('button');
     const big = t => FAIRY_SVG[t] || '<span style="font-size:2.1rem;line-height:1">' + GLYPH[t] + '</span>';
     b.innerHTML = game.promotion ? (m.promo ? big(m.promo) + '<span>' + (PNAMES[m.promo] || '') + (m.px != null ? ' → ' + sqName(m.px, m.py) : '') + '</span>' : (game.at(m.fx, m.fy) ? big(game.at(m.fx, m.fy).t) : '') + '<span>' + (m.shot ? 'Shoot (stay put)' : m.swap ? 'Swap' : m.exit ? 'Leave the board' : m.bump ? 'Bump (it holds)' : m.push ? 'Push it' : m.squish ? 'Squish it' : m.vx != null ? 'via ' + sqName(m.vx, m.vy) : cands.some(x => x.promo) ? 'Stay' : 'Move') + '</span>')
-      : m.claim ? '⚔ Claim the Boss' : m.claim === false ? '☠ Kill it (then bring a fallen piece back)' : m.promo ? glyphHTML(m.promo) : m.rev ? '↺ ' + glyphHTML(m.rev) : m.free ? 'Free step' : 'Move';
+      : m.claim ? '⚔ Claim the Boss' : m.claim === false ? '☠ Kill it (then bring a fallen piece back)' : m.promo ? glyphHTML(m.promo, game.multi ? mySeat : myColor) : m.rev ? '↺ ' + glyphHTML(m.rev) : m.free ? 'Free step' : 'Move';
     b.title = m.promo && game.promotion ? 'Promote to ' + (PNAMES[m.promo] || '') + (m.px != null ? ', placed on ' + sqName(m.px, m.py) : '') : !m.promo && game.promotion ? (m.shot ? 'Capture it without moving' : m.swap ? 'Swap places' : m.exit ? 'Leave the board here: nothing can touch it while it is outside' : m.bump ? 'The Juggernaut survives the first capture attempt: you stop next to it and your turn is over' : m.push ? 'Push it one square' : m.squish ? 'Squish it (it has nowhere to go)' : m.vx != null ? 'First leg on ' + sqName(m.vx, m.vy) + ', then one more step' : cands.some(x => x.promo) ? 'Stay as it is (no promotion)' : 'Move there') : m.promo ? 'Promote' : m.rev ? 'Revive ' + PNAMES[m.rev] : m.free ? 'Herald: free step (your turn goes on)' : 'Normal move';
     b.onclick = () => { p.classList.add('hidden'); if (onPick) onPick(m); else play(m); };
     p.appendChild(b);
@@ -1130,7 +1347,7 @@ function renderHand(c, el) {
   'qrbnpciwoal'.split('').forEach(t => {
     if (!(hand[t] > 0)) return;
     const b = document.createElement('button');
-    b.innerHTML = glyphHTML(t) + '×' + hand[t];
+    b.innerHTML = glyphHTML(t, game.multi ? mySeat : myColor) + '×' + hand[t];
     if (sel && sel.drop === t && c === myColor) b.className = 'on';
     b.onclick = () => {
       if (c !== myColor || ended() || game.turn !== myColor) return;
@@ -1532,31 +1749,111 @@ function fillAvatar(el, name, pfp, color) {
   el.style.backgroundImage = pfp ? 'url("' + pfp + '")' : 'none'; el.style.backgroundColor = color || '#6b7f4e'; el.textContent = pfp ? '' : initialOf(name);
 }
 let seatInfo = {}, peerInfo = null;                         // seat -> { n, p, bot } for multiplayer; the other player for 2-player games
-const cleanInfo = i => { const o = {}; Object.keys(i || {}).slice(0, 12).forEach(k => { const v = i[k] || {}; o[String(k).slice(0, 2)] = { n: cleanName(v.n), p: safePfp(v.p), bot: !!v.bot }; }); return o; };
+const cleanInfo = i => { const o = {}; Object.keys(i || {}).slice(0, 12).forEach(k => { const v = i[k] || {}; o[String(k).slice(0, 2)] = { n: cleanName(v.n), p: safePfp(v.p), bot: !!v.bot, k: cleanSk(v.k) }; }); return o; };
 const seatName = c => (seatInfo[c] && seatInfo[c].n) || CN[c];
 const seatCol = c => (game && game.oct ? OCT_HEX[c] : (document.body.classList.contains('teamsOn') ? SEAT_HEX[c] : OCT_HEX[c])) || '#888';
 function buildSeatInfo() {
   const info = {};
   if (!game || !game.multi) return info;
-  info[mySeat] = { n: myName(), p: safePfp(profile.pfp) };
-  conns.forEach(c => { if (c.seat) info[c.seat] = { n: cleanName(c.name) || CN[c.seat], p: safePfp(c.pfp) }; });
+  info[mySeat] = { n: myName(), p: safePfp(profile.pfp), k: SKIN.mine };
+  conns.forEach(c => { if (c.seat) info[c.seat] = { n: cleanName(c.name) || CN[c.seat], p: safePfp(c.pfp), k: c.sk || undefined }; });
   Object.keys(bots).forEach(sd => { info[sd] = { n: 'Bot (' + bots[sd] + ')', p: '', bot: true }; });
   return info;
 }
-function pushSeatInfo() { if (!isHost || !game || !game.multi) return; seatInfo = buildSeatInfo(); broadcast({ type: 'info', info: seatInfo }); renderStrip(); }
+function pushSeatInfo() { if (!isHost || !game || !game.multi) return; seatInfo = buildSeatInfo(); broadcast({ type: 'info', info: seatInfo }); conns.forEach(sendSkins); specs.forEach(sendSkins); renderStrip(); setTimeout(sendSucc, 300); }
 function refreshProfileUI() {
   fillAvatar($('profAv'), myName(), profile.pfp); fillAvatar($('profAv2'), myName(), profile.pfp);
   $('profName').textContent = myName(); if (document.activeElement !== $('nameIn')) $('nameIn').value = cleanName(profile.name);
 }
 function announceProfile() {
   refreshProfileUI();
-  if (!isHost && conn && conn.open) conn.send({ type: 'profile', name: cleanName(profile.name), pfp: safePfp(profile.pfp) });
+  if (!isHost && conn && conn.open) { conn.send({ type: 'profile', name: cleanName(profile.name), pfp: safePfp(profile.pfp), sk: SKIN.mine }); guestSendSkins(); }
   else if (isHost && game && game.multi && mstarted) pushSeatInfo();
   else if (isHost && MODES[mode] && MODES[mode].multi) renderRoster();
-  else if (isHost && conn && conn.open) conn.send({ type: 'profile', name: cleanName(profile.name), pfp: safePfp(profile.pfp) });
+  else if (isHost && conn && conn.open) { conn.send({ type: 'profile', name: cleanName(profile.name), pfp: safePfp(profile.pfp), sk: SKIN.mine }); sendSkins(conn); }
+  if (game) render();
 }
 $('nameIn').addEventListener('input', () => { profile.name = cleanName($('nameIn').value); saveProfile(); announceProfile(); });
 $('pfpClear').onclick = () => { profile.pfp = ''; saveProfile(); announceProfile(); };
+
+/* ---- the skin editor ---- */
+function modeTypes() {                                          // the piece types this game can show (only their pictures are sent)
+  const s = new Set(['p', 'n', 'b', 'r', 'q', 'k']); if (!game) return s;
+  if (game.imperial) PIECE_GUIDE.forEach(e => s.add(e[0])); else if (game.promotion) Object.values(Promotion.CODE).forEach(c => s.add(c)); else if (game.oct) { OCT_GUIDE.forEach(e => s.add(e[0])); 'ciwoal'.split('').forEach(c => s.add(c)); } else if (MODES[mode] && MODES[mode].grand) GRAND_GUIDE.forEach(e => s.add(e[0]));
+  return s;
+}
+function skinGroups() {
+  const seen = new Set(), out = [], add = (name, list) => { const l = list.filter(([t]) => !seen.has(t) && String(t).length <= 3 && t !== '#' && t !== '__proto__'); l.forEach(([t]) => seen.add(t)); if (l.length) out.push({ name, list: l }); };
+  add('Classic', [['p', 'Pawn'], ['n', 'Knight'], ['b', 'Bishop'], ['r', 'Rook'], ['q', 'Queen'], ['k', 'King']]);
+  add('Imperial Chess', PIECE_GUIDE.map(e => [e[0], e[1]]));
+  add('Austang Grand', GRAND_GUIDE.map(e => [e[0], e[1]]));
+  add('Promotion Chess', Object.values(Promotion.CODE).map(c => [c, Promotion.NAME[c]]));
+  add('8-player (neutral pieces you own)', OCT_GUIDE.filter(e => e[0] !== Engine.NEUTRAL_T.boss).map(e => [e[0], e[1]]).concat([[Engine.NEUTRAL_T.boss, 'Boss (2×2)'],['c', 'Shield'], ['i', 'Imp'], ['w', 'Wraith'], ['o', 'Ox'], ['a', 'Acolyte'], ['l', 'Legion']]));
+  return out;
+}
+function skinImport(file, done) {                               // any picture -> 256x256 centre-cropped WebP (JPEG if the browser cannot make WebP), under ~50 KB
+  const img = new Image(), url = URL.createObjectURL(file);
+  img.onload = () => {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 256; const x = cv.getContext('2d'), m = Math.min(img.width, img.height);
+    x.drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, 256, 256); URL.revokeObjectURL(url);
+    let q = 0.88, d = cv.toDataURL('image/webp', q); const type = d.startsWith('data:image/webp') ? 'image/webp' : 'image/jpeg';
+    d = cv.toDataURL(type, q); while (d.length > 66000 && q > 0.3) { q -= 0.12; d = cv.toDataURL(type, q); }
+    done(safeSkinImg(d) ? d : null);
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); done(null); }; img.src = url;
+}
+function openSkinEditor() {
+  if (document.getElementById('skinEd')) return;
+  SkDB.all().then(list => {
+    const st = { list, cur: null, sel: 'p', groups: skinGroups() };
+    const mk = () => ({ id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: 'My skin ' + (st.list.length + 1), pieces: {}, fresh: true });
+    st.cur = st.list.find(p => SKIN.preset && p.id === SKIN.preset.id) || st.list[0] || (st.list.push(mk()), st.list[0]);
+    const root = document.createElement('div'); root.id = 'skinEd';
+    root.innerHTML = '<div class="sked"><div class="skh"><b>Your piece skins</b><select id="skSel"></select><button id="skNew" type="button">New</button><button id="skRen" type="button">Rename</button><button id="skDel" type="button">Delete</button><span class="dim" style="flex:1"></span><button id="skX" type="button" title="Close">✕</button></div>' +
+      '<div class="skb"><div class="skl" id="skList"></div><div class="skr"><div class="skboxes"><div class="skbox" id="skB1" style="background:#b58863;color:#e8e0d0"></div><div class="skbox" id="skB2" style="background:#f0d9b5;color:#222"></div></div>' +
+      '<div id="skName" style="margin:8px 0 2px;font-weight:700"></div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap"><label class="small" style="cursor:pointer"><span class="btnlike" style="display:inline-block;padding:6px 10px;border-radius:6px;background:#5f8f3a">Choose a picture…</span><input type="file" id="skFile" accept="image/*" hidden></label><button id="skRm" type="button">Remove picture</button></div>' +
+      '<label class="row"><input type="radio" name="skMode" id="skMask" value="1" checked> Cut to the piece\'s shape</label><label class="row"><input type="radio" name="skMode" id="skOver" value="0"> Lay it over the piece</label>' +
+      '<label class="row"><input type="checkbox" id="skTint"> Colour it with my piece colour</label><button id="skTintGrp" type="button" class="small">Use this colour setting for the whole group</button>' +
+      '<div class="dim" id="skBossNote" style="display:none;margin-top:4px">The Boss covers 4 squares: the picture is spread over all of them and each square shows its own part, so a square that is lost simply disappears. You only see it once you own the Boss.</div>' +
+      '<label class="row">Left / right <input type="range" id="skX2" min="-60" max="60" value="0"></label><label class="row">Up / down <input type="range" id="skY2" min="-60" max="60" value="0"></label><label class="row">Size <input type="range" id="skS" min="20" max="300" value="100"></label>' +
+      '<div class="dim">Pictures are shrunk to 256×256 and cropped to a square. Other players see your skin on your pieces (they can switch that off). Neutral pieces keep the default look.</div></div></div>' +
+      '<div class="skf"><button id="skSave" class="primary" type="button">Save and use</button><button id="skSave2" type="button">Save</button><button id="skOff" type="button">Stop using skins</button><span class="dim" id="skMsg"></span></div></div>';
+    document.body.appendChild(root); const q = id => root.querySelector('#' + id);
+    const ent = () => st.cur.pieces[st.sel], defHTML = t => skBase(t) || '<span>' + (GLYPH[t] || t) + '</span>';
+    const isBoss = t => t === Engine.NEUTRAL_T.boss, big = (t, e) => (isBoss(t) ? skinBossPreview(e) : (e && e.img && skinEntryHTML(t, e)) || defHTML(t));
+    const prev = () => { const e = ent(); q('skB1').innerHTML = q('skB2').innerHTML = big(st.sel, e); q('skBossNote').style.display = isBoss(st.sel) ? '' : 'none'; q('skTint').checked = !!(e && e.c);
+      const nm = (st.groups.flatMap(g => g.list).find(x => x[0] === st.sel) || [0, st.sel])[1]; q('skName').textContent = nm + (e && e.img ? '' : ' (default art)');
+      q('skMask').checked = !e || e.m !== 0; q('skOver').checked = !!e && e.m === 0; q('skX2').value = e ? e.x : 0; q('skY2').value = e ? e.y : 0; q('skS').value = e ? e.s : 100; ['skMask', 'skOver', 'skTint', 'skTintGrp', 'skX2', 'skY2', 'skS', 'skRm'].forEach(i => { q(i).disabled = !(e && e.img); }); };
+    const cell = (t, nm) => { const e = st.cur.pieces[t], html = isBoss(t) ? skinBossPreview(e) : e && e.img ? skinEntryHTML(t, e) : null; return '<button type="button" class="skp' + (t === st.sel ? ' sel' : '') + '" data-t="' + t + '"><span class="ic">' + (html || defHTML(t)) + '</span>' + nm + (e && e.img ? '<i></i>' : '') + '</button>'; };
+    const grid = () => { q('skList').innerHTML = st.groups.map(g => '<h4>' + g.name + '</h4><div class="skg">' + g.list.map(([t, nm]) => cell(t, nm)).join('') + '</div>').join(''); q('skList').querySelectorAll('.skp').forEach(b => { b.onclick = () => { st.sel = b.dataset.t; grid(); prev(); }; }); };
+    const sel = () => { q('skSel').innerHTML = st.list.map(p => '<option value="' + p.id + '"' + (p === st.cur ? ' selected' : '') + '>' + p.name.replace(/</g, '&lt;') + (SKIN.preset && SKIN.preset.id === p.id ? ' (in use)' : '') + '</option>').join(''); };
+    const upd = f => { const e = ent(); if (!e) return; f(e); e.h = skHash(e.img); prev(); const b = q('skList').querySelector('.skp[data-t="' + st.sel + '"] .ic'); if (b) b.innerHTML = isBoss(st.sel) ? skinBossPreview(e) : skinEntryHTML(st.sel, e) || defHTML(st.sel); };
+    q('skSel').onchange = () => { st.cur = st.list.find(p => p.id === q('skSel').value); grid(); prev(); sel(); };
+    q('skNew').onclick = () => { st.cur = mk(); st.list.push(st.cur); sel(); grid(); prev(); };
+    q('skRen').onclick = () => { const n = prompt('Name this skin set', st.cur.name); if (n && n.trim()) { st.cur.name = n.trim().slice(0, 30); sel(); } };
+    q('skDel').onclick = () => { if (!confirm('Delete "' + st.cur.name + '"?')) return; SkDB.del(st.cur.id); if (SKIN.preset && SKIN.preset.id === st.cur.id) skinActivate(null); st.list = st.list.filter(p => p !== st.cur); if (!st.list.length) st.list.push(mk()); st.cur = st.list[0]; sel(); grid(); prev(); };
+    q('skFile').onchange = e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
+      skinImport(f, d => { if (!d) { q('skMsg').textContent = 'That picture could not be used.'; return; } q('skMsg').textContent = '';
+        const old = st.cur.pieces[st.sel] || { m: 1, c: 0, x: 0, y: 0, s: 100 }; const h = skHash(d); SKIN.imgs.set(h, d); st.cur.pieces[st.sel] = { img: d, h, m: old.m, c: old.c || 0, x: old.x, y: old.y, s: old.s }; grid(); prev(); }); };
+    q('skRm').onclick = () => { delete st.cur.pieces[st.sel]; grid(); prev(); };
+    root.querySelectorAll('input[name=skMode]').forEach(r => { r.onchange = () => upd(e => { e.m = r.value === '1' ? 1 : 0; }); });
+    q('skTint').onchange = () => upd(e => { e.c = q('skTint').checked ? 1 : 0; });
+    q('skTintGrp').onclick = () => { const g = st.groups.find(g => g.list.some(x => x[0] === st.sel)), on = q('skTint').checked ? 1 : 0; (g ? g.list : []).forEach(([t]) => { const e = st.cur.pieces[t]; if (e && e.img) e.c = on; }); grid(); prev(); q('skMsg').textContent = 'Colour setting applied to the whole group.'; };
+    q('skX2').oninput = () => upd(e => { e.x = +q('skX2').value; }); q('skY2').oninput = () => upd(e => { e.y = +q('skY2').value; }); q('skS').oninput = () => upd(e => { e.s = +q('skS').value; });
+    const save = use => { const p = st.cur; delete p.fresh; Object.keys(p.pieces).forEach(t => { delete p.pieces[t].h; });
+      SkDB.put(JSON.parse(JSON.stringify(p))).then(() => { if (use) skinActivate(p); else if (SKIN.preset && SKIN.preset.id === p.id) skinActivate(p); Object.keys(p.pieces).forEach(t => { p.pieces[t].h = skHash(p.pieces[t].img); }); q('skMsg').textContent = use ? 'Saved. Your pieces now use this skin.' : 'Saved.'; sel(); refreshSkinNow(); }); };
+    q('skSave').onclick = () => save(true); q('skSave2').onclick = () => save(false);
+    q('skOff').onclick = () => { skinActivate(null); q('skMsg').textContent = 'You are using the default pieces again.'; sel(); refreshSkinNow(); };
+    const close = () => { root.remove(); refreshSkinNow(); }; q('skX').onclick = close; root.addEventListener('pointerdown', e => { if (e.target === root) close(); });
+    Object.keys(st.cur.pieces).forEach(t => { const e = st.cur.pieces[t]; if (e && e.img) { e.h = skHash(e.img); SKIN.imgs.set(e.h, e.img); } });
+    sel(); grid(); prev();
+  });
+}
+function refreshSkinNow() { $('skinNow').textContent = SKIN.preset ? 'Using: ' + SKIN.preset.name + ' (' + Object.keys(SKIN.mine).length + ' pieces)' : 'Using the default pieces.'; }
+$('skinShowChk').checked = SKIN.show; $('skinShowChk').onchange = () => { SKIN.show = $('skinShowChk').checked; skLsSet('cwfShowSkins', SKIN.show ? '1' : '0'); if (game) render(); };
+$('skinEditBtn').onclick = openSkinEditor; refreshSkinNow();
+
 $('pfpIn').onchange = e => {
   const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
   const img = new Image(), url = URL.createObjectURL(f);
@@ -1711,7 +2008,7 @@ function shadeHex(hex, f) {                                  // f > 0 mixes with
   const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return hex; const n = parseInt(m[1], 16), c = [n >> 16, (n >> 8) & 255, n & 255].map(v => Math.round(f >= 0 ? v + (255 - v) * f : v * (1 + f)));
   return '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
 }
-const pingColor = pg => { const i = pings.filter(q => q.from === pg.from).indexOf(pg); return shadeHex(seatCol(pg.from), PING_SHADES[(i < 0 ? 0 : i) % PING_SHADES.length]); };      // the sender's colour; each further suggestion of theirs a different shade
+const pingColor = pg => seatCol(pg.from);      // always the sender's own colour (it used to vary the shade per suggestion, which was confusing)
 const addPing = pg => {
   pings = pings.filter(q => !(q.from === pg.from && q.sx === pg.sx && q.sy === pg.sy && q.tx === pg.tx && q.ty === pg.ty && !!q.mark === !!pg.mark)); pings.push(pg);        // drawing the very same arrow again replaces it; a piece can have several
   const mine = pings.filter(q => q.from === pg.from); if (mine.length > PING_MAX) { const drop = new Set(mine.slice(0, mine.length - PING_MAX)); pings = pings.filter(q => !drop.has(q)); }
@@ -1757,8 +2054,8 @@ function adviseBot(pg) {                                    // host only: a team
 const pingBad = pg => { try { return !game.movesFor(pg.sx, pg.sy).some(m => m.tx === pg.tx && m.ty === pg.ty && (!pg.promo || m.promo === pg.promo)); } catch (e) { return false; } };
 function pingBubble(pg) {
   const b = document.createElement('span'); b.className = 'pingbub'; b.style.setProperty('--pc', pingColor(pg));
-  const sp = document.createElement('span'); setGlyph(sp, pg.t); sp.className = 'pc-' + pg.owner + (FAIRY.includes(pg.t) ? ' fairy' : ''); b.appendChild(sp);
-  if (pg.promo) { const pr = document.createElement('span'); pr.className = 'pbadge'; const q = document.createElement('span'); setGlyph(q, pg.promo); q.className = 'pc-' + pg.owner + (FAIRY.includes(pg.promo) ? ' fairy' : ''); pr.appendChild(q); b.appendChild(pr); }
+  const sp = document.createElement('span'); setGlyph(sp, pg.t, pg.owner); sp.className = 'pc-' + pg.owner + (FAIRY.includes(pg.t) ? ' fairy' : ''); b.appendChild(sp);
+  if (pg.promo) { const pr = document.createElement('span'); pr.className = 'pbadge'; const q = document.createElement('span'); setGlyph(q, pg.promo, pg.owner); q.className = 'pc-' + pg.owner + (FAIRY.includes(pg.promo) ? ' fairy' : ''); pr.appendChild(q); b.appendChild(pr); }
   b.title = seatName(pg.from) + ' suggests this ' + (PNAMES[pg.t] || 'piece') + ' goes here' + (pg.promo ? ', promoting to ' + (PNAMES[pg.promo] || pg.promo) : '');
   if (seatInfo[pg.owner] && seatInfo[pg.owner].bot && pingBad(pg)) { b.classList.add('bad'); b.title += ', but that is not a legal move right now'; }
   return b;
@@ -1792,8 +2089,17 @@ let rcSrc = null, pingPrev = null;
 const cellXY = e => { const c = e.target.closest && e.target.closest('.sq'); return c && c.dataset.x != null ? { x: +c.dataset.x, y: +c.dataset.y } : null; };
 $('board').addEventListener('contextmenu', e => { if (game) e.preventDefault(); });
 $('board').addEventListener('mousedown', e => { if (e.button === 2 && (e.ctrlKey || e.metaKey) && game && game.multi && !spectating && !replay && !draft) rcSrc = cellXY(e); });
+/* Ctrl + right-click OUTSIDE the board (anywhere on the page that is not the board or a control) removes all of my suggestions and markers */
+document.addEventListener('mousedown', e => {
+  if (e.button !== 2 || !(e.ctrlKey || e.metaKey) || !game || !game.multi || spectating || replay || draft || $('game').classList.contains('hidden')) return;
+  if (e.target.closest && e.target.closest('#board, input, textarea, select, button, a, #chatLog')) return;
+  e.preventDefault(); clearMyPings(null);
+});
+document.addEventListener('contextmenu', e => { if ((e.ctrlKey || e.metaKey) && game && game.multi && !$('game').classList.contains('hidden')) e.preventDefault(); });
 document.addEventListener('mouseup', e => { if (e.button !== 2 || !rcSrc) return; const s = rcSrc; rcSrc = null; pingPrev = null; const d = cellXY(e); if (!d || !game || !game.multi) return; if (d.x === s.x && d.y === s.y) { const at = { x: d.x, y: d.y }; if (pings.some(q => q.from === mySeat && pingTouches(q, at))) clearMyPings(at); else makeMark(d.x, d.y); return; } startPing(s, d); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && (pingMode || pingSrc)) { pingMode = false; pingSrc = null; if (game) render(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && (pingMode || pingSrc)) { pingMode = false; pingSrc = null; if (game) render(); } if (e.key === 'Escape' && $('promo').classList.contains('pop')) $('promo').classList.add('hidden'); });
+document.addEventListener('pointerdown', e => { const p = $('promo'); if (p.classList.contains('pop') && !p.classList.contains('hidden') && !p.contains(e.target)) p.classList.add('hidden'); }, true);
+addEventListener('resize', () => { const p = $('promo'); if (p.classList.contains('pop')) p.classList.add('hidden'); });
 
 
 // ================= quick reactions: an emoji floats from the sender's own side of the board =================
@@ -1852,8 +2158,8 @@ function acceptConn(c) {
   onOpen(c, () => setTimeout(() => decide({}), 1500));      // pages without hello are treated as new players
 }
 function classify(c, hello) {
-  c.token = hello.token || null; c.name = cleanName(hello.name); c.pfp = safePfp(hello.pfp);
-  if (!MODES[mode].multi) peerInfo = { n: c.name, p: c.pfp };
+  c.token = hello.token || null; c.name = cleanName(hello.name); c.pfp = safePfp(hello.pfp); c.sk = cleanSk(hello.sk);
+  if (!MODES[mode].multi) peerInfo = { n: c.name, p: c.pfp, k: c.sk };
   if (hello.spectate) return addSpectator(c);
   if (c.token) {
     if (game && game.multi && mstarted) { const old = conns.find(x => x.token === c.token); if (old) return rebindMulti(c, old); }
@@ -1906,14 +2212,68 @@ function addSpectator(c) {
   onOpen(c, () => { c.send({ type: 'spec', rec: buildRecord(), chat: specChatOn, clk: clkSnap() }); addChat('', 'A spectator joined (' + specs.filter(x => x.open).length + ' watching).', true); });
   c.on('close', () => { specs = specs.filter(x => x !== c); addChat('', 'A spectator left.', true); });
 }
+/* ---- host migration (multi-seat games in progress) ----
+   The host tells every guest who would take over (`order`, by seat) and gives the first two a private kit (everybody's reconnect token + team, the bots).
+   If the host is gone for good (about 16 s of failed reconnects), the first successor starts a NEW room with the deterministic id <old code>-<its index>,
+   everybody else (guests and spectators) tries those ids in turn and reconnects with its usual token, exactly like a normal reconnect, and the old host's
+   seat is played by a Normal bot. Not available: Austang (hidden armies), secret classes, trait/class drafts, bughouse, 2-player games. */
+const migOK = () => !!(succ && game && game.multi && !A4 && !M && !game.bug && !draft && !game.seats.some(secretSeat));
+function cleanSucc(m) {
+  if (!m || !game || !game.multi || !Array.isArray(m.order)) return null;
+  const order = m.order.filter(s => typeof s === 'string' && game.seats.includes(s)).slice(0, 8); let kit = null;
+  if (m.kit && m.kit.seats && typeof m.kit.seats === 'object' && game.seats.includes(m.kit.hostSeat)) {
+    kit = { hostSeat: m.kit.hostSeat, seats: {}, bots: {} };
+    for (const sd in m.kit.seats) { const v = m.kit.seats[sd]; if (game.seats.includes(sd) && v && typeof v.token === 'string') kit.seats[sd] = { token: v.token.slice(0, 60), team: v.team, name: cleanName(v.name), pfp: safePfp(v.pfp) }; }
+    for (const sd in (m.kit.bots || {})) if (game.seats.includes(sd) && ['easy', 'normal', 'hard'].includes(m.kit.bots[sd])) kit.bots[sd] = m.kit.bots[sd];
+  }
+  return { order, kit };
+}
+function sendSucc() {
+  if (!isHost || !game || !game.multi || !mstarted || A4 || M || game.bug || draft) return;
+  const live = conns.filter(c => c.open && c.seat), order = game.seats.filter(sd => live.some(c => c.seat === sd));
+  live.forEach(c => {
+    const msg = { type: 'succ', order }, k = order.indexOf(c.seat);
+    if (k >= 0 && k < 2) { msg.kit = { hostSeat: mySeat, seats: {}, bots: Object.assign({}, bots) }; conns.forEach(o => { if (o !== c && o.seat && o.token) msg.kit.seats[o.seat] = { token: o.token, team: o.team, name: o.name, pfp: o.pfp }; }); }
+    try { c.send(msg); } catch (e) { /* the connection just closed */ }
+  });
+  specs.forEach(s => { try { if (s.open) s.send({ type: 'succ', order }); } catch (e) { /* closed */ } });
+}
+setInterval(() => { if (isHost) sendSucc(); }, 15000);      // (also sent when a seat is rebound, the info is pushed or a game starts)
+function becomeHost(k) {
+  const kit = succ.kit, code = roomCode + '-' + k;
+  stopRetry(); isHost = true;      // (set first: closing the old peer fires its 'close' handler, which must not start another reconnect loop)
+  try { if (peer) peer.destroy(); } catch (e) { /* ignore */ }
+  peer = new Peer(PREFIX + code);
+  peer.on('error', e => { if (e.type === 'unavailable-id') { isHost = false; retries = 5 + 3 * k; keepRetries = true; startRetry(); } });      // somebody else got there first: just follow them
+  peer.on('open', () => {
+    isHost = true; roomCode = code; retryCode = null; mstarted = true; inRoom = false; lobbyBots = []; specs = []; hostPref = null; mseats = null; succ = null; spectating = false;
+    conns = Object.keys(kit.seats).map(sd => ({ seat: sd, team: kit.seats[sd].team, token: kit.seats[sd].token, name: kit.seats[sd].name, pfp: kit.seats[sd].pfp, ready: true, open: false, close() { }, send() { }, on() { } }));
+    bots = Object.assign({}, kit.bots); if (kit.hostSeat !== mySeat && game.alive(kit.hostSeat)) bots[kit.hostSeat] = 'normal';
+    peer.on('connection', acceptConn);
+    $('hostCtl').classList.remove('hidden'); $('roomBtn').classList.remove('hidden'); $('modeSel2').value = mode;
+    $('status').textContent = '';
+    addChat('', 'The host left, so you are the host now. The others are reconnecting. ' + CN[kit.hostSeat] + ' is played by a bot. New room link: ' + location.origin + location.pathname + '?join=' + code, true);
+    pushSeatInfo(); clkSync(); scheduleBot(); maybeRunNeutral(); render();
+  });
+}
 function startRetry() {
   if (retryTimer || isHost || !roomCode) return;
-  retries = 0; $('status').textContent = 'Connection lost. Trying to reconnect…';
+  if (keepRetries) keepRetries = false; else retries = 0;
+  $('status').textContent = 'Connection lost. Trying to reconnect…';
   const attempt = () => {
-    if (retries++ > 25) { clearInterval(retryTimer); retryTimer = null; $('status').textContent = 'Could not reconnect. Reload the page or open the link again.'; return; }
+    if (isHost) { clearInterval(retryTimer); retryTimer = null; return; }
+    if (retries++ > 25 + (migOK() ? 20 : 0)) { clearInterval(retryTimer); retryTimer = null; $('status').textContent = 'Could not reconnect. Reload the page or open the link again.'; return; }
+    let code = roomCode;
+    if (migOK() && retries > 4 && succ.order.length) {                      // the host is gone for good: follow the planned successors
+      const o = succ.order.slice(0, 2), k = succ.order.indexOf(mySeat);
+      if (!spectating && succ.kit && k >= 0 && k < 2 && retries === 5 + 3 * k) { clearInterval(retryTimer); retryTimer = null; becomeHost(k); return; }
+      code = roomCode + '-' + ((retries - 5) % o.length);
+      $('status').textContent = 'The host is gone. Looking for the new host…';
+    }
+    retryCode = code;
     try { if (peer) peer.destroy(); } catch (e) { /* ignore */ }
     peer = new Peer();
-    peer.on('open', () => setupConn(peer.connect(PREFIX + roomCode)));
+    peer.on('open', () => setupConn(peer.connect(PREFIX + code)));
     peer.on('error', () => { /* keep trying */ });
   };
   retryTimer = setInterval(attempt, 4000); attempt();
@@ -2064,7 +2424,8 @@ function animAfter() {
     const a = mk(m.fx, m.fy), b = mk(m.tx, m.ty);
     if (rem.includes(a) && add.includes(b)) { pairs.push([a, b, true]); used.add(a); used.add(b); }
   }
-  add.forEach(b => {                                                           // everything else that moved: match identical pieces, nearest first
+  const ranged = !!(m && (m.shot || m.shoot));                                 // a ranged attack: the shooter stays, nothing slides
+  if (!ranged) add.forEach(b => {                                                           // everything else that moved: match identical pieces, nearest first
     if (used.has(b)) return;
     let best = null, bd = 1e9; const [bx, by] = center(b);
     rem.forEach(a => { if (used.has(a) || before.get(a).key !== after.get(b).key) return; const [ax, ay] = center(a), d = Math.hypot(ax - bx, ay - by); if (d < bd) { bd = d; best = a; } });
@@ -2182,7 +2543,14 @@ function dragEnd(e) {
   const el = document.elementFromPoint(e.clientX, e.clientY), sq = e.type === 'pointercancel' || !el || !el.closest ? null : el.closest('#board .sq[data-x]');
   const tx = sq ? +sq.dataset.x : -1, ty = sq ? +sq.dataset.y : -1;
   if (!sq || (tx === d.x && ty === d.y)) { arm(); dragSnap(); return; }
-  if (d.pre) { arm(); const node = d.node; dragStop(); preQ.push({ fx: d.x, fy: d.y, tx, ty, node }); preGame = game; drawOverlay(); preRun(); return; }      // a premove joins the queue
+  if (d.pre) {
+    arm(); const node = d.node; dragStop();
+    let pc = []; try { pc = ((game.movesFor || game.reach) ? (game.movesFor || game.reach).call(game, d.x, d.y) : []).filter(m => m.tx === tx && m.ty === ty && m.promo && !m.inplace); } catch (x) { pc = []; }
+    const seen = new Set(); pc = pc.filter(m => !seen.has(m.promo) && seen.add(m.promo));
+    const push = promo => { preQ.push({ fx: d.x, fy: d.y, tx, ty, node, promo }); preGame = game; drawOverlay(); preRun(); };
+    if (pc.length > 1) showPromo(pc, m => push(m.promo)); else push(undefined);      // a premoved promotion asks WHICH piece right away
+    return;
+  }      // a premove joins the queue
   let legal = !isMyTurn();                                           // (a premove is checked when its turn comes, not now)
   if (!legal) { try { legal = MODES[mode].v.hidden || selMoves().some(m => m.tx === tx && m.ty === ty) || (game.oct && selMoves().some(m => m.inplace)); } catch (x) { legal = true; } }
   if (!legal) { arm(); dragSnap(); return; }
@@ -2358,7 +2726,9 @@ function preRun() {                                          // when your turn c
     const t = game.at(q.tx, q.ty); let c = [];
     if (!(t && (game.multi ? t.c === mySeat : t.c === myColor))) { try { c = game.moves(q.fx, q.fy).filter(m => m.tx === q.tx && m.ty === q.ty && !m.inplace); } catch (e) { c = []; } }
     if (!c.length) { preQ = []; drawOverlay(); preToast('Premove cancelled: it was not legal when your turn came.'); return; }
-    const m = c.find(z => z.promo === 'q') || c[0];
+    const q2 = q.promo ? c.find(z => z.promo === q.promo) : null;
+    if (!q2 && c.length > 1 && c.every(z => z.promo)) { sel = null; const seen2 = new Set(); showPromo(c.filter(z => !seen2.has(z.promo) && seen2.add(z.promo)).map(withCk), m2 => (game.multi ? playMulti : play)(m2)); return; }      // several promotion choices and none was picked when it was queued (a chain of premoves, or an engine that cannot preview): ask now, never guess
+    const m = q2 || c[0];
     sel = null; (game.multi ? playMulti : play)(withCk(m));
   }, 140);
 }
@@ -2500,7 +2870,7 @@ function renderStackPick() {
   if (selIdx >= st.length) selIdx = 0;
   const lab = document.createElement('span'); lab.className = 'dim'; lab.textContent = 'Overlapping pieces: choose which one moves'; box.appendChild(lab);
   st.forEach((p, i) => {
-    const b = document.createElement('button'); b.innerHTML = glyphHTML(shownType(p)); b.title = i === 0 ? 'Top piece' : 'Piece sharing the square';
+    const b = document.createElement('button'); b.innerHTML = glyphHTML(shownType(p), p.c); b.title = i === 0 ? 'Top piece' : 'Piece sharing the square';
     if (i === selIdx) b.className = 'on';
     b.onclick = () => { selIdx = i; render(); };
     box.appendChild(b);
@@ -2527,8 +2897,9 @@ function swapClick(x, y) {
   play(m);
 }
 $('swapBtn').onclick = () => { swapMode = !swapMode; swapFirst = null; sel = null; render(); };
-$('endRoundBtn').onclick = () => {                 // Austang: the host can call a round a draw if something goes wrong
+$('endRoundBtn').onclick = async () => {                 // Austang: the host can call a round a draw if something goes wrong
   if (!isHost || !M || M.phase !== 'play' || ended()) return;
+  if (!(await askConfirm('End this round as a draw?', 'End round', true)) || !M || M.phase !== 'play' || ended()) return;
   over = 'Round ended by the host.'; overRes = 'd'; send({ type: 'endRound' }); render();
 };
 
@@ -2757,7 +3128,7 @@ function scheduleBot() {
   if (botTimer || !sd) return;
   let extra = 0; const wait = +$('botWaitSel').value || 0;
   if (game.multi && wait > 0 && !advice[sd] && game.teams && game.seats.some(c => c !== sd && sameTeam(c, sd) && !bots[c] && game.alive(c))) { extra = wait * 1000; advWait = sd; renderStrip(); }      // give a human teammate a few seconds to advise
-  botTimer = setTimeout(() => { botTimer = null; botStep(); }, 700 + Math.random() * 500 + extra);      // a short pause so you can follow
+  const base = +$('botSpeedSel').value; botTimer = setTimeout(() => { botTimer = null; botStep(); }, (base ? base + Math.random() * base * 0.7 : 0) + extra);      // a short pause so you can follow (the host picks how short)
 }
 function botStep() {
   const sd = botSeatToMove();
@@ -2796,6 +3167,7 @@ function startVsBot(level) {
 $('leaveRoomBtn').onclick = () => { location.href = location.origin + location.pathname; };
 $('botEasy').onclick = () => startVsBot('easy');
 $('botNormal').onclick = () => startVsBot('normal');
+$('botHard').onclick = () => startVsBot('hard');
 const addLobbyBot = level => {
   if (!isHost || mstarted || !MODES[mode].multi || MODES[mode].bug) return;
   if (1 + conns.length + lobbyBots.length >= maxSeats()) return;
@@ -2803,6 +3175,7 @@ const addLobbyBot = level => {
 };
 $('addBotEasy').onclick = () => addLobbyBot('easy');
 $('addBotNormal').onclick = () => addLobbyBot('normal');
+$('addBotHard').onclick = () => addLobbyBot('hard');
 $('botTakeBtn').onclick = () => {
   const sd = $('removeSel').value;
   if (!isHost || !game || !game.multi || game.bug || !sd || !game.alive(sd) || sd === mySeat) return;
@@ -3142,7 +3515,7 @@ function renderCore() {
     if ((abFrom && abFrom.x === x && abFrom.y === y) || (chargeSq && chargeSq.x === x && chargeSq.y === y) || (foeSel && foeSel.x === x && foeSel.y === y)) d.classList.add('sel');
     if (p) {
       const s = document.createElement('span');
-      setGlyph(s, shownType(p)); if (p.wall && g.wallLife) addWallNum(s, g.wallLife(x, y)); if (p.rc > 0) addWallNum(s, p.rc);      // (Reviver recharge countdown)
+      setGlyph(s, shownType(p), p.c); if (p.wall && g.wallLife) addWallNum(s, g.wallLife(x, y)); if (p.rc > 0) addWallNum(s, p.rc);      // (Reviver recharge countdown)
       s.className = (p.c === 'w' ? 'w-piece' : '') + (FAIRY.includes(p.t) ? ' fairy' : '') + (p.champ && p.c === myColor ? ' champ' : '') + fxClass(p);
       s.dataset.pc = '1'; d.appendChild(s);
     }
@@ -3165,7 +3538,9 @@ function readSettings(m) {
   const n = (id, d) => { const v = parseInt($(id).value, 10); return isNaN(v) ? d : Math.max(0, v); };
   const lim = {};
   document.querySelectorAll('#austLimits input').forEach(i => { const v = parseInt(i.value, 10); if (!isNaN(v) && v >= 0) lim[i.dataset.t] = v; });
-  return { start: n('sStart', cfg.def.start), base: n('sBase', cfg.def.base), step: n('sStep', cfg.def.step), catchup: n('sCatch', cfg.def.catchup),
+  const unlock = {};
+  document.querySelectorAll('#austUnlock input').forEach(i => { const v = parseInt(i.value, 10); if (!isNaN(v) && v > 1) unlock[i.dataset.t] = v; });
+  return { unlock, start: n('sStart', cfg.def.start), base: n('sBase', cfg.def.base), step: n('sStep', cfg.def.step), catchup: n('sCatch', cfg.def.catchup),
            cap: Math.max(1, n('sCap', cfg.def.cap)), rounds: Math.max(1, n('sRounds', cfg.def.rounds)), lim };
 }
 let austShown = null;
@@ -3178,6 +3553,12 @@ function syncAustSettings(v) {                  // switching between Austang mod
     const l = document.createElement('label'), i = document.createElement('input');
     i.type = 'number'; i.min = '0'; i.placeholder = '∞'; i.dataset.t = t; if (c.lim[t] != null) i.value = c.lim[t];
     l.innerHTML = PNAMES[t] + ' '; l.appendChild(i); box.appendChild(l);
+  });
+  const ub = $('austUnlock'); ub.innerHTML = ''; $('austUnlockBox').classList.toggle('hidden', !c.unlock);
+  if (c.unlock) c.palette.filter(t => t !== 'k').forEach(t => {
+    const l = document.createElement('label'), i = document.createElement('input');
+    i.type = 'number'; i.min = '1'; i.placeholder = '1'; i.dataset.t = t; if (c.unlock[t] != null) i.value = c.unlock[t];
+    l.innerHTML = PNAMES[t] + ' '; l.appendChild(i); ub.appendChild(l);
   });
 }
 
@@ -3247,6 +3628,14 @@ function mineStats() {
   return { s, n };
 }
 const countOf = (setup, t) => Object.values(setup).filter(u => u === t).length;
+const unlockMsg = (st, t, round) => (st && st.unlock && st.unlock[t] > round ? PNAMES[t] + ' unlocks in round ' + st.unlock[t] + '.' : '');
+let paintMode = null;                                   // hold left = place pieces, hold right = erase them
+['pointerup', 'pointercancel', 'blur'].forEach(ev => window.addEventListener(ev, () => { paintMode = null; }));
+function paintBind(d, act) {
+  d.onpointerdown = e => { if (e.button !== 0 && e.button !== 2) return; e.preventDefault(); paintMode = e.button === 2 ? 'erase' : 'place'; act(paintMode === 'erase', false); };
+  d.onpointerenter = () => { if (paintMode) act(paintMode === 'erase', true); };
+  d.oncontextmenu = e => e.preventDefault();
+}
 const limTxt = t => { const l = M.s.lim && M.s.lim[t]; return l != null ? ' (max ' + l + ')' : ''; };
 function setupProblem(color, setup) {          // everything a legal army has to satisfy (also used on the opponent's army when it arrives)
   const c = AC(), W = c.w, H = c.h; let pts = 0, n = 0, kings = 0;
@@ -3261,15 +3650,18 @@ function setupProblem(color, setup) {          // everything a legal army has to
   if (kings !== 1) return 'You need exactly one king.';
   if (pts > M.pool[color]) return 'Not enough points.';
   if (n > M.s.cap) return 'Piece cap reached.';
+  for (const t in (M.s.unlock || {})) if (countOf(setup, t) > 0 && M.s.unlock[t] > M.round) return unlockMsg(M.s, t, M.round);
   for (const t in (M.s.lim || {})) if (countOf(setup, t) > M.s.lim[t]) return 'At most ' + M.s.lim[t] + ' ' + PNAMES[t].toLowerCase() + (M.s.lim[t] === 1 ? '' : 's') + ' allowed.';
   return '';
 }
 
-function placeAt(x, y) {
+function placeAt(x, y, erase, drag) {
   if (M.sentRound === M.round) return;
   const H = AC().h, key = x + ',' + y, bak = Object.assign({}, M.setups[myColor]);
   setupMsg = '';
-  if (pal === 'x') { delete M.setups[myColor][key]; return render(); }
+  if (pal === 'x' || erase) { if (M.setups[myColor][key] && !(drag && M.setups[myColor][key] === 'k')) { delete M.setups[myColor][key]; render(); } return; }
+  if (M.setups[myColor][key] === pal) return;
+  { const um = unlockMsg(M.s, pal, M.round); if (um) { setupMsg = um; return render(); } }
   if ((pal === 'p' || pal === '\u03c1') && (y === 0 || y === H - 1)) { setupMsg = "Pawns can't start on the back rank."; return render(); }
   const m = M.setups[myColor];
   if (pal === 'k') for (const k in m) if (m[k] === 'k') delete m[k];
@@ -3290,6 +3682,8 @@ function buildPicker(hb, o) {
     b.innerHTML = glyphHTML(t) + '<span class="pc">' + (c.cost[t] ? c.cost[t] : '') + '</span>' + (lim != null ? '<small>' + n + '/' + lim + '</small>' : '');
     b.title = PNAMES[t] + ': ' + c.cost[t] + ' point' + (c.cost[t] === 1 ? '' : 's') + (lim != null ? ' (max ' + lim + ')' : '');
     if (lim != null && n >= lim) b.classList.add('full');
+    const ul = o.unlock && o.unlock[t] > o.round;
+    if (ul) { b.classList.add('full', 'locked'); b.insertAdjacentHTML('beforeend', '<em class="lk">🔒 R' + o.unlock[t] + '</em>'); b.title += ' (unlocks in round ' + o.unlock[t] + ')'; }
     if (pal === t) b.classList.add('on');
     b.onclick = () => { pal = t; render(); };
     return b;
@@ -3341,10 +3735,10 @@ function renderSetup() {
     const t = own && m[x + ',' + y];
     if (t) {
       const s = document.createElement('span');
-      setGlyph(s, t); s.className = (myColor === 'w' ? 'w-piece' : '') + (FAIRY.includes(t) ? ' fairy' : '');
+      setGlyph(s, t, myColor); s.className = (myColor === 'w' ? 'w-piece' : '') + (FAIRY.includes(t) ? ' fairy' : '');
       d.appendChild(s);
     }
-    if (own && !locked) d.onclick = () => placeAt(x, y);
+    if (own && !locked) paintBind(d, (er, dr) => placeAt(x, y, er, dr));
     el.appendChild(d);
   }
   const st = mineStats();
@@ -3353,7 +3747,7 @@ function renderSetup() {
     (locked ? ' · waiting for opponent…' : (M.opp && M.opp.round === M.round ? ' · opponent is ready' : ''));
   $('handTop').innerHTML = '';
   const hb = $('handBot'); hb.innerHTML = ''; hb.classList.remove('picker');
-  if (!locked) buildPicker(hb, { cfg: c, lim: M.s.lim, count: t => countOf(m, t) });
+  if (!locked) buildPicker(hb, { unlock: M.s.unlock, round: M.round, cfg: c, lim: M.s.lim, count: t => countOf(m, t) });
   renderPieceDemo();
   const opp = myColor === 'w' ? 'b' : 'w';
   $('history').textContent = 'Score: you ' + M.scores[myColor] + ' – ' + M.scores[opp] + ' opponent';
@@ -3470,6 +3864,7 @@ function a4Problem(setup, pool) {                    // everything a legal army 
   if (kings !== 1) return 'You need exactly one king.';
   if (pts > pool) return 'Not enough points (' + pts + '/' + pool + ').';
   if (n > A4.s.cap) return 'Too many pieces (max ' + A4.s.cap + ').';
+  for (const t in (A4.s.unlock || {})) if (countOf(setup, t) > 0 && A4.s.unlock[t] > A4.round) return unlockMsg(A4.s, t, A4.round);
   for (const t in (A4.s.lim || {})) if (countOf(setup, t) > A4.s.lim[t]) return 'At most ' + A4.s.lim[t] + ' ' + PNAMES[t] + '.';
   return '';
 }
@@ -3486,10 +3881,12 @@ function a4HostSendMates() {                          // (host) give every playe
     else { const pc = conns.find(x => x.seat === p); if (pc && pc.open) pc.send({ type: 'a4mate', seat: sd, setup: A4.setups[sd] }); }
   });
 }
-function a4Place(u, r) {
+function a4Place(u, r, erase, drag) {
   if (A4.sent === A4.round) return;
   const key = u + ',' + r, mine = A4.setups[mySeat], bak = Object.assign({}, mine); setupMsg = '';
-  if (pal === 'x') { delete mine[key]; a4Share(); return render(); }
+  if (pal === 'x' || erase) { if (mine[key] && !(drag && mine[key] === 'k')) { delete mine[key]; a4Share(); render(); } return; }
+  if (mine[key] === pal) return;
+  { const um = unlockMsg(A4.s, pal, A4.round); if (um) { setupMsg = um; return render(); } }
   if ((pal === 'p' || pal === '\u03c1') && r === 0) { setupMsg = "Pawns can't start on the back rank."; return render(); }
   if (pal === 'k') for (const k in mine) if (mine[k] === 'k') delete mine[k];
   mine[key] = pal;
@@ -3583,8 +3980,8 @@ function a4Arm(el, setup, seat, onclick) {            // one player's 10x5 arm, 
   for (let r = A4H - 1; r >= 0; r--) for (let u = 0; u < A4W; u++) {
     const d = document.createElement('div'); d.className = 'sq ' + ((u + r) % 2 === 1 ? 'l' : 'd');
     const t = setup && setup[u + ',' + r];
-    if (t) { const sp = document.createElement('span'); setGlyph(sp, t); sp.className = 'pc-' + seat + (FAIRY.includes(t) ? ' fairy' : ''); d.appendChild(sp); }
-    if (onclick) d.onclick = () => onclick(u, r);
+    if (t) { const sp = document.createElement('span'); setGlyph(sp, t, seat); sp.className = 'pc-' + seat + (FAIRY.includes(t) ? ' fairy' : ''); d.appendChild(sp); }
+    if (onclick) paintBind(d, (er, dr) => onclick(u, r, er, dr));
     el.appendChild(d);
   }
 }
@@ -3600,7 +3997,7 @@ function renderSetup4() {
     (setupMsg ? ' · ' + setupMsg : '') + (locked ? ' · waiting for the others…' : '') + (rd.length ? ' · Ready: ' + rd.join(', ') : '');
   $('handTop').innerHTML = '';
   const hb = $('handBot'); hb.innerHTML = ''; hb.classList.remove('picker');
-  if (!locked) buildPicker(hb, { cfg: c, lim: A4.s.lim, count: t => countOf(m, t) });
+  if (!locked) buildPicker(hb, { unlock: A4.s.unlock, round: A4.round, cfg: c, lim: A4.s.lim, count: t => countOf(m, t) });
   renderPieceDemo({ cfg: c, locked, s: A4.s, v: Engine.AUSTANG_GRAND });
   $('history').textContent = a4ScoreLine();
 }
@@ -3640,7 +4037,7 @@ function renderAlice() {
       if (sel && sel.l === l && hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (p) d.classList.add('cap'); }
       if (p) {
         const s = document.createElement('span');
-        setGlyph(s, p.t); s.className = (p.c === 'w' ? 'w-piece' : '') + (FAIRY.includes(p.t) ? ' fairy' : '');
+        setGlyph(s, p.t, p.c); s.className = (p.c === 'w' ? 'w-piece' : '') + (FAIRY.includes(p.t) ? ' fairy' : '');
         d.appendChild(s);
       }
       d.onclick = () => clickAlice(x, y, l);
@@ -3768,6 +4165,7 @@ function renderRoster() {
     r.appendChild(cols);
   } else rows.forEach((row, k) => r.appendChild(mk(row, k)));
   $('addBotEasy').disabled = $('addBotNormal').disabled = n >= maxSeats() || !!MODES[mode].match4;
+  { const hk = $('addBotHard'), ok = !MODES[mode].bug && !MODES[mode].match && !MODES[mode].match4; /* every mode that has bots has a Hard bot */ hk.disabled = n >= maxSeats() || !!MODES[mode].match4 || !ok; hk.title = ok ? 'Looks several moves ahead (about a second per move)' : 'The hard bot is not available in this mode (Easy and Normal are)'; }
   let ok = n >= 2;
   if (tOn) {
     const cnt = Array(teamCount()).fill(0); rows.forEach(row => cnt[normTeam(row.team)]++);
@@ -3936,7 +4334,7 @@ function hostMultiConn(c) {
     c.ready = true; renderRoster();
     if ($('autoChk').checked && conns.filter(x => x.ready).length + lobbyBots.length === maxSeats() - 1) startMulti();
   });
-  c.on('data', msg => { if (msg && msg.type === 'pickseat') { if (!mstarted) { if (String(msg.seat) === 'random') rollPref(c, false); else setPref(c, String(msg.seat), false); renderRoster(); } return; } if (msg && msg.type === 'profile') { c.name = cleanName(msg.name); c.pfp = safePfp(msg.pfp); if (mstarted) pushSeatInfo(); else renderRoster(); return; } hostRecv(c, msg); });
+  c.on('data', msg => { if (msg && msg.type === 'pickseat') { if (!mstarted) { if (String(msg.seat) === 'random') rollPref(c, false); else setPref(c, String(msg.seat), false); renderRoster(); } return; } if (msg && msg.type === 'skinPut') { takeSkins(msg.imgs); conns.forEach(sendSkins); specs.forEach(sendSkins); return; } if (msg && msg.type === 'profile') { c.name = cleanName(msg.name); c.pfp = safePfp(msg.pfp); c.sk = cleanSk(msg.sk); if (mstarted) pushSeatInfo(); else renderRoster(); return; } hostRecv(c, msg); });
   c.on('close', () => {
     if (c.replaced) return;
     if (!mstarted) { conns = conns.filter(x => x !== c); renderRoster(); }
@@ -3963,6 +4361,7 @@ function startMulti() {
   $('hostCtl').classList.remove('hidden'); $('modeSel2').value = mode; $('roomBtn').classList.remove('hidden');
   if (A4) { a4HostSendMates(); addChat('', 'You are ' + CN[mySeat] + '. Build your army in your own arm. Nobody sees it until everyone is ready' + (A4.teams ? ' (your partner can watch you build).' : '.'), true); render(); return; }
   addChat('', 'You are ' + CN[mySeat] + '. Turn order: ' + game.seats.map(c => CN[c]).join(' → ') + '.', true);
+  setTimeout(sendSucc, 1500);
   render();
 }
 $('startBtn').onclick = startMulti;
@@ -4061,9 +4460,10 @@ function stepNeutral(g) {
 }
 
 // Host-only: knock out a player who left or is stalling. Their pieces turn gray like any elimination.
-$('removeBtn').onclick = () => {
+$('removeBtn').onclick = async () => {
   const c = $('removeSel').value;
   if (!isHost || !game || !game.multi || ended() || !c || !game.alive(c)) return;
+  if (!(await askConfirm('Remove ' + CN[c] + ' from the game? Their pieces turn gray.', 'Remove', true)) || ended() || !game.alive(c)) return;
   logResign(c); game.resign(c); broadcast({ type: 'mresign', seat: c });
   addChat('', 'Host removed ' + CN[c] + '.', true);
   announceMulti(); render();
@@ -4122,7 +4522,7 @@ function renderMultiHands() {
   'qrbnpciwo'.split('').forEach(t => {            // (the neutral fairy pieces c/i/w/o can be in your hand too)
     if (!(hand[t] > 0)) return;
     const b = document.createElement('button');
-    b.innerHTML = glyphHTML(t) + '×' + hand[t];
+    b.innerHTML = glyphHTML(t, game.multi ? mySeat : myColor) + '×' + hand[t];
     if (sel && sel.drop === t) b.className = 'on';
     b.onclick = () => {
       if (ended() || game.turn !== mySeat || !game.alive(mySeat)) return;
@@ -4164,7 +4564,7 @@ function renderAlice4() {
       if (last && ((last.fl === l && last.fx === x && last.fy === y) || (last.fl !== l && last.tx === x && last.ty === y))) d.classList.add('last');
       if (k && k.l === l && k.x === x && k.y === y) d.classList.add('check');
       if (sel && sel.l === l && hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (p) d.classList.add('cap'); }
-      if (p) { const sp = document.createElement('span'); sp.textContent = GLYPH[p.t]; sp.className = p.dead ? 'pc-dead' : 'pc-' + p.c; d.appendChild(sp); }
+      if (p) { const sp = document.createElement('span'); setGlyph(sp, p.t); sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (FAIRY.includes(p.t) ? ' fairy' : ''); d.appendChild(sp); }
       d.onclick = () => clickAlice4(x, y, l);
       el.appendChild(d);
     }
@@ -4217,7 +4617,7 @@ function drawBugBoard(el, bd, color, interactive, cellPx) {
     if (last && ((last.tx === x && last.ty === y) || (last.fx === x && last.fy === y))) d.classList.add('last');
     if (kingSq === x + ',' + y) d.classList.add('check');
     { const hm = hints.find(m => m.tx === x && m.ty === y); if (hm) { d.classList.add('hint'); if (p) d.classList.add('cap'); if (hm.shot) d.classList.add('shot'); } }
-    if (p) { const sp = document.createElement('span'); sp.textContent = GLYPH[p.t]; if (p.c === 'w') sp.className = 'w-piece'; d.appendChild(sp); }
+    if (p) { const sp = document.createElement('span'); setGlyph(sp, p.t); sp.className = (p.c === 'w' ? 'w-piece' : '') + (FAIRY.includes(p.t) ? ' fairy' : ''); d.appendChild(sp); }
     if (interactive) d.onclick = () => clickBug(x, y);
     el.appendChild(d);
   }
@@ -4241,7 +4641,7 @@ function renderBug() {
   'qrbnp'.split('').forEach(t => {
     if (!(hand[t] > 0)) return;
     const b = document.createElement('button');
-    b.textContent = GLYPH[t] + '×' + hand[t];
+    b.innerHTML = glyphHTML(t, game.multi ? mySeat : myColor) + '×' + hand[t];
     if (sel && sel.drop === t) b.className = 'on';
     b.onclick = () => { if (ended() || !g.canMove(mySeat)) return; sel = (sel && sel.drop === t) ? null : { drop: t }; render(); };
     bot.appendChild(b);
@@ -4303,14 +4703,15 @@ function renderMulti() {
     if ((abFrom && abFrom.x === x && abFrom.y === y) || (chargeSq && chargeSq.x === x && chargeSq.y === y) || (foeSel && foeSel.x === x && foeSel.y === y)) d.classList.add('sel');
     if (shown) {
       const sp = document.createElement('span');
-      setGlyph(sp, shownType(p)); if (p.wall && g.wallLife) addWallNum(sp, g.wallLife(x, y)); if (p.rc > 0) addWallNum(sp, p.rc); sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (FAIRY.includes(p.t) ? ' fairy' : '') + (p.champ && sameSide(p.c, mySeat) ? ' champ' : '') + fxClass(p);
+      setGlyph(sp, shownType(p), p.c); if (p.wall && g.wallLife) addWallNum(sp, g.wallLife(x, y)); if (p.rc > 0) addWallNum(sp, p.rc); sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (FAIRY.includes(p.t) ? ' fairy' : '') + (p.champ && sameSide(p.c, mySeat) ? ' champ' : '') + fxClass(p);
       if (p.c === 'n') d.classList.add('neu');
       if (p.t === Engine.NEUTRAL_T.boss) {
         d.classList.add('bossc');
         if (p.part) {                                                         // which quarter of the picture is this cell, as the board is turned for this viewer?
           const side = viewSeat(mySeat), dx = p.part[0] * 2 - 1, dy = p.part[1] * 2 - 1;
           const [X, Y] = side === 'r' ? [dx, dy] : side === 'b' ? [-dy, dx] : side === 'y' ? [-dx, -dy] : [dy, -dx];
-          sp.innerHTML = bossQuarter(X > 0 ? 1 : 0, Y > 0 ? 0 : 1);
+          const qx = X > 0 ? 1 : 0, qy = Y > 0 ? 0 : 1, bk = ownerSk(p.c), be = bk && bk[p.t];
+          sp.innerHTML = (be && skinBossHTML(be, qx, qy)) || bossQuarter(qx, qy);
         }
       }
       sp.dataset.pc = '1'; d.appendChild(sp);
@@ -4407,7 +4808,7 @@ function sendChat() {
 
 /* ============ BUTTONS ============ */
 $('hostBtn').onclick = host;
-Practice.init({ confirm: askConfirm, Engine, glyph: (el, t) => { el.textContent = GLYPH[t]; }, onExit: () => { $('lobby').classList.remove('hidden'); } });
+Practice.init({ confirm: askConfirm, Engine, glyph: (el, t) => { setGlyph(el, t); }, onExit: () => { $('lobby').classList.remove('hidden'); } });
 $('practiceBtn').onclick = () => { $('lobby').classList.add('hidden'); Practice.open(); };
 $('joinBtn').onclick = () => $('codeIn').value && join($('codeIn').value);
 $('chatBtn').onclick = sendChat;

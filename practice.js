@@ -431,6 +431,7 @@ King's Indian Attack|Nf3 d5 g3`;
     requestAna(S.moves.length);
     paintAll();
     botMaybe();
+    preRun();
   }
   const ELO_SHIFT = 300;      // the Elo shown is a human-style scale; Stockfish's own Elo scale reads about this much higher for the same strength
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -529,7 +530,7 @@ King's Indian Attack|Nf3 d5 g3`;
   #practice .prnav button { padding:4px 10px; font-size:.85rem; background:#3a3733; } #practice .prml .mv { cursor:pointer; } #practice .prml .mv.cur { background:#4a463f; border-radius:3px; }
   #practice .prrev { background:#2c2926; border-radius:8px; padding:8px 10px; margin:8px 0; font-size:.9rem; } #practice .prrev div { margin:3px 0; }
   #practice .prkey { cursor:pointer; padding:2px 4px; border-radius:4px; } #practice .prkey:hover { background:#3a3733; }
-  #practice .prboard { container-type:inline-size; } #practice .prboard .sq { font-size:9cqw; }
+  #practice .prboard { container-type:inline-size; position:relative; } #practice .prboard .sq { font-size:9cqw; }
   #prefs.inpractice { margin-top:14px; } #prefs.inpractice label:not(:first-child) { display:none; }      /* in Practice only the board colours apply */
   #practice .prcol { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; } #practice .prcol .prboard { flex:none; width:100%; }
   #practice .prbw { display:flex; gap:6px; align-items:stretch; } #practice .prcol .prbw .prboard { flex:1; width:auto; min-width:0; }
@@ -577,7 +578,7 @@ King's Indian Attack|Nf3 d5 g3`;
 
   let screen = 'setup';
   function paintAll() { if (!root) return; if (!S) { screen === 'import' ? paintImport() : paintSetup(); return; } paintGame(); }
-  function paintGame() {
+  function paintGame0() {
     const s = S, v = vply(), g = vgame(), live = s.view == null, rt = s.retry; root.innerHTML = '';
     const row = el('div', 'prrow'), left = el('div', 'prleft');
     const curAna = s.ana[v], last = v ? s.moves[v - 1] : null; let barEl = null;
@@ -608,7 +609,7 @@ King's Indian Attack|Nf3 d5 g3`;
     const bad = H('warn') && !s.over && (live ? myTurn : true) ? hangingOf(g, s.human).map(q => q.join(',')) : [], free = H('free') && !s.over && (live ? myTurn : true) ? hangingOf(g, s.human === 'w' ? 'b' : 'w').map(q => q.join(',')) : [];
     for (let i = 0; i < 64; i++) {
       const r = i >> 3, c = i & 7, x = s.human === 'w' ? c : 7 - c, y = s.human === 'w' ? 7 - r : r, key = x + ',' + y;
-      const d = el('div', 'sq ' + ((x + y) % 2 === 1 ? 'l' : 'd')), p = g.at(x, y);
+      const d = el('div', 'sq ' + ((x + y) % 2 === 1 ? 'l' : 'd')), p = g.at(x, y); d.dataset.x = x; d.dataset.y = y;
       if (s.sel && (live || rt) && s.sel.x === x && s.sel.y === y) d.classList.add('sel');
       if (last && ((last.m.tx === x && last.m.ty === y) || (last.m.fx === x && last.m.fy === y))) d.classList.add('last');
       else if (prevMv && ((prevMv.m.tx === x && prevMv.m.ty === y) || (prevMv.m.fx === x && prevMv.m.fy === y))) d.classList.add('last2');      // your own move stays visible after the bot replied
@@ -618,7 +619,7 @@ King's Indian Attack|Nf3 d5 g3`;
       if (hintMv && (hintMv.slice(0, 2) === FILES[x] + (y + 1) || hintMv.slice(2, 4) === FILES[x] + (y + 1))) d.classList.add('pbest');
       if (bad.includes(key)) { d.classList.add('pbad'); d.title = 'This piece may be capturable'; } if (free.includes(key)) { d.classList.add('pfree'); d.title = 'The opponent may have left this piece capturable'; }
       if (c === 0) d.appendChild(el('span', 'coord rk', String(y + 1))); if (r === 7) d.appendChild(el('span', 'coord fl', FILES[x]));
-      if (p) { const sp = el('span'); glyph(sp, p.t); sp.className = p.c === 'w' ? 'w-piece' : ''; d.appendChild(sp); }
+      if (p) { const sp = el('span'); glyph(sp, p.t); sp.className = p.c === 'w' ? 'w-piece' : ''; sp.dataset.pc = '1'; d.appendChild(sp); }
       if (lastRate && lmine.m.tx === x && lmine.m.ty === y) { const b = el('span', 'badge', RATE[lastRate].sym); b.style.background = RATE[lastRate].col; d.appendChild(b); }
       d.onclick = () => clickSq(x, y);
       board.appendChild(d);
@@ -681,6 +682,11 @@ King's Indian Attack|Nf3 d5 g3`;
       const pp = el('div', 'prpro'); ['q', 'r', 'b', 'n'].forEach(t => { const b = el('button'); const sp = el('span'); glyph(sp, t); sp.className = s.human === 'w' ? 'w-piece' : ''; b.appendChild(sp); b.onclick = () => { const m = s.pendingPromo.find(z => z.promo === t); s.pendingPromo = null; humanMove(m); }; pp.appendChild(b); });
       side.appendChild(pp);
     }
+    if (s.prePick) {      // premoved promotion: choose the piece now
+      const pp = el('div', 'prpro'); pp.appendChild(el('span', 'dim', 'Premove promotion: '));
+      ['q', 'r', 'b', 'n'].forEach(t => { const b = el('button'); const sp = el('span'); glyph(sp, t); sp.className = s.human === 'w' ? 'w-piece' : ''; b.appendChild(sp); b.onclick = () => { const q = s.prePick; s.prePick = null; s.pre = s.pre || []; s.pre.push({ fx: q.fx, fy: q.fy, tx: q.tx, ty: q.ty, promo: t }); paintAll(); }; pp.appendChild(b); });
+      const cb = el('button', null, 'Cancel'); cb.onclick = () => { s.prePick = null; paintAll(); }; pp.appendChild(cb); side.appendChild(pp);
+    }
     // ---- buttons (a help that is off has no button at all)
     const bt = el('div', 'prbtn');
     const mk = (txt, fn, dis, bg) => { const b = el('button', null, txt); b.disabled = !!dis; b.onclick = fn; if (bg) b.style.background = bg; bt.appendChild(b); };
@@ -739,6 +745,7 @@ King's Indian Attack|Nf3 d5 g3`;
   function findUciIn(k, u) { try { const g = gameAt(k), m = findUci(g, u); return m ? sanOf(g, m) : null; } catch (e) { return null; } }
   function clickSq(x, y) {
     const s = S; if (!s) return;
+    if (s.pre && s.pre.length && (botTurn() || s.thinking)) { s.pre = []; paintAll(); return; }      // a click cancels the queued premoves
     if (s.retry) {      // retry mode: you move in the position BEFORE your mistake; nothing is actually played
       const g = vgame();
       if (s.sel) { const ms = g.moves(s.sel.x, s.sel.y).filter(m => m.tx === x && m.ty === y); if (ms.length) { retryMove(ms.find(m => m.promo === 'q') || ms[0]); return; } }
@@ -835,7 +842,170 @@ King's Indian Attack|Nf3 d5 g3`;
   const importDraft = { text: '', side: 'w', err: '' };
 
   // ====================== public ======================
-  function init(o) { if (o.confirm) ask = o.confirm; E = o.Engine; glyph = o.glyph; onExit = o.onExit; root = document.getElementById('practice'); build(); }
+  // ====================== board feel: slide animation, dragging, arrows / circles, premoves ======================
+  const boolPref = id => { const c = document.getElementById(id); return c ? c.checked : true; };
+  const animOn = () => boolPref('animChk') && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const pSq = (x, y) => root && root.querySelector('.prboard .sq[data-x="' + x + '"][data-y="' + y + '"]');
+  let animLive = [], dg = null, rcSrc = null;
+  const OVC = { g: '#3fae55', r: '#e04a4a', y: '#e6b800' };
+  function snapP() {
+    const m = new Map(); if (!root) return m;
+    root.querySelectorAll('.prboard .sq[data-x]').forEach(sq => { const sp = sq.querySelector(':scope > span[data-pc]'); if (sp) m.set(sq.dataset.x + ',' + sq.dataset.y, { key: sp.className + '|' + sp.textContent, node: sp.cloneNode(true), sp, sq }); });
+    return m;
+  }
+  function animCancelP() { animLive.forEach(a => { try { a.anim && a.anim.cancel(); } catch (e) { /* done */ } if (a.el) a.el.remove(); if (a.show) a.show(); }); animLive = []; }
+  function mkFly(node, sq) {
+    const r = sq.getBoundingClientRect(), d = document.createElement('div'); d.className = 'sq flyer';
+    d.style.cssText = 'position:fixed;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;font-size:' + getComputedStyle(sq).fontSize + ';pointer-events:none;z-index:40;background:none;overflow:visible;cursor:default;color:#000';
+    d.appendChild(node.cloneNode(true)); document.body.appendChild(d); return d;
+  }
+  function animateP(before, m, skip) {
+    const after = snapP(), mk = (x, y) => x + ',' + y;
+    const rem = [...before.keys()].filter(k => !after.has(k) || after.get(k).key !== before.get(k).key), add = [...after.keys()].filter(k => !before.has(k) || before.get(k).key !== after.get(k).key);
+    const used = new Set(), pairs = [], ctr = k => { const q = pSq(...k.split(',')); if (!q) return [0, 0]; const r = q.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+    const a0 = mk(m.fx, m.fy), b0 = mk(m.tx, m.ty);
+    if (rem.includes(a0) && add.includes(b0)) { pairs.push([a0, b0, true]); used.add(a0); used.add(b0); }
+    add.forEach(b => { if (used.has(b)) return; let best = null, bd = 1e9; const [bx, by] = ctr(b); rem.forEach(a => { if (used.has(a) || before.get(a).key !== after.get(b).key) return; const [ax, ay] = ctr(a), d = Math.hypot(ax - bx, ay - by); if (d < bd) { bd = d; best = a; } }); if (best) { pairs.push([best, b, false]); used.add(best); used.add(b); } });
+    pairs.forEach(([a, b, main]) => {
+      if (main && skip === b) return;      // you dropped it there yourself
+      const to = after.get(b), fr = before.get(a), fSq = pSq(...a.split(',')) || fr.sq, r0 = fSq.getBoundingClientRect(), r1 = to.sq.getBoundingClientRect();
+      const dx = r1.left - r0.left, dy = r1.top - r0.top, cells = Math.hypot(dx, dy) / (r0.width || 1); if (!cells) return;
+      const fl = mkFly(to.sp, fSq), ms = Math.round(Math.min(340, Math.max(130, 100 + 42 * Math.sqrt(cells))));
+      to.sp.style.visibility = 'hidden';
+      const anim = fl.animate([{ transform: 'translate(0,0)' }, { transform: 'translate(' + dx + 'px,' + dy + 'px)' }], { duration: ms, easing: 'cubic-bezier(.25,.8,.3,1)', fill: 'forwards' });
+      const done = () => { to.sp.style.visibility = ''; fl.remove(); };
+      anim.onfinish = done; animLive.push({ el: fl, anim, show: () => { to.sp.style.visibility = ''; } });
+    });
+    const srcs = new Set(pairs.map(p => p[0])), dsts = new Set(pairs.map(p => p[1]));
+    rem.forEach(k => {      // captured pieces fade out where they stood
+      if (srcs.has(k) || dsts.has(k) || !before.has(k)) return; const q = pSq(...k.split(',')); if (!q) return;
+      const fl = mkFly(before.get(k).node, q); fl.style.zIndex = 39;
+      const anim = fl.animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(.7)' }], { duration: 260, easing: 'ease-out', fill: 'forwards' });
+      anim.onfinish = () => fl.remove(); animLive.push({ el: fl, anim });
+    });
+  }
+  // ---- arrows, circles, queued premoves: one SVG layer inside the board
+  function drawOvP() {
+    const b = root && root.querySelector('.prboard'); if (!b || !S) return;
+    b.querySelectorAll(':scope > svg.ov').forEach(e => e.remove());
+    const A = S.arrows || [], C = S.circles || [], P = S.pre || []; if (!A.length && !C.length && !P.length) return;
+    const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'ov'); svg.setAttribute('viewBox', '0 0 ' + b.clientWidth + ' ' + b.clientHeight); svg.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:7;overflow:visible';
+    const geo = (x, y) => { const q = pSq(x, y); return q ? { cx: q.offsetLeft + q.offsetWidth / 2, cy: q.offsetTop + q.offsetHeight / 2, w: q.offsetWidth, h: q.offsetHeight, l: q.offsetLeft, t: q.offsetTop } : null; };
+    const add = (tag, at) => { const e = document.createElementNS(NS, tag); for (const k in at) e.setAttribute(k, at[k]); svg.appendChild(e); return e; };
+    const arrow = (a, col, op) => {
+      const p = geo(a.fx, a.fy), q = geo(a.tx, a.ty); if (!p || !q) return;
+      const cs = (p.w + p.h) / 2, dx = q.cx - p.cx, dy = q.cy - p.cy, len = Math.hypot(dx, dy); if (!len) return;
+      const ax = Math.abs(Math.round(dx / cs)), ay = Math.abs(Math.round(dy / cs)), bend = ax > 0 && ay > 0 && Math.min(ax, ay) === 1 && Math.max(ax, ay) === 2;      // a knight's jump gets the L
+      const hl = cs * 0.42, hw = cs * 0.27, sw = cs * 0.16;
+      const pts = bend ? [{ x: p.cx, y: p.cy }, ax > ay ? { x: q.cx, y: p.cy } : { x: p.cx, y: q.cy }, { x: q.cx, y: q.cy }] : [{ x: p.cx, y: p.cy }, { x: q.cx, y: q.cy }];
+      const n = pts.length, last = pts[n - 1], prev = pts[n - 2], ll = Math.hypot(last.x - prev.x, last.y - prev.y), ux = (last.x - prev.x) / ll, uy = (last.y - prev.y) / ll;
+      const f0 = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y), vx = (pts[1].x - pts[0].x) / f0, vy = (pts[1].y - pts[0].y) / f0;
+      const start = { x: pts[0].x + vx * cs * 0.18, y: pts[0].y + vy * cs * 0.18 }, tip = { x: last.x - ux * cs * 0.08, y: last.y - uy * cs * 0.08 }, base = { x: tip.x - ux * hl, y: tip.y - uy * hl };
+      const path = [start].concat(pts.slice(1, -1), [{ x: base.x + ux * 2, y: base.y + uy * 2 }]).map((z, i) => (i ? 'L' : 'M') + z.x + ' ' + z.y).join(' ');
+      add('path', { d: path, fill: 'none', stroke: col, 'stroke-width': sw, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', opacity: op });
+      add('polygon', { points: tip.x + ',' + tip.y + ' ' + (base.x - uy * hw) + ',' + (base.y + ux * hw) + ' ' + (base.x + uy * hw) + ',' + (base.y - ux * hw), fill: col, opacity: op });
+    };
+    P.forEach(q => { [[q.fx, q.fy], [q.tx, q.ty]].forEach(([x, y]) => { const g = geo(x, y); if (g) add('rect', { x: g.l, y: g.t, width: g.w, height: g.h, fill: 'rgba(232,115,28,.45)' }); }); });
+    P.forEach((q, i) => { arrow(q, '#e8731c', .8); if (P.length > 1) { const g = geo(q.tx, q.ty); if (g) { const t = add('text', { x: g.l + g.w * 0.8, y: g.t + g.h * 0.28, 'font-size': g.h * 0.28, 'font-weight': 700, fill: '#fff', stroke: '#7a3a08', 'stroke-width': g.h * 0.03, 'text-anchor': 'middle' }); t.textContent = i + 1; } } });
+    C.forEach(c => { const g = geo(c.x, c.y); if (g) add('circle', { cx: g.cx, cy: g.cy, r: (g.w + g.h) / 4 * 0.9, fill: 'none', stroke: OVC[c.c], 'stroke-width': (g.w + g.h) / 2 * 0.07, opacity: .85 }); });
+    A.forEach(a => arrow(a, OVC[a.c], .8));
+    b.appendChild(svg);
+    P.forEach(q => { const sq = pSq(q.fx, q.fy), sp = sq && sq.querySelector(':scope > span[data-pc]'); if (sp) sp.style.opacity = '.45'; });
+  }
+  function paintGame() {      // the real painter plus the slide animation and the overlay
+    const s = S, before = s && root ? snapP() : null, vp = s ? vply() : 0;
+    if (s && s._avp !== vp) { s.arrows = []; s.circles = []; s._avp = vp; }
+    animCancelP();
+    paintGame0();
+    if (!S) return;
+    const n = S.moves.length, last = n ? S.moves[n - 1] : null;
+    if (before && last && S._an !== undefined && n === S._an + 1 && S.view == null && !S.retry && animOn()) { const sk = S._skip && performance.now() < S._skip.until ? S._skip.key : null; try { animateP(before, last.m, sk); } catch (e) { animCancelP(); } }
+    S._an = n; S._skip = null;
+    drawOvP();
+  }
+  // ---- premoves
+  const lastRankFor = (c, y) => (c === 'w' ? y === 7 : y === 0);
+  function dragKind(x, y) {
+    const s = S; if (!s || s.over || s.pendingPromo || s.prePick) return null;
+    if (s.retry) { const g = vgame(), p = g.at(x, y); return p && p.c === g.turn ? 'move' : null; }
+    if (s.view != null) return null;
+    const g = s.game, p = g.at(x, y); if (!p) return null;
+    if (!botTurn() && !s.thinking) return p.c === g.turn ? 'move' : null;
+    return p.c === s.human && !s.both && boolPref('preChk') && !manualMode() ? 'pre' : null;
+  }
+  function preRun() {
+    const s = S; if (!s || !s.pre || !s.pre.length) return;
+    if (s.over || s.view != null || s.retry || s.both) { s.pre = []; paintAll(); return; }
+    if (botTurn() || s.thinking) return;
+    const q = s.pre.shift(), g = s.game, p = g.at(q.fx, q.fy);
+    if (!p || p.c !== s.human || g.turn !== s.human) { s.pre = []; paintAll(); return; }
+    const ms = g.moves(q.fx, q.fy).filter(m => m.tx === q.tx && m.ty === q.ty), m = ms.find(z => (z.promo || null) === (q.promo || null)) || ms[0];
+    if (!m) { s.pre = []; s.msg = 'Premove cancelled: it was not legal when your turn came.'; paintAll(); return; }
+    paintAll();
+    setTimeout(() => { if (S !== s || s.over || s.view != null || botTurn() || s.thinking) return; humanMove(m); }, 140);      // a beat after the bot's move, so you still see it
+  }
+  function queuePre(fx, fy, tx, ty) {
+    const s = S, p = s.game.at(fx, fy); if (!p || (fx === tx && fy === ty)) return;
+    const t = s.game.at(tx, ty); if (t && t.c === s.human) return;
+    s.pre = s.pre || [];
+    if (p.t === 'p' && lastRankFor(s.human, ty)) { s.prePick = { fx, fy, tx, ty }; paintAll(); return; }      // which piece? ask right away
+    s.pre.push({ fx, fy, tx, ty }); paintAll();
+  }
+  // ---- dragging (mouse only): the drop runs exactly the code a click would
+  function dgStop() {
+    if (!dg) return; removeEventListener('pointermove', dgMove); removeEventListener('pointerup', dgEnd); removeEventListener('pointercancel', dgEnd);
+    if (dg.ghost) dg.ghost.remove(); document.body.classList.remove('dragging'); dg = null;
+  }
+  function dgMove(e) {
+    if (!dg || e.pointerId !== dg.id) return;
+    if (!dg.started) {
+      if (Math.hypot(e.clientX - dg.sx, e.clientY - dg.sy) < 6) return;
+      dg.started = true;
+      if (dg.kind === 'move') { S.sel = { x: dg.x, y: dg.y }; paintAll(); }
+      const sq = pSq(dg.x, dg.y), sp = sq && sq.querySelector(':scope > span[data-pc]'); if (!sq || !sp) { dgStop(); return; }
+      const r = sq.getBoundingClientRect(); dg.w = r.width; dg.h = r.height; dg.ghost = mkFly(sp, sq); dg.ghost.classList.add('dragghost'); dg.ghost.style.transform = 'scale(1.12)'; sp.style.opacity = '.3'; document.body.classList.add('dragging');
+    }
+    dg.ghost.style.left = (e.clientX - dg.w / 2) + 'px'; dg.ghost.style.top = (e.clientY - dg.h / 2) + 'px';
+  }
+  function dgEnd(e) {
+    const d = dg; if (!d || e.pointerId !== d.id) return;
+    if (!d.started) { dgStop(); return; }
+    const swallow = ev => { ev.stopPropagation(); ev.preventDefault(); };
+    addEventListener('click', swallow, { capture: true, once: true }); setTimeout(() => removeEventListener('click', swallow, true), 80);
+    const el2 = document.elementFromPoint(e.clientX, e.clientY), sq = e.type === 'pointercancel' || !el2 || !el2.closest ? null : el2.closest('.prboard .sq[data-x]');
+    const tx = sq ? +sq.dataset.x : -1, ty = sq ? +sq.dataset.y : -1; dgStop();
+    if (!sq || (tx === d.x && ty === d.y)) { paintAll(); return; }
+    if (d.kind === 'pre') { queuePre(d.x, d.y, tx, ty); return; }
+    const n0 = S.moves.length; S._skip = { key: tx + ',' + ty, until: performance.now() + 700 };
+    clickSq(tx, ty); if (S && S.moves.length === n0) paintAll();
+  }
+  function bindFeel() {
+    if (root._feel) return; root._feel = true;
+    root.addEventListener('pointerdown', e => {
+      if (!S || e.button !== 0 || e.pointerType === 'touch' || dg || !boolPref('dragChk')) return;
+      const sq = e.target.closest && e.target.closest('.prboard .sq[data-x]'); if (!sq) return;
+      const x = +sq.dataset.x, y = +sq.dataset.y, kind = dragKind(x, y); if (!kind) return;
+      dg = { x, y, kind, id: e.pointerId, sx: e.clientX, sy: e.clientY, started: false };
+      addEventListener('pointermove', dgMove); addEventListener('pointerup', dgEnd); addEventListener('pointercancel', dgEnd);
+    }, true);
+    root.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('.prboard')) e.preventDefault(); });
+    root.addEventListener('mousedown', e => {
+      if (!S) return; const sq = e.target.closest && e.target.closest('.prboard .sq[data-x]'); if (!sq) return;
+      if (e.button === 2) { rcSrc = { x: +sq.dataset.x, y: +sq.dataset.y }; return; }
+      if (e.button === 0 && ((S.arrows && S.arrows.length) || (S.circles && S.circles.length))) { S.arrows = []; S.circles = []; drawOvP(); }      // a left click clears your drawings
+    }, true);
+    addEventListener('mouseup', e => {
+      if (e.button !== 2 || !rcSrc || !S) return; const src = rcSrc; rcSrc = null;
+      const el2 = document.elementFromPoint(e.clientX, e.clientY), sq = el2 && el2.closest ? el2.closest('.prboard .sq[data-x]') : null; if (!sq) return;
+      const tx = +sq.dataset.x, ty = +sq.dataset.y, c = e.shiftKey ? 'r' : e.altKey ? 'y' : 'g';
+      S.arrows = S.arrows || []; S.circles = S.circles || [];
+      if (tx === src.x && ty === src.y) { const i = S.circles.findIndex(z => z.x === tx && z.y === ty); if (i >= 0 && S.circles[i].c === c) S.circles.splice(i, 1); else { if (i >= 0) S.circles.splice(i, 1); S.circles.push({ x: tx, y: ty, c }); } }
+      else { const i = S.arrows.findIndex(z => z.fx === src.x && z.fy === src.y && z.tx === tx && z.ty === ty); if (i >= 0 && S.arrows[i].c === c) S.arrows.splice(i, 1); else { if (i >= 0) S.arrows.splice(i, 1); S.arrows.push({ fx: src.x, fy: src.y, tx, ty, c }); } }
+      drawOvP();
+    });
+  }
+  function init(o) { if (o.confirm) ask = o.confirm; E = o.Engine; glyph = o.glyph; onExit = o.onExit; root = document.getElementById('practice'); bindFeel(); build(); }
   function movePrefs(into) { const pf = document.getElementById('prefs'); if (!pf) return; if (into) { root.after(pf); pf.classList.add('inpractice'); } else { const h1 = document.querySelector('h1'); if (h1) h1.after(pf); pf.classList.remove('inpractice'); } }
   function open() { movePrefs(true); root.classList.remove('hidden'); S = null; sid++; screen = 'setup'; paintAll(); SF.start().catch(e => { root.insertBefore(el('p', null, '⚠ ' + e.message), root.firstChild); }); }
   function close() { if (S) { S = null; sid++; } stopTicker(); SF.stop(); movePrefs(false); root.classList.add('hidden'); if (onExit) onExit(); }

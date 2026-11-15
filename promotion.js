@@ -11,6 +11,7 @@
    in several versions with the same squares: promo:null (stay as it is) and one per form, so the UI's chooser appears (it must not auto-play a single choice).
    History entries replay with move() (they carry fx, fy, tx, ty, promo, castle, swap, ep). */
 const Promotion = (() => {
+  const SR = typeof Search !== 'undefined' ? Search : (typeof require !== 'undefined' ? require('./engine.js').Search : null);      // (Search lives at the top of engine.js)
   const ROOK = [[1, 0], [-1, 0], [0, 1], [0, -1]], BISHOP = [[1, 1], [1, -1], [-1, 1], [-1, -1]], ALL = ROOK.concat(BISHOP),
         KNIGHT = [[1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]],
         CAMEL = [[3, 1], [3, -1], [-3, 1], [-3, -1], [1, 3], [1, -3], [-1, 3], [-1, -3]],
@@ -671,6 +672,18 @@ const Promotion = (() => {
         const VALP = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 }, val = q => (VALP[q.o] != null ? VALP[q.o] : 3) * (q.tier === 3 ? 1.5 : q.tier === 2 ? 1.25 : q.tier === 1 ? 1.12 : 1) + (q.t === CODE.tarzan ? 3 : 0) + (q.o === 'p' && q.tier ? 0.3 * q.tier : 0);
         const mat = (T, c) => { let v = 0; for (let i = 0; i < W * H; i++) { const q = T.b[i]; if (q) v += q.c === c ? val(q) : -val(q); } for (const e of T.off.w) v += c === 'w' ? val(e.p) : -val(e.p); for (const e of T.off.b) v += c === 'b' ? val(e.p) : -val(e.p); return v; };
         const c = S.turn, pick = a => a[(Math.random() * a.length) | 0];
+        if (level === 'hard' && SR) {                  // Hard: iterative-deepening alpha-beta (search.js), captures followed to the end
+          const adv = (q, y) => (q.o === 'p' ? 0.04 * (q.c === 'w' ? y : H - 1 - y) : 0);
+          const ev = T => { let v = mat(T, c); for (let i = 0; i < W * H; i++) { const q = T.b[i]; if (q) { const y = (i / W) | 0; v += q.c === c ? adv(q, y) : -adv(q, y); } } return v; };
+          const hit = (T, m) => (m.reenter || m.exit || m.bump || m.swap ? null : T.b[idx(m.tx, m.ty)]);
+          const ad = {
+            state: S, moves: all, apply, max: T => T.turn === c, eval: ev,
+            stuck: (T, ply) => (inCheck(T, T.turn) ? (T.turn === c ? -SR.MATE + ply : SR.MATE - ply) : 0),
+            score: (T, m) => { const v = hit(T, m), src = T.b[idx(m.fx, m.fy)]; return (v && v.c !== T.turn ? 10 * val(v) - (src ? val(src) : 0) : 0) + (m.promo ? 6 : 0); },
+            loud: (T, m) => { const v = hit(T, m); return !!m.promo || !!(v && v.c !== T.turn); }
+          };
+          return SR.run(ad, { depth: 4, ms: 1200, beam: 18, qdepth: 3 }) || pick(ms);
+        }
         if (level === 'easy') { const caps = ms.filter(m => !m.reenter && !m.exit && !m.bump && S.b[idx(m.tx, m.ty)] && !m.swap); return pick(caps.length && Math.random() < 0.6 ? caps : ms); }
         let best = null, bs = -1e9;
         for (const m of ms) {
@@ -682,6 +695,7 @@ const Promotion = (() => {
         }
         return best;
       },
+      search() { return this.bestMove('hard'); },      // (so the page knows the Hard bot exists for this engine)
       voidMoves: () => voidMoves(S),
       offBoard: c => (S.off[c || S.turn] || []).map(e => ({ t: e.p.t, ox: e.ox, oy: e.oy, left: e.left })),
       inCheck: () => inCheck(S, S.turn),

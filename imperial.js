@@ -3,6 +3,7 @@
    E emperor, X empress, H heir | g guard, h chariot, u archer, s sapper, t catapult, f jester | y prince, z princess
    x = 0..16 (files), y = 0..15. White starts at y=0 (back) and moves +y; Black mirrors. */
 const Imperial = (() => {
+  const SR = typeof Search !== 'undefined' ? Search : (typeof require !== 'undefined' ? require('./engine.js').Search : null);      // (Search lives at the top of engine.js)
   const PF = 'pvm', IMP = 'EXH';
   // Geometry. rot(c,a,b): a = to the seat's right, b = forward, returned as a board offset. rank/promo decide promotion.
   const G2 = { w: 17, h: 16, valid: (x, y) => x >= 0 && y >= 0 && x < 17 && y < 16 && !((y < 3 || y > 12) && (x < 2 || x > 14)),
@@ -431,6 +432,51 @@ const Imperial = (() => {
       inCheck: c => { const seat = c === undefined ? S.turn : c; return (!MULTI || !!S.alive[seat]) && attackers(S.B, seat, S.ply, seat !== S.turn).length > 0; },
       status: () => status().r,
       history: () => hist.slice(), hand: () => ({}), drops: () => [], sees: () => null, canSwap: () => false, traits: MULTI ? {} : null,
+      /* Hard bot: alpha-beta over the real rules (search.js). Seats on the bot's team maximise, everyone else minimises (paranoid search; exact for 2 players). */
+      search(o) {
+        o = o || {};
+        if (!SR || over()) return null;
+        const me = S.turn, mt = team(me), VALX = c => VAL[c] || 0;
+        const adv = (p, x, y) => (PF.includes(p.t) ? 0.04 * G.rank(p.c, x, y) : 0);
+        const ev = N => {
+          let mine = 0, foe = 0; const ft = new Set();
+          for (let i = 0; i < N.B.length; i++) { const p = N.B[i]; if (!p || p.wall) continue; const x = i % W, y = (i / W) | 0, k = p.dead ? 0.06 : 1, v = (VALX(p.t) + adv(p, x, y)) * k;
+            if (team(p.c) === mt) mine += v; else { foe += v; if (!p.dead) ft.add(team(p.c)); } }
+          return mine - foe / Math.max(1, ft.size);
+        };
+        const settleQuiet = N => {      // (a light version of settle() for inside the search: knocks out bare seats and skips seats that are out; mates are only seen at the root)
+          const n0 = events.length;
+          for (let g = 0; g < 8; g++) {
+            const inf = info(N.B); for (const c of SEATS) if (N.alive[c] && inf[c].n === 0) kill(N, c, 'bare');
+            if (liveTeams(N) < 2 || N.alive[N.turn]) break; N.turn = nextSeat(N.turn, N.alive);
+          }
+          events.length = n0; return N;
+        };
+        const PROMOS = ['r', 'y', 'h'];
+        const quick = N => {            // pseudo-legal moves (no check test: far cheaper than all()); promotions are cut down to the few that matter
+          if (N === S || N.pend) return all(N);
+          const o = [];
+          for (let i = 0; i < N.B.length; i++) { const p = N.B[i]; if (!p || p.dead || p.wall || p.c !== N.turn) continue;
+            for (const m of pseudo(N, i % W, (i / W) | 0)) if (!m.promo || PROMOS.includes(m.promo) || GRAND[p.t]) o.push(m); }
+          return o;
+        };
+        const step = (N, m) => { const n = apply(N, m); if (!MULTI) return n; if (n.alive === N.alive) n.alive = Object.assign({}, N.alive); return settleQuiet(n); };
+        const hit = (N, m) => { if (m.skip || m.wall || m.swap) return null; const t = N.B[m.ty * W + m.tx]; return t && !t.wall && team(t.c) !== team(N.turn) ? t : (m.ep ? { t: 'p', c: '?' } : null); };
+        const rootEv = S.pend ? null : this.evalMoves(), rootMap = new Map(); if (rootEv) rootEv.forEach(e => rootMap.set(e.m, e));      // (the Normal bot's 'what can they take back next' number is the root safety net: the tree is pseudo-legal and cannot see every seat that moves later)
+        const ad = {
+          state: S, moves: N => (N === S && rootEv ? rootEv.map(e => e.m) : quick(N)), apply: step, max: N => team(N.turn) === mt, eval: ev,
+          rootBonus: m => { const e = rootMap.get(m); return e ? e.bonus - (MULTI ? 0.9 : 0.4) * e.loss : 0; },
+          end(N, ply) {
+            if (MULTI) { if (N.drawn) return 0; const lt = liveTeams(N); if (lt < 2) return SEATS.some(c => N.alive[c] && team(c) === mt) ? SR.MATE - ply : -SR.MATE + ply; return null; }
+            const inf = info(N.B), bare = c => inf[c].n === 0, mc = me, oc = SEATS.find(c => c !== me);
+            if (bare(mc) && bare(oc)) return 0; if (bare(mc)) return -SR.MATE + ply; if (bare(oc)) return SR.MATE - ply; return null;
+          },
+          stuck(N, ply) { const bad = team(N.turn) === mt; return !N.pend && loneAttacked(N.B, N.turn, N.ply) ? (bad ? -SR.MATE + ply : SR.MATE - ply) : 0; },
+          score(N, m) { const t = hit(N, m), p = N.B[m.fy * W + m.fx]; return (t ? 10 * VALX(t.t) - (p ? VALX(p.t) : 0) : 0) + (m.promo ? 6 : 0) + (m.shoot ? 1 : 0); },
+          loud(N, m) { return !!m.promo || !!hit(N, m); }
+        };
+        return SR.run(ad, { depth: o.depth || 4, ms: o.ms || 1400, beam: MULTI ? 10 : 14, qdepth: 2 });
+      },
       evalMoves() {                                    // for bots: every legal move with its material gain and the best enemy reply capture
         const ms = all(S), me = S.turn;
         return ms.map(m => {
@@ -451,6 +497,7 @@ const Imperial = (() => {
     };
   }
   function botChoose(g, level) {
+    if (level === 'hard' && g.search) { const hm = g.search(); if (hm) return hm; }
     const ev = g.evalMoves(); if (!ev.length) return null;
     const pick = a => a[Math.random() * a.length | 0];
     if (level === 'easy') { const caps = ev.filter(e => e.gain > 0); return pick(caps.length && Math.random() < 0.6 ? caps : ev).m; }
