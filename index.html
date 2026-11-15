@@ -167,9 +167,9 @@
   .sq.sel { background:var(--sel); }
   .sq.last { box-shadow:inset 0 0 0 100px rgba(255,255,0,.25); }
   .sq.check { box-shadow:inset 0 0 20px 6px rgba(255,0,0,.7); }
-  :root { --mvOk:rgba(46,170,84,.78); --mvCap:rgba(226,62,62,.85); }
+  :root { --mvOk:rgba(0,0,0,.26); --mvCap:rgba(0,0,0,.26); }
   .sq.hint::after { content:""; width:28%; height:28%; border-radius:50%; background:var(--mvOk); position:absolute; }
-  .sq.hint.cap::after { width:90%; height:90%; background:none; border:4px solid var(--mvCap); }
+  .sq.hint.cap::after { width:92%; height:92%; background:none; border:max(4px,.09em) solid var(--mvCap); box-sizing:border-box; }
   .sq.hint.shot::after { width:90%; height:90%; background:linear-gradient(#e07a00,#e07a00) center/3px 100% no-repeat,linear-gradient(#e07a00,#e07a00) center/100% 3px no-repeat; border:4px solid #e07a00; }
   .pc-r,.pc-b,.pc-y,.pc-g,.pc-dead { text-shadow:0 0 2px #000,0 0 2px #000,0 0 2px #000; }
   .pc-r { color:var(--sr); } .pc-b { color:var(--sb); } .pc-y { color:var(--sy); } .pc-g { color:var(--sg); }
@@ -219,13 +219,25 @@
   #skinEd .skf { display:flex; flex-wrap:wrap; gap:8px; padding:10px 14px; border-top:1px solid #444; align-items:center; } #skinEd .skf .dim { flex:1; }
   #skinEd button, #skinEd select { margin:0; padding:6px 10px; font-size:.88rem; } #skinEd .primary { background:#5f8f3a; }
   .skn { display:block; position:relative; width:1em; height:1em; }
-  .skn.bc { width:100%; height:100%; overflow:hidden; } .skn.bc > svg { position:absolute; inset:0; width:100%; height:100%; } .skn .bimg { position:absolute; background:var(--im) center / 100% 100% no-repeat; isolation:isolate; }
+  .skn.bc { width:100%; height:100%; overflow:hidden; } .skn.bc > svg { position:absolute; inset:0; width:100%; height:100%; } .skn .bimg { position:absolute; background:var(--im) center / 100% 100% no-repeat; }
   .skn.bc.m2 { -webkit-mask:var(--mk) center/100% 100% no-repeat; mask:var(--mk) center/100% 100% no-repeat; filter:drop-shadow(0 0 1px currentColor); overflow:visible; }
-  .skn.t::after, .skn .ov.t::after, .skn .bimg.t::after { content:''; position:absolute; inset:0; background:currentColor; mix-blend-mode:color; }      /* "colour it with the owner's colour" */
-  .b4 { display:grid; grid:1fr 1fr / 1fr 1fr; width:100%; height:100%; } .b4 > span { position:relative; display:block; min-width:0; min-height:0; } .b4 svg { width:100%; height:100%; }
-  .skn.m { -webkit-mask:var(--mk) center/contain no-repeat; mask:var(--mk) center/contain no-repeat; background:var(--im) no-repeat; background-size:calc(var(--s,100) * 1%) auto; background-position:calc(50% + var(--x,0) * 1%) calc(50% + var(--y,0) * 1%); filter:drop-shadow(0 0 1px currentColor); }
+  .skn.t::after { content:''; position:absolute; inset:0; background:currentColor; mix-blend-mode:color; pointer-events:none; }      /* "colour it with the owner's colour" */
+  .b4 { display:grid; grid:1fr 1fr / 1fr 1fr; width:100%; height:100%; aspect-ratio:1; } .b4 > span { position:relative; display:block; min-width:0; min-height:0; width:100%; height:100%; } .b4 > span > svg { width:100%; height:100%; display:block; }
+  .skn .ly { position:absolute; left:calc(50% + var(--x,0) * 1%); top:calc(50% + var(--y,0) * 1%); width:calc(var(--s,100) * 1%); height:calc(var(--s,100) * 1%); transform:translate(-50%,-50%) rotate(var(--r,0deg)) scaleX(var(--f,1)); opacity:var(--o,1); background:var(--im) center / contain no-repeat; }
+  .skn.m { -webkit-mask:var(--mk) center/contain no-repeat; mask:var(--mk) center/contain no-repeat; filter:drop-shadow(0 0 1px currentColor); overflow:hidden; }
   .skn.o { overflow:hidden; border-radius:12%; } .skn.o > svg { position:absolute; inset:0; width:100%; height:100%; }
-  .skn.o .ov { position:absolute; inset:0; background:var(--im) no-repeat; background-size:calc(var(--s,100) * 1%) auto; background-position:calc(50% + var(--x,0) * 1%) calc(50% + var(--y,0) * 1%); }
+  /* editor (full screen): pieces on the left, a big stage in the middle, settings on the right */
+  #skinEd .sked { width:min(1180px,100%); height:min(820px,96vh); max-height:96vh; }
+  #skinEd .skb { align-items:flex-start; flex-wrap:nowrap; } #skinEd .skl { flex:1 1 300px; min-width:240px; max-height:100%; overflow:auto; align-self:stretch; } #skinEd .skm { flex:0 0 380px; } #skinEd .skr { flex:0 0 320px; max-height:100%; overflow:auto; align-self:stretch; padding-right:4px; }
+  @media (max-width:1000px) { #skinEd .skb { flex-wrap:wrap; overflow:auto; } #skinEd .skl, #skinEd .skr { max-height:none; overflow:visible; } #skinEd .skm { flex:1 1 360px; } }
+  #skinEd .skbigw { position:relative; width:360px; max-width:100%; aspect-ratio:1; margin:0 auto; background:linear-gradient(45deg,#f0d9b5 25%,#e6cd9f 25% 50%,#f0d9b5 50% 75%,#e6cd9f 75%) 0 0/48px 48px; border-radius:8px; overflow:hidden; color:#222; --det:#000; --dets:#000; }
+  #skinEd .skbig { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:360px; cursor:move; touch-action:none; } #skinEd .skbig svg { width:1em; height:1em; } #skinEd .skbig .skn.bc { width:100%; height:100%; }
+  #skinEd .sksel { position:absolute; border:2px dashed #2e7d32; outline:1px dashed #fff; pointer-events:none; display:none; box-sizing:border-box; }
+  #skinEd .sksm { display:flex; gap:8px; align-items:center; justify-content:center; margin-top:6px; } #skinEd .sksm > div { width:64px; height:64px; font-size:64px; display:flex; align-items:center; justify-content:center; border-radius:6px; --det:#000; --dets:#000; } #skinEd .sksm > div:nth-child(3) { width:40px; height:40px; font-size:40px; } #skinEd .sksm svg { width:1em; height:1em; }
+  #skinEd .skly { display:flex; align-items:center; gap:6px; padding:3px 4px; border:2px solid transparent; border-radius:8px; background:#3a3935; margin:3px 0; cursor:pointer; } #skinEd .skly.sel { border-color:#8fc15a; } #skinEd .skly .th { width:34px; height:34px; border-radius:5px; background:#888 center/contain no-repeat; flex:none; } #skinEd .skly .nm { flex:1; font-size:.85rem; } #skinEd .skly button { padding:2px 7px; font-size:.8rem; }
+  #skinEd .skadd { display:flex; flex-direction:column; gap:2px; margin:6px 0; } #skinEd .btnlike { display:inline-block; padding:7px 10px; border-radius:6px; background:#5f8f3a; text-align:center; } #skinEd .skbt { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:4px 0; }
+  #skinEd .b4 { width:1em; height:1em; } #skinEd .b4 svg, #skinEd .b4 .skn.bc { width:100%; height:100%; }
+  #skinEd output { width:44px; text-align:right; font-size:.78rem; opacity:.85; }
   #promo.hidden, #promo.pop.hidden { display:none; }
   /* the promotion chooser: a floating column (or, for many / named pieces, a panel) next to the square the pawn is going to */
   #promo.pop { position:fixed; z-index:200; display:flex; flex-direction:column; gap:0; margin:0; padding:0; background:#f2ede2; border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.6); overflow:visible; }
@@ -336,7 +348,7 @@
   #gsBox { max-width:480px; margin-top:12px; font-size:.9rem; }
   .hand.others { font-size:.85rem; opacity:.85; min-height:0; }
   :root { --det: rgba(255,255,255,.8); --dets: #e6e6e6; } .w-piece { --det: rgba(0,0,0,.5); --dets: #3a3a3a; }      /* --dets = SOLID detail colour (Promotion Chess icons) */
-  .fairy:not(.w-piece) svg { filter:drop-shadow(0 0 1px rgba(255,255,255,.6)); }
+  .fairy:not(.w-piece):not(.pc-r):not(.pc-b):not(.pc-y):not(.pc-g):not(.pc-o):not(.pc-p):not(.pc-t):not(.pc-m):not(.pc-dead) svg { filter:drop-shadow(0 0 1px rgba(255,255,255,.6)); }      /* only the plain black side gets a light edge; seat colours keep their dark outline */
   .hidden, #zoomCtl.hidden, #cylCtl.hidden { display:none; }
   #dlgBack { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px; } #dlgBack.hidden { display:none; }
   #dlg { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px 20px; max-width:380px; width:100%; box-shadow:0 8px 30px rgba(0,0,0,.6); }
@@ -345,16 +357,25 @@
 </head>
 <body>
 <h1>♞ Chess with Friends</h1>
-<div id="topRight"><button id="helpBtn" class="iconbtn" title="Rules and piece guide for this mode">?</button><button id="profBtn" class="profchip" title="Your name and picture"><span class="av" id="profAv"></span><span id="profName"></span></button><button id="gearBtn" class="iconbtn" title="Settings">⚙</button></div>
+<div id="topRight"><button id="helpBtn" class="iconbtn" title="Rules and piece guide for this mode">?</button><button id="profBtn" class="profchip" title="Your name and picture"><span class="av" id="profAv"></span><span id="profName"></span></button><button id="palBtn" class="iconbtn" title="Pieces: look, skins and the piece editor">🎨</button><button id="gearBtn" class="iconbtn" title="Settings">⚙</button></div>
+<div id="pieceDrawer" class="drawer hidden">
+  <div class="dhead"><b>Pieces</b><button class="iconbtn dclose" data-close="pieceDrawer" title="Close">✕</button></div>
+  <div class="dsec"><div class="dlabel">Piece look</div>
+    <label><input type="radio" name="lookSel" value="new" checked> Default (new figures)</label>
+    <label><input type="radio" name="lookSel" value="classic"> Classic (the original ♞ figures for Pawn, Knight, Bishop, Rook, Queen and King, and the old art for the neutral Boar, Hound and Burrower)</label>
+    <div class="dim">Only changes how pieces look to you. The custom pieces of Imperial, Austang and Promotion Chess keep their own art.</div></div>
+  <div class="dsec"><div class="dlabel">My piece skins</div>
+    <div id="skinSets"></div>
+    <div class="profbtns"><button id="skinEditBtn" type="button">Open the piece editor…</button><button id="skinReset" type="button" title="Stops using any skin and switches the look back to Default">Reset to default pieces</button></div>
+    <div class="dim" id="skinNow"></div>
+    <label><input type="checkbox" id="skinShowChk" checked> Show other players' piece skins</label>
+    <div class="dim">A skin can have several pictures per piece (move, resize, rotate, flip, fade). Other players see it on your pieces; it travels with your profile.</div></div>
+</div>
 <div id="settingsDrawer" class="drawer hidden">
   <div class="dhead"><b>Settings</b><button class="iconbtn dclose" data-close="settingsDrawer" title="Close">✕</button></div>
   <div class="dsec"><div class="dlabel">Your profile</div>
     <div class="profrow"><span class="av big" id="profAv2"></span><div class="profcol"><input id="nameIn" maxlength="24" placeholder="Your name" autocomplete="off"><div class="profbtns"><label class="filebtn">Choose picture<input type="file" id="pfpIn" accept="image/*" hidden></label><button id="pfpClear" class="small">Remove</button></div></div></div>
     <div class="dim">Other players see this. It is saved only in this browser. You can change it any time.</div></div>
-  <div class="dsec"><div class="dlabel">Piece skins</div>
-    <label><input type="checkbox" id="skinShowChk" checked> Show other players' piece skins</label>
-    <div class="profbtns"><button id="skinEditBtn" type="button">Customize my pieces…</button></div>
-    <div class="dim" id="skinNow"></div></div>
   <div class="dsec"><div class="dlabel">Chat</div><label><input type="checkbox" id="showImgChk" checked> Show pictures and GIFs in chat</label></div>
   <div class="dsec"><div class="dlabel">Sound</div>
   <label><input type="checkbox" id="soundChk" checked> Sounds on</label>
@@ -655,14 +676,18 @@ const SKIN = { show: skLs('cwfShowSkins', '1') !== '0', mine: Object.create(null
 const skHash = s => { let a = 0x811c9dc5, b = 5381; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a ^= c; a = Math.imul(a, 16777619) >>> 0; b = (Math.imul(b, 33) + c) >>> 0; } return a.toString(16).padStart(8, '0') + b.toString(16).padStart(8, '0'); };
 const safeSkinImg = d => typeof d === 'string' && d.length <= 70000 && /^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+\/=]+$/.test(d);
 const skNum = (v, lo, hi, d) => { v = +v; return isFinite(v) ? Math.max(lo, Math.min(hi, Math.round(v))) : d; };
-const cleanSk = o => {
+const SK_LAYERS = 6;
+const skLayer = e => (e && typeof e.h === 'string' && /^[0-9a-f]{16}$/.test(e.h)) ? { h: e.h, x: skNum(e.x, -100, 100, 0), y: skNum(e.y, -100, 100, 0), s: skNum(e.s, 10, 500, 100), r: skNum(e.r, -180, 180, 0), f: e.f ? 1 : 0, o: skNum(e.o, 10, 100, 100) } : null;
+const cleanSk = o => {      // { type: { m: 1 mask | 0 overlay, c: tint, l: [ { h: picture hash, x, y, s (size %), r (deg), f (flip), o (opacity %) } ] } }; the old one-picture form { h, x, y, s, m, c } is still accepted
   const r = Object.create(null); if (!o || typeof o !== 'object') return r;
-  Object.keys(o).slice(0, 80).forEach(t => { const e = o[t]; if (t === '__proto__' || t.length > 3 || !e || typeof e.h !== 'string' || !/^[0-9a-f]{16}$/.test(e.h)) return; r[t] = { h: e.h, m: e.m ? 1 : 0, c: e.c ? 1 : 0, x: skNum(e.x, -60, 60, 0), y: skNum(e.y, -60, 60, 0), s: skNum(e.s, 20, 400, 100) }; });
+  Object.keys(o).slice(0, 80).forEach(t => { const e = o[t]; if (t === '__proto__' || t.length > 3 || !e || typeof e !== 'object') return;
+    const l = (Array.isArray(e.l) ? e.l.slice(0, SK_LAYERS) : [e]).map(skLayer).filter(Boolean); if (l.length) r[t] = { m: e.m ? 1 : 0, c: e.c ? 1 : 0, l }; });
   return r;
 };
+const skHashes = e => (e && e.l ? e.l.map(L => L.h) : []);
 function skinCss(rule) { if (!SKIN.css) { SKIN.css = document.createElement('style'); document.head.appendChild(SKIN.css); } SKIN.css.appendChild(document.createTextNode(rule)); }
 function skinImgClass(h) { const d = SKIN.imgs.get(h); if (!d) return null; if (!SKIN.doneImg.has(h)) { SKIN.doneImg.add(h); skinCss('.si-' + h + '{--im:url("' + d + '")}'); } return 'si-' + h; }
-const skBase = t => (game && game.imperial && IMP_KQ[t]) || FAIRY_SVG[t] || null;
+const skBase = t => (game && game.imperial && IMP_KQ[t]) || art(t) || null;
 function skinMaskClass(t, baseSvg) {                          // the piece's own shape, all one colour, used as the mask for a "mask" skin
   if (SKIN.maskIdx.has(t)) return 'sm-' + SKIN.maskIdx.get(t);
   const base = baseSvg || skBase(t); if (!base) return null;
@@ -677,26 +702,25 @@ function ownerSk(owner) {
   return game.multi ? (seatInfo[owner] && seatInfo[owner].k) || null : (peerInfo && peerInfo.k) || null;
 }
 function skinHTML(t, owner) { const k = ownerSk(owner); return k && k[t] ? skinEntryHTML(t, k[t]) : null; }      // null when this piece has no skin (then the default art is drawn)
+const skLayerHTML = L => { const ic = skinImgClass(L.h); return ic ? '<span class="ly ' + ic + '" style="--x:' + L.x + ';--y:' + L.y + ';--s:' + L.s + ';--r:' + L.r + 'deg;--f:' + (L.f ? -1 : 1) + ';--o:' + (L.o / 100) + '"></span>' : ''; };
 function skinEntryHTML(t, e) {
-  const ic = skinImgClass(e.h); if (!ic) return null;
-  const st = '--x:' + e.x + ';--y:' + e.y + ';--s:' + e.s;
-  if (e.m) { const mc = skinMaskClass(t); return mc ? '<span class="skn m' + (e.c ? ' t' : '') + ' ' + ic + ' ' + mc + '" style="' + st + '"></span>' : null; }
-  const b = skBase(t); return '<span class="skn o">' + (b || '<span>' + (GLYPH[t] || '') + '</span>') + '<span class="ov' + (e.c ? ' t' : '') + ' ' + ic + '" style="' + st + '"></span></span>';
+  const ly = (e.l || []).map(skLayerHTML).join(''); if (!ly) return null; const tc = e.c ? ' t' : '';
+  if (e.m) { const mc = skinMaskClass(t); return mc ? '<span class="skn m' + tc + ' ' + mc + '">' + ly + '</span>' : null; }
+  const b = skBase(t); return '<span class="skn o' + tc + '">' + (b || '<span>' + (GLYPH[t] || '') + '</span>') + ly + '</span>';
 }
-/* The Boss is one picture over its 2x2 cells: every cell shows its own quarter (qx, qy = 0/1 as the viewer sees it), so a lost cell simply stops being drawn. */
+/* The Boss is one set of pictures over its 2x2 cells: every cell shows its own quarter (qx, qy = 0/1 as the viewer sees it), so a lost cell simply stops being drawn. */
 function skinBossHTML(e, qx, qy) {
-  const ic = skinImgClass(e.h); if (!ic) return null;
-  const W = 2 * e.s / 100, L = (2 - W) / 2 + 2 * e.x / 100 - qx, T = (2 - W) / 2 + 2 * e.y / 100 - qy;
-  const st = 'width:' + W * 100 + '%;height:' + W * 100 + '%;left:' + L * 100 + '%;top:' + T * 100 + '%';
-  const q = bossQuarter(qx, qy), img = '<span class="bimg' + (e.c ? ' t' : '') + ' ' + ic + '" style="' + st + '"></span>';
-  if (e.m) { const mc = skinMaskClass('bq' + qx + qy, q); return '<span class="skn bc m2 ' + mc + '">' + img + '</span>'; }
-  return '<span class="skn bc">' + q + img + '</span>';
+  const parts = (e.l || []).map(L => { const ic = skinImgClass(L.h); if (!ic) return ''; const W = 2 * L.s / 100, Lf = (2 - W) / 2 + 2 * L.x / 100 - qx, T = (2 - W) / 2 + 2 * L.y / 100 - qy;
+    return '<span class="bimg ' + ic + '" style="width:' + W * 100 + '%;height:' + W * 100 + '%;left:' + Lf * 100 + '%;top:' + T * 100 + '%;transform:rotate(' + L.r + 'deg) scaleX(' + (L.f ? -1 : 1) + ');opacity:' + (L.o / 100) + '"></span>'; }).join('');
+  if (!parts) return null; const q = bossQuarter(qx, qy), tc = e.c ? ' t' : '';
+  if (e.m) { const mc = skinMaskClass('bq' + qx + qy, q); return '<span class="skn bc m2' + tc + ' ' + mc + '">' + parts + '</span>'; }
+  return '<span class="skn bc' + tc + '">' + q + parts + '</span>';
 }
 function skinBossPreview(e) {                                   // all four cells together (editor)
-  const cell = (qx, qy) => '<span>' + ((e && e.img && skinBossHTML(e, qx, qy)) || bossQuarter(qx, qy)) + '</span>';
+  const cell = (qx, qy) => '<span>' + ((e && skinBossHTML(e, qx, qy)) || bossQuarter(qx, qy)) + '</span>';
   return '<span class="b4">' + cell(0, 0) + cell(1, 0) + cell(0, 1) + cell(1, 1) + '</span>';
 }
-const glyphHTML = (t, owner) => (owner != null && skinHTML(t, owner)) || FAIRY_SVG[t] || GLYPH[t];
+const glyphHTML = (t, owner) => (owner != null && skinHTML(t, owner)) || art(t) || GLYPH[t];
 GLYPH['#'] = '▒'; GLYPH.f = 'Ⓙ';
 Object.assign(GLYPH, { '\u03b1': 'Ca', '\u03c7': 'Ma', '\u03c9': 'Am', '\u03bd': 'Nr', '\u03b3': 'Cm', '\u03b6': 'Zb', '\u03b4': 'DK', '\u03b7': 'DH', '\u03ba': 'Ce', '\u03b2': 'Bi', '\u03c0': 'Cn', '\u03b8': 'Gh', '\u03c6': 'Fe', '\u03c8': 'Wz', '\u03be': 'Al', '\u03c4': 'Db', '\u03c1': 'Bp', '\u03bc': 'Sa', '\u03b9': 'Rv', '\u03b5': 'He', '\u03bb': 'Sn', '\u03c5': 'Mo', '\u03bf': 'Ba' });      // Austang Grand pieces (notation text; the board uses the icons below)
 {
@@ -853,14 +877,50 @@ const SKIN_NEW_NEUTRAL = {
 Object.assign(FAIRY_SVG, SKIN_NEW);
 { const NTn = Engine.NEUTRAL_T; FAIRY_SVG[NTn.boar] = SKIN_NEW_NEUTRAL.boar; FAIRY_SVG[NTn.hound] = SKIN_NEW_NEUTRAL.hound; FAIRY_SVG[NTn.burrower] = SKIN_NEW_NEUTRAL.burrower; }
 
+/* ---- ICON FIXES (defined after SKIN_CLASSIC so the frozen Classic copies keep the old art) ---- */
+{
+  const CB = '<rect x="5.5" y="19.5" width="13" height="2.6" rx="1" fill="currentColor"/>', D = 'style="stroke:var(--det)" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"', DF = 'style="fill:var(--det)"';
+  // Knight head, facing left. One shape shared by the Knight and the Zebra.
+  const KN = '<path d="M6.5 19.5c.1-3 1.3-5.2 3.2-7.1L6.4 13c-1.800.1-2.900-.9-2.900-2.300l.4-1.900 4.400-3.900L9.500 2.300l2.400 1.700c4.300.6 7.300 4.300 7.300 9.200v6.300z" fill="currentColor"/>';
+  const KEY = (id => id)('n');
+  Object.assign(FAIRY_SVG, {
+    n: SVG(KN + CB + '<circle cx="9" cy="8.300" r="1" ' + DF + '/><path d="M4.800 10.800l.9.4" ' + D + '/><path d="M12.500 6.200c2.400 1 4 3.600 4.200 6.600" ' + D + '/>'),
+    '\u03c6': SVG('<path d="M12 1.800l3.200 3.600-3.200 3.600-3.200-3.600z" fill="currentColor"/><path d="M10.400 8.200h3.200l.5 4.500c.2 1.800 2.300 3.100 3.100 6.800H6.800c.8-3.700 2.900-5 3.100-6.800z" fill="currentColor"/>' + CB + '<path d="M10.200 15.200l3.600 2.600M13.800 15.200l-3.600 2.600" ' + D + '/>'),
+    '\u03b1': SVG('<path d="M12 1.800c3 2.300 5.200 4.900 5.200 7.900 0 1.900-1 3.200-2.100 4.100v1.300H9v-1.300c-1.100-.9-2.200-2.200-2.200-4.100 0-3 2.200-5.600 5.200-7.900z" fill="currentColor"/><path d="M6.800 8.800L3 11.200l3.800 2.200zM17.200 8.800L21 11.200l-3.800 2.200z" fill="currentColor"/><path d="M8 16.200h8l1.200 2.200H6.800z" fill="currentColor"/>' + CB + '<path d="M13.600 6.200l-3.200 4.600" ' + D + '/>'),
+    '\u03b6': SVG('<clipPath id="zbclip"><path d="M7 21c0-4.7 1.6-7.6 3.8-9.6L9.8 8 12.2 6.6 13 3l2.4 2.2C18.6 6.8 20 10 20 14v7z"/></clipPath><path d="M7 21c0-4.7 1.6-7.6 3.8-9.6L9.8 8 12.2 6.6 13 3l2.4 2.2C18.6 6.8 20 10 20 14v7z" fill="currentColor"/><g clip-path="url(#zbclip)" ' + D + ' stroke-width="1.7" stroke-linecap="butt"><path d="M6 13.6l15-3.8M6 16.9l15-3.8M6 20.2l15-3.8"/></g><circle cx="15" cy="9.5" r="1.1" ' + DF + '/>' + CB.replace('x="5.5"','x="5"').replace('width="13"','width="14"')),
+    '\u03c0': SVG('<g transform="rotate(-38 10.500 14)"><rect x="3.500" y="10.700" width="15" height="6.200" rx="2.400" fill="currentColor"/><rect x="16.800" y="9.700" width="3.600" height="8.200" rx="1.400" fill="currentColor"/><path d="M6 13.800h8.500" ' + D + '/></g><circle cx="9.500" cy="16.200" r="4.100" fill="currentColor"/><circle cx="9.500" cy="16.200" r="1.500" ' + DF + '/>' + CB.replace('x="5.5"', 'x="3.500"').replace('width="13"', 'width="14"')),
+    '\u03c5': SVG('<path d="M10 14.500L6 19.500M14 14.500l4 5" stroke="currentColor" stroke-width="1.900" stroke-linecap="round"/><g transform="rotate(14 12 18)"><path d="M7.600 3.600h8.800l-1 3.200H8.600z" fill="currentColor"/><path d="M8.800 6.800h6.400l1.200 11.700H7.600z" fill="currentColor"/><path d="M8.200 11.200h7.600M7.900 14.200h8.200" ' + D + '/></g>' + CB + '<circle cx="19" cy="4.200" r="1.800" fill="currentColor"/>'),
+    z: SVG('<path d="M12 8.600c1.500 0 2.600 1.100 2.600 2.600 0 1-.5 1.800-1.200 2.200l.7 1.600c2.800.9 4.100 2.800 4.800 4.500H5.100c.7-1.700 2-3.600 4.800-4.500l.7-1.600c-.7-.4-1.200-1.200-1.200-2.200 0-1.500 1.100-2.600 2.600-2.600z" fill="currentColor"/><path d="M8.200 7.800L9.300 3.400 12 5.600l2.700-2.200 1.100 4.400z" fill="currentColor"/>' + CB + '<circle cx="12" cy="5.900" r=".8" ' + DF + '/>')
+  });
+  // twin pawns: symmetrical about the centre line, bases level
+  const PW = '<circle cx="12" cy="7.200" r="3.300" fill="currentColor"/><rect x="8" y="10.800" width="8" height="1.900" rx=".95" fill="currentColor"/><path d="M7.600 19.500c0-3.400 1-5.400 2.300-6.800h4.200c1.300 1.400 2.300 3.400 2.300 6.800z" fill="currentColor"/>';
+  const TW = (x, s) => '<g transform="translate(' + x + ' ' + (19.500 * (1 - s)).toFixed(2) + ') scale(' + s + ') translate(-12 0)">' + PW + '</g>';
+  const BS = '<rect x="4" y="19.500" width="16" height="2.600" rx="1" fill="currentColor"/>';
+  const dk = 'style="stroke:var(--dets)" stroke-width="1.4" fill="none" stroke-linecap="round"';
+  PROMO_ICONS.gemini = SVG(TW(7.200, .72) + TW(16.800, .72) + '<rect x="9.600" y="14.200" width="4.800" height="1.800" rx=".9" fill="currentColor"/>' + BS);
+  PROMO_ICONS.mirror = SVG(TW(7.200, .72) + TW(16.800, .72) + BS + '<path d="M12 3.200v13.800" ' + dk + ' stroke-dasharray="1.500 1.700"/>');
+  FAIRY_SVG[Promotion.CODE.gemini] = PROMO_ICONS.gemini; FAIRY_SVG[Promotion.CODE.mirror] = PROMO_ICONS.mirror;
+}
+
+/* ---- LOOK: "Default" = the new SVG figures; "Classic" = the original text figures for p n b r q k and the old neutral-piece art (SKIN_CLASSIC) ---- */
+const LOOK = { classic: skLs('cwfClassic', '0') === '1' };
+const CLASSIC_ONLY = new Set(['p', 'n', 'b', 'r', 'q', 'k', Engine.NEUTRAL_T.boar, Engine.NEUTRAL_T.hound, Engine.NEUTRAL_T.burrower]), CLASSIC_TXT = new Set(['p', 'n', 'b', 'r', 'q', 'k']);
+const art = t => (LOOK.classic && CLASSIC_ONLY.has(t)) ? SKIN_CLASSIC.svg[t] : FAIRY_SVG[t];
+const isFairy = t => FAIRY.includes(t) && !(LOOK.classic && CLASSIC_TXT.has(t));
+function setLook(classic) {
+  LOOK.classic = !!classic; skLsSet('cwfClassic', classic ? '1' : '0'); document.querySelectorAll('input[name=lookSel]').forEach(r => { r.checked = (r.value === 'classic') === !!classic; });
+  if (typeof Practice !== 'undefined' && Practice.refresh) { try { Practice.refresh(); } catch (e) { /* ignore */ } }
+  if (game) render();
+}
+
 function takeSkins(imgs) {
   if (!imgs || typeof imgs !== 'object') return 0; let n = 0;
   for (const hh of Object.keys(imgs).slice(0, 40)) { const d = imgs[hh]; if (!/^[0-9a-f]{16}$/.test(hh) || SKIN.imgs.has(hh) || !safeSkinImg(d) || skHash(d) !== hh) continue; if (SKIN.imgs.size >= 600) break; SKIN.imgs.set(hh, d); n++; }
   if (n && game) render(); return n;
 }
 function skinWanted() {                                       // the pictures the current players actually refer to (mine only for the pieces this mode can show)
-  const w = new Set(), used = modeTypes(), add = k => { if (k) for (const t in k) w.add(k[t].h); };
-  for (const t in SKIN.mine) if (used.has(t)) w.add(SKIN.mine[t].h);
+  const w = new Set(), used = modeTypes(), add = k => { if (k) for (const t in k) skHashes(k[t]).forEach(h => w.add(h)); };
+  for (const t in SKIN.mine) if (used.has(t)) skHashes(SKIN.mine[t]).forEach(h => w.add(h));
   Object.keys(seatInfo || {}).forEach(s => add(seatInfo[s] && seatInfo[s].k)); add(peerInfo && peerInfo.k); (conns || []).forEach(c => add(c.sk)); return w;
 }
 function sendSkins(c) {                                       // host -> one connection: every wanted picture it has not been sent yet, in small batches
@@ -871,7 +931,7 @@ function sendSkins(c) {                                       // host -> one con
 let skSentToHost = new Set();
 function guestSendSkins() {                                   // guest -> host: my own pictures, once
   if (isHost || !conn || !conn.open) return; let batch = {}, n = 0;
-  const used = modeTypes(); for (const t in SKIN.mine) { if (!used.has(t)) continue; const hh = SKIN.mine[t].h; if (skSentToHost.has(hh) || !SKIN.imgs.has(hh)) continue; skSentToHost.add(hh); batch[hh] = SKIN.imgs.get(hh); if (++n % 6 === 0) { conn.send({ type: 'skinPut', imgs: batch }); batch = {}; } }
+  const used = modeTypes(); for (const t in SKIN.mine) { if (!used.has(t)) continue; for (const hh of skHashes(SKIN.mine[t])) { if (skSentToHost.has(hh) || !SKIN.imgs.has(hh)) continue; skSentToHost.add(hh); batch[hh] = SKIN.imgs.get(hh); if (++n % 6 === 0) { conn.send({ type: 'skinPut', imgs: batch }); batch = {}; } } }
   if (Object.keys(batch).length) conn.send({ type: 'skinPut', imgs: batch });
 }
 const SkDB = (() => {                                         // presets: { id, name, pieces: { type: { img, m, x, y, s } } }; falls back to memory when IndexedDB is not available
@@ -884,14 +944,21 @@ const SkDB = (() => {                                         // presets: { id, 
     del: id => { mem.delete(id); return run('readwrite', os => os.delete(id)); }
   };
 })();
+const skMig = e => {      // a stored preset piece -> { m, c, l: [ { img, x, y, s, r, f, o } ] } (old presets had one picture on the piece itself)
+  if (!e || typeof e !== 'object') return null;
+  if (Array.isArray(e.l)) return { m: e.m === 0 ? 0 : 1, c: e.c ? 1 : 0, l: e.l.filter(L => L && safeSkinImg(L.img)).slice(0, SK_LAYERS).map(L => Object.assign({ x: 0, y: 0, s: 100, r: 0, f: 0, o: 100 }, L)) };
+  if (safeSkinImg(e.img)) return { m: e.m === 0 ? 0 : 1, c: e.c ? 1 : 0, l: [{ img: e.img, x: e.x || 0, y: e.y || 0, s: e.s || 100, r: 0, f: 0, o: 100 }] };
+  return null;
+};
+const skDesc = e => { const l = (e.l || []).map(L => { if (!L.h) L.h = skHash(L.img); if (!SKIN.imgs.has(L.h)) SKIN.imgs.set(L.h, L.img); return skLayer(L); }).filter(Boolean); return l.length ? { m: e.m ? 1 : 0, c: e.c ? 1 : 0, l } : null; };
 function skinActivate(p) {                                    // make a preset the one everybody sees (null = none)
   SKIN.preset = p || null; SKIN.mine = Object.create(null);
-  if (p) Object.keys(p.pieces || {}).forEach(t => { const e = p.pieces[t]; if (!e || !safeSkinImg(e.img)) return; const hh = skHash(e.img); SKIN.imgs.set(hh, e.img); SKIN.mine[t] = { h: hh, m: e.m ? 1 : 0, c: e.c ? 1 : 0, x: skNum(e.x, -60, 60, 0), y: skNum(e.y, -60, 60, 0), s: skNum(e.s, 20, 400, 100) }; });
+  if (p) Object.keys(p.pieces || {}).forEach(t => { const e = skMig(p.pieces[t]), d = e && skDesc(e); if (d && t.length <= 3 && t !== '__proto__') SKIN.mine[t] = d; });
   skLsSet('cwfSkinActive', p ? p.id : '');
   if (typeof announceProfile === 'function') announceProfile(); else if (game) render();
 }
 SkDB.all().then(list => { const id = skLs('cwfSkinActive', ''), p = list.find(q => q.id === id); if (p) skinActivate(p); });
-const setGlyph = (el, t, owner) => { const sk = owner != null ? skinHTML(t, owner) : null; if (sk) el.innerHTML = sk; else if (game && game.imperial && IMP_KQ[t]) el.innerHTML = IMP_KQ[t]; else if (FAIRY_SVG[t]) el.innerHTML = FAIRY_SVG[t]; else el.textContent = GLYPH[t]; };
+const setGlyph = (el, t, owner) => { const sk = owner != null ? skinHTML(t, owner) : null; if (sk) el.innerHTML = sk; else if (game && game.imperial && IMP_KQ[t]) el.innerHTML = IMP_KQ[t]; else if (art(t)) el.innerHTML = art(t); else el.textContent = GLYPH[t]; };
 const $ = id => document.getElementById(id);
 // In-page confirmation dialog (replaces the browser's confirm box). askConfirm(text, okLabel, danger) -> Promise<boolean>
 function askConfirm(text, okLabel, danger) {
@@ -1305,7 +1372,7 @@ function showPromo(cands, onPick) {
   promoMount(false); p.style.cssText = ''; p.className = ''; p.innerHTML = ''; p.classList.toggle('pc', !!game.promotion);
   cands.forEach(m => {
     const b = document.createElement('button');
-    const big = t => FAIRY_SVG[t] || '<span style="font-size:2.1rem;line-height:1">' + GLYPH[t] + '</span>';
+    const big = t => art(t) || '<span style="font-size:2.1rem;line-height:1">' + GLYPH[t] + '</span>';
     b.innerHTML = game.promotion ? (m.promo ? big(m.promo) + '<span>' + (PNAMES[m.promo] || '') + (m.px != null ? ' → ' + sqName(m.px, m.py) : '') + '</span>' : (game.at(m.fx, m.fy) ? big(game.at(m.fx, m.fy).t) : '') + '<span>' + (m.shot ? 'Shoot (stay put)' : m.swap ? 'Swap' : m.exit ? 'Leave the board' : m.bump ? 'Bump (it holds)' : m.push ? 'Push it' : m.squish ? 'Squish it' : m.vx != null ? 'via ' + sqName(m.vx, m.vy) : cands.some(x => x.promo) ? 'Stay' : 'Move') + '</span>')
       : m.claim ? '⚔ Claim the Boss' : m.claim === false ? '☠ Kill it (then bring a fallen piece back)' : m.promo ? glyphHTML(m.promo, game.multi ? mySeat : myColor) : m.rev ? '↺ ' + glyphHTML(m.rev) : m.free ? 'Free step' : 'Move';
     b.title = m.promo && game.promotion ? 'Promote to ' + (PNAMES[m.promo] || '') + (m.px != null ? ', placed on ' + sqName(m.px, m.py) : '') : !m.promo && game.promotion ? (m.shot ? 'Capture it without moving' : m.swap ? 'Swap places' : m.exit ? 'Leave the board here: nothing can touch it while it is outside' : m.bump ? 'The Juggernaut survives the first capture attempt: you stop next to it and your turn is over' : m.push ? 'Push it one square' : m.squish ? 'Squish it (it has nowhere to go)' : m.vx != null ? 'First leg on ' + sqName(m.vx, m.vy) + ', then one more step' : cands.some(x => x.promo) ? 'Stay as it is (no promotion)' : 'Move there') : m.promo ? 'Promote' : m.rev ? 'Revive ' + PNAMES[m.rev] : m.free ? 'Herald: free step (your turn goes on)' : 'Normal move';
@@ -1499,7 +1566,7 @@ function updateVoidTray() {
   const el = $('voidTray'); if (!el) return;
   const ms = game && game.promotion && !ended() && !replay && !spectating && game.turn === myColor ? game.voidMoves() : [];
   if (!ms.length) { el.classList.add('hidden'); el.innerHTML = ''; return; }
-  const big = t => FAIRY_SVG[t] || GLYPH[t];
+  const big = t => art(t) || GLYPH[t];
   el.innerHTML = '<span class="vt">Bring it back:</span>';
   ms.forEach(m => {
     const e = game.offBoard(myColor)[m.ei], t = game.at(m.tx, m.ty), b = document.createElement('button');
@@ -1791,11 +1858,11 @@ function skinGroups() {
   add('8-player (neutral pieces you own)', OCT_GUIDE.filter(e => e[0] !== Engine.NEUTRAL_T.boss).map(e => [e[0], e[1]]).concat([[Engine.NEUTRAL_T.boss, 'Boss (2×2)'],['c', 'Shield'], ['i', 'Imp'], ['w', 'Wraith'], ['o', 'Ox'], ['a', 'Acolyte'], ['l', 'Legion']]));
   return out;
 }
-function skinImport(file, done) {                               // any picture -> 256x256 centre-cropped WebP (JPEG if the browser cannot make WebP), under ~50 KB
+function skinImport(file, done, fit) {                               // any picture -> 256x256 centre-cropped WebP (JPEG if the browser cannot make WebP), under ~50 KB
   const img = new Image(), url = URL.createObjectURL(file);
   img.onload = () => {
     const cv = document.createElement('canvas'); cv.width = cv.height = 256; const x = cv.getContext('2d'), m = Math.min(img.width, img.height);
-    x.drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, 256, 256); URL.revokeObjectURL(url);
+    if (fit) { const k = 256 / Math.max(img.width, img.height), w = img.width * k, h = img.height * k; x.drawImage(img, (256 - w) / 2, (256 - h) / 2, w, h); } else x.drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, 256, 256); URL.revokeObjectURL(url);
     let q = 0.88, d = cv.toDataURL('image/webp', q); const type = d.startsWith('data:image/webp') ? 'image/webp' : 'image/jpeg';
     d = cv.toDataURL(type, q); while (d.length > 66000 && q > 0.3) { q -= 0.12; d = cv.toDataURL(type, q); }
     done(safeSkinImg(d) ? d : null);
@@ -1805,54 +1872,91 @@ function skinImport(file, done) {                               // any picture -
 function openSkinEditor() {
   if (document.getElementById('skinEd')) return;
   SkDB.all().then(list => {
-    const st = { list, cur: null, sel: 'p', groups: skinGroups() };
+    list.forEach(p => { const np = {}; Object.keys(p.pieces || {}).forEach(t => { const e = skMig(p.pieces[t]); if (e && e.l.length) np[t] = e; }); p.pieces = np; });
+    const st = { list, cur: null, sel: 'p', li: 0, groups: skinGroups(), fit: false };
     const mk = () => ({ id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: 'My skin ' + (st.list.length + 1), pieces: {}, fresh: true });
     st.cur = st.list.find(p => SKIN.preset && p.id === SKIN.preset.id) || st.list[0] || (st.list.push(mk()), st.list[0]);
     const root = document.createElement('div'); root.id = 'skinEd';
-    root.innerHTML = '<div class="sked"><div class="skh"><b>Your piece skins</b><select id="skSel"></select><button id="skNew" type="button">New</button><button id="skRen" type="button">Rename</button><button id="skDel" type="button">Delete</button><span class="dim" style="flex:1"></span><button id="skX" type="button" title="Close">✕</button></div>' +
-      '<div class="skb"><div class="skl" id="skList"></div><div class="skr"><div class="skboxes"><div class="skbox" id="skB1" style="background:#b58863;color:#e8e0d0"></div><div class="skbox" id="skB2" style="background:#f0d9b5;color:#222"></div></div>' +
-      '<div id="skName" style="margin:8px 0 2px;font-weight:700"></div>' +
-      '<div style="display:flex;gap:6px;flex-wrap:wrap"><label class="small" style="cursor:pointer"><span class="btnlike" style="display:inline-block;padding:6px 10px;border-radius:6px;background:#5f8f3a">Choose a picture…</span><input type="file" id="skFile" accept="image/*" hidden></label><button id="skRm" type="button">Remove picture</button></div>' +
-      '<label class="row"><input type="radio" name="skMode" id="skMask" value="1" checked> Cut to the piece\'s shape</label><label class="row"><input type="radio" name="skMode" id="skOver" value="0"> Lay it over the piece</label>' +
-      '<label class="row"><input type="checkbox" id="skTint"> Colour it with my piece colour</label><button id="skTintGrp" type="button" class="small">Use this colour setting for the whole group</button>' +
-      '<div class="dim" id="skBossNote" style="display:none;margin-top:4px">The Boss covers 4 squares: the picture is spread over all of them and each square shows its own part, so a square that is lost simply disappears. You only see it once you own the Boss.</div>' +
-      '<label class="row">Left / right <input type="range" id="skX2" min="-60" max="60" value="0"></label><label class="row">Up / down <input type="range" id="skY2" min="-60" max="60" value="0"></label><label class="row">Size <input type="range" id="skS" min="20" max="300" value="100"></label>' +
-      '<div class="dim">Pictures are shrunk to 256×256 and cropped to a square. Other players see your skin on your pieces (they can switch that off). Neutral pieces keep the default look.</div></div></div>' +
-      '<div class="skf"><button id="skSave" class="primary" type="button">Save and use</button><button id="skSave2" type="button">Save</button><button id="skOff" type="button">Stop using skins</button><span class="dim" id="skMsg"></span></div></div>';
+    root.innerHTML = '<div class="sked"><div class="skh"><b>Piece editor</b><select id="skSel"></select><button id="skNew" type="button">New set</button><button id="skRen" type="button">Rename</button><button id="skDel" type="button">Delete set</button><span style="flex:1"></span><button id="skX" type="button" title="Close">✕</button></div>' +
+      '<div class="skb"><div class="skl" id="skList"></div>' +
+      '<div class="skm"><div class="skbigw"><div class="skbig" id="skBig"></div><div class="sksel" id="skSelBox"></div></div><div class="dim" style="text-align:center;margin:4px 0">Drag the picture to move it · mouse wheel = size · Shift + wheel = rotate</div>' +
+      '<div class="sksm"><div id="skS1" style="background:#b58863;color:#e8e0d0"></div><div id="skS2" style="background:#f0d9b5;color:#222"></div><div id="skS3" style="background:#b58863;color:#e8e0d0"></div><span class="dim">how it looks on the board</span></div></div>' +
+      '<div class="skr"><div id="skName" style="font-weight:700;font-size:1.02rem"></div>' +
+      '<h4>Pictures on this piece</h4><div id="skLayers"></div>' +
+      '<div class="skadd"><label class="btnlike" style="cursor:pointer"><span id="skAddTxt">+ Add a picture…</span><input type="file" id="skFile" accept="image/*" hidden></label><label class="row"><input type="checkbox" id="skFit"> Keep the whole picture (do not crop)</label></div>' +
+      '<div id="skCtl"><h4>Selected picture</h4>' +
+      '<label class="row">Left / right <input type="range" id="skX2" min="-100" max="100" value="0"><output id="oX"></output></label><label class="row">Up / down <input type="range" id="skY2" min="-100" max="100" value="0"><output id="oY"></output></label>' +
+      '<label class="row">Size <input type="range" id="skS" min="10" max="500" value="100"><output id="oS"></output></label><label class="row">Rotate <input type="range" id="skR" min="-180" max="180" value="0"><output id="oR"></output></label>' +
+      '<label class="row">Opacity <input type="range" id="skO" min="10" max="100" value="100"><output id="oO"></output></label>' +
+      '<div class="skbt"><label class="row"><input type="checkbox" id="skFlip"> Flip left/right</label><button id="skLReset" type="button" class="small">Reset picture</button></div></div>' +
+      '<h4>This piece</h4><label class="row"><input type="radio" name="skMode" id="skMask" value="1" checked> Cut to the piece\'s shape</label><label class="row"><input type="radio" name="skMode" id="skOver" value="0"> Lay over the piece</label>' +
+      '<label class="row"><input type="checkbox" id="skTint"> Colour with my piece colour</label>' +
+      '<div class="skbt"><button id="skTintGrp" type="button" class="small">Colour setting → whole group</button><button id="skPReset" type="button" class="small">Reset this piece to default</button><button id="skAReset" type="button" class="small">Reset every piece in this set</button></div>' +
+      '<div class="dim" id="skBossNote" style="display:none;margin-top:4px">The Boss covers 4 squares: the pictures are spread over all four and each square shows its own part. You only see it once you own the Boss.</div>' +
+      '<div class="dim" style="margin-top:6px">Pictures are shrunk to 256×256. Other players see your skin on your pieces (they can switch that off). Neutral pieces keep the default look.</div></div></div>' +
+      '<div class="skf"><button id="skSave" class="primary" type="button">Save and use</button><button id="skSave2" type="button">Save</button><button id="skOff" type="button">Use the default pieces</button><span class="dim" id="skMsg"></span></div></div>';
     document.body.appendChild(root); const q = id => root.querySelector('#' + id);
-    const ent = () => st.cur.pieces[st.sel], defHTML = t => skBase(t) || '<span>' + (GLYPH[t] || t) + '</span>';
-    const isBoss = t => t === Engine.NEUTRAL_T.boss, big = (t, e) => (isBoss(t) ? skinBossPreview(e) : (e && e.img && skinEntryHTML(t, e)) || defHTML(t));
-    const prev = () => { const e = ent(); q('skB1').innerHTML = q('skB2').innerHTML = big(st.sel, e); q('skBossNote').style.display = isBoss(st.sel) ? '' : 'none'; q('skTint').checked = !!(e && e.c);
-      const nm = (st.groups.flatMap(g => g.list).find(x => x[0] === st.sel) || [0, st.sel])[1]; q('skName').textContent = nm + (e && e.img ? '' : ' (default art)');
-      q('skMask').checked = !e || e.m !== 0; q('skOver').checked = !!e && e.m === 0; q('skX2').value = e ? e.x : 0; q('skY2').value = e ? e.y : 0; q('skS').value = e ? e.s : 100; ['skMask', 'skOver', 'skTint', 'skTintGrp', 'skX2', 'skY2', 'skS', 'skRm'].forEach(i => { q(i).disabled = !(e && e.img); }); };
-    const cell = (t, nm) => { const e = st.cur.pieces[t], html = isBoss(t) ? skinBossPreview(e) : e && e.img ? skinEntryHTML(t, e) : null; return '<button type="button" class="skp' + (t === st.sel ? ' sel' : '') + '" data-t="' + t + '"><span class="ic">' + (html || defHTML(t)) + '</span>' + nm + (e && e.img ? '<i></i>' : '') + '</button>'; };
-    const grid = () => { q('skList').innerHTML = st.groups.map(g => '<h4>' + g.name + '</h4><div class="skg">' + g.list.map(([t, nm]) => cell(t, nm)).join('') + '</div>').join(''); q('skList').querySelectorAll('.skp').forEach(b => { b.onclick = () => { st.sel = b.dataset.t; grid(); prev(); }; }); };
+    const isBoss = t => t === Engine.NEUTRAL_T.boss, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const defHTML = t => skBase(t) || '<span>' + (GLYPH[t] || t) + '</span>';
+    const ent = () => st.cur.pieces[st.sel], lay = () => { const e = ent(); return e && e.l[st.li] ? e.l[st.li] : null; };
+    const dsc = t => { const p = st.cur.pieces[t]; return p && p.l.length ? skDesc(p) : null; };
+    const html = t => { const d = dsc(t); return isBoss(t) ? skinBossPreview(d) : (d && skinEntryHTML(t, d)) || defHTML(t); };
+    const nameOf = t => (st.groups.flatMap(g => g.list).find(x => x[0] === t) || [0, t])[1];
+    const paintCell = () => { const c = q('skList').querySelector('.skp[data-t="' + st.sel + '"]'); if (!c) return; c.querySelector('.ic').innerHTML = html(st.sel); const e = ent(), has = !!(e && e.l.length); let i = c.querySelector('i'); if (has && !i) c.appendChild(document.createElement('i')); if (!has && i) i.remove(); };
+    const frame = () => { const L = lay(), b = q('skSelBox'); if (!L) { b.style.display = 'none'; return; } b.style.display = 'block'; 
+      b.style.cssText = 'display:block;left:calc(50% + ' + L.x + '%);top:calc(50% + ' + L.y + '%);width:' + L.s + '%;height:' + L.s + '%;transform:translate(-50%,-50%) rotate(' + L.r + 'deg)'; };
+    const stage = () => { const h = html(st.sel); q('skBig').innerHTML = isBoss(st.sel) ? h : h; ['skS1', 'skS2', 'skS3'].forEach((id, i) => { q(id).innerHTML = isBoss(st.sel) ? '<span style="display:block;width:1em;height:1em">' + h + '</span>' : h; }); frame(); };
+    const layersUI = () => { const e = ent(), ls = e ? e.l : [];
+      q('skLayers').innerHTML = ls.length ? ls.map((L, i) => i).reverse().map(i => { const L = ls[i]; return '<div class="skly' + (i === st.li ? ' sel' : '') + '" data-i="' + i + '"><span class="th" style="background-image:url(' + L.img + ')"></span><span class="nm">Picture ' + (i + 1) + (i === ls.length - 1 && ls.length > 1 ? ' (top)' : '') + '</span><button type="button" data-a="up" title="Bring forward"' + (i === ls.length - 1 ? ' disabled' : '') + '>▲</button><button type="button" data-a="dn" title="Send back"' + (i === 0 ? ' disabled' : '') + '>▼</button><button type="button" data-a="del" title="Remove">✕</button></div>'; }).join('') : '<div class="dim">None yet: this piece uses the default art.</div>';
+      q('skLayers').querySelectorAll('.skly').forEach(r => { const i = +r.dataset.i; r.onclick = ev => { const a = ev.target.dataset && ev.target.dataset.a; if (a === 'del') { ls.splice(i, 1); if (!ls.length) delete st.cur.pieces[st.sel]; st.li = Math.min(st.li, Math.max(0, ls.length - 1)); } else if (a === 'up' && i < ls.length - 1) { [ls[i], ls[i + 1]] = [ls[i + 1], ls[i]]; st.li = i + 1; } else if (a === 'dn' && i > 0) { [ls[i], ls[i - 1]] = [ls[i - 1], ls[i]]; st.li = i - 1; } else st.li = i; all(); }; });
+      q('skAddTxt').textContent = ls.length >= SK_LAYERS ? 'At most ' + SK_LAYERS + ' pictures' : '+ Add a picture…'; q('skFile').disabled = ls.length >= SK_LAYERS; }
+    const ctl = () => { const e = ent(), L = lay(); q('skName').textContent = nameOf(st.sel) + (e && e.l.length ? '' : ' (default art)'); q('skBossNote').style.display = isBoss(st.sel) ? '' : 'none';
+      q('skCtl').style.display = L ? '' : 'none'; if (L) { [['skX2', 'x', 'oX'], ['skY2', 'y', 'oY'], ['skS', 's', 'oS'], ['skR', 'r', 'oR'], ['skO', 'o', 'oO']].forEach(([id, k, o]) => { q(id).value = L[k]; q(o).textContent = Math.round(L[k]) + (k === 'r' ? '°' : k === 's' || k === 'o' ? '%' : ''); }); q('skFlip').checked = !!L.f; }
+      const has = !!(e && e.l.length); q('skMask').checked = !has || e.m !== 0; q('skOver').checked = has && e.m === 0; ['skMask', 'skOver', 'skTint', 'skTintGrp', 'skPReset'].forEach(i => { q(i).disabled = !has; }); q('skTint').checked = !!(e && e.c); }
+    const all = () => { layersUI(); ctl(); stage(); paintCell(); };
+    const grid = () => { q('skList').innerHTML = st.groups.map(g => '<h4>' + g.name + '</h4><div class="skg">' + g.list.map(([t, nm]) => { const e = st.cur.pieces[t]; return '<button type="button" class="skp' + (t === st.sel ? ' sel' : '') + '" data-t="' + t + '"><span class="ic">' + html(t) + '</span>' + nm + (e && e.l.length ? '<i></i>' : '') + '</button>'; }).join('') + '</div>').join('');
+      q('skList').querySelectorAll('.skp').forEach(b => { b.onclick = () => { st.sel = b.dataset.t; st.li = 0; const e = ent(); if (e) st.li = e.l.length - 1; q('skList').querySelectorAll('.skp').forEach(x => x.classList.toggle('sel', x === b)); all(); }; }); };
     const sel = () => { q('skSel').innerHTML = st.list.map(p => '<option value="' + p.id + '"' + (p === st.cur ? ' selected' : '') + '>' + p.name.replace(/</g, '&lt;') + (SKIN.preset && SKIN.preset.id === p.id ? ' (in use)' : '') + '</option>').join(''); };
-    const upd = f => { const e = ent(); if (!e) return; f(e); e.h = skHash(e.img); prev(); const b = q('skList').querySelector('.skp[data-t="' + st.sel + '"] .ic'); if (b) b.innerHTML = isBoss(st.sel) ? skinBossPreview(e) : skinEntryHTML(st.sel, e) || defHTML(st.sel); };
-    q('skSel').onchange = () => { st.cur = st.list.find(p => p.id === q('skSel').value); grid(); prev(); sel(); };
-    q('skNew').onclick = () => { st.cur = mk(); st.list.push(st.cur); sel(); grid(); prev(); };
+    const setL = (k, v) => { const L = lay(); if (!L) return; L[k] = v; ctl(); stage(); paintCell(); layersUI(); };
+    q('skSel').onchange = () => { st.cur = st.list.find(p => p.id === q('skSel').value); st.li = 0; grid(); all(); sel(); };
+    q('skNew').onclick = () => { st.cur = mk(); st.list.push(st.cur); st.li = 0; sel(); grid(); all(); };
     q('skRen').onclick = () => { const n = prompt('Name this skin set', st.cur.name); if (n && n.trim()) { st.cur.name = n.trim().slice(0, 30); sel(); } };
-    q('skDel').onclick = () => { if (!confirm('Delete "' + st.cur.name + '"?')) return; SkDB.del(st.cur.id); if (SKIN.preset && SKIN.preset.id === st.cur.id) skinActivate(null); st.list = st.list.filter(p => p !== st.cur); if (!st.list.length) st.list.push(mk()); st.cur = st.list[0]; sel(); grid(); prev(); };
-    q('skFile').onchange = e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
+    q('skDel').onclick = async () => { if (!(await askConfirm('Delete the set "' + st.cur.name + '"?', 'Delete', true))) return; SkDB.del(st.cur.id); if (SKIN.preset && SKIN.preset.id === st.cur.id) skinActivate(null); st.list = st.list.filter(p => p !== st.cur); if (!st.list.length) st.list.push(mk()); st.cur = st.list[0]; st.li = 0; sel(); grid(); all(); refreshSkinNow(); };
+    q('skFit').onchange = () => { st.fit = q('skFit').checked; };
+    q('skFile').onchange = ev => { const f = ev.target.files && ev.target.files[0]; ev.target.value = ''; if (!f) return;
       skinImport(f, d => { if (!d) { q('skMsg').textContent = 'That picture could not be used.'; return; } q('skMsg').textContent = '';
-        const old = st.cur.pieces[st.sel] || { m: 1, c: 0, x: 0, y: 0, s: 100 }; const h = skHash(d); SKIN.imgs.set(h, d); st.cur.pieces[st.sel] = { img: d, h, m: old.m, c: old.c || 0, x: old.x, y: old.y, s: old.s }; grid(); prev(); }); };
-    q('skRm').onclick = () => { delete st.cur.pieces[st.sel]; grid(); prev(); };
-    root.querySelectorAll('input[name=skMode]').forEach(r => { r.onchange = () => upd(e => { e.m = r.value === '1' ? 1 : 0; }); });
-    q('skTint').onchange = () => upd(e => { e.c = q('skTint').checked ? 1 : 0; });
-    q('skTintGrp').onclick = () => { const g = st.groups.find(g => g.list.some(x => x[0] === st.sel)), on = q('skTint').checked ? 1 : 0; (g ? g.list : []).forEach(([t]) => { const e = st.cur.pieces[t]; if (e && e.img) e.c = on; }); grid(); prev(); q('skMsg').textContent = 'Colour setting applied to the whole group.'; };
-    q('skX2').oninput = () => upd(e => { e.x = +q('skX2').value; }); q('skY2').oninput = () => upd(e => { e.y = +q('skY2').value; }); q('skS').oninput = () => upd(e => { e.s = +q('skS').value; });
-    const save = use => { const p = st.cur; delete p.fresh; Object.keys(p.pieces).forEach(t => { delete p.pieces[t].h; });
-      SkDB.put(JSON.parse(JSON.stringify(p))).then(() => { if (use) skinActivate(p); else if (SKIN.preset && SKIN.preset.id === p.id) skinActivate(p); Object.keys(p.pieces).forEach(t => { p.pieces[t].h = skHash(p.pieces[t].img); }); q('skMsg').textContent = use ? 'Saved. Your pieces now use this skin.' : 'Saved.'; sel(); refreshSkinNow(); }); };
+        const e = ent() || (st.cur.pieces[st.sel] = { m: 1, c: 0, l: [] }); if (e.l.length >= SK_LAYERS) return; e.l.push({ img: d, x: 0, y: 0, s: 100, r: 0, f: 0, o: 100 }); st.li = e.l.length - 1; all(); }, st.fit); };
+    [['skX2', 'x'], ['skY2', 'y'], ['skS', 's'], ['skR', 'r'], ['skO', 'o']].forEach(([id, k]) => { q(id).oninput = () => setL(k, +q(id).value); });
+    q('skFlip').onchange = () => setL('f', q('skFlip').checked ? 1 : 0);
+    q('skLReset').onclick = () => { const L = lay(); if (!L) return; Object.assign(L, { x: 0, y: 0, s: 100, r: 0, f: 0, o: 100 }); all(); };
+    root.querySelectorAll('input[name=skMode]').forEach(r => { r.onchange = () => { const e = ent(); if (!e) return; e.m = r.value === '1' ? 1 : 0; all(); }; });
+    q('skTint').onchange = () => { const e = ent(); if (!e) return; e.c = q('skTint').checked ? 1 : 0; all(); };
+    q('skTintGrp').onclick = () => { const g = st.groups.find(g => g.list.some(x => x[0] === st.sel)), on = q('skTint').checked ? 1 : 0; (g ? g.list : []).forEach(([t]) => { const e = st.cur.pieces[t]; if (e && e.l.length) e.c = on; }); grid(); all(); q('skMsg').textContent = 'Colour setting applied to the whole group.'; };
+    q('skPReset').onclick = () => { delete st.cur.pieces[st.sel]; st.li = 0; all(); q('skMsg').textContent = nameOf(st.sel) + ' is back to the default art (press Save to keep this).'; };
+    q('skAReset').onclick = async () => { if (!(await askConfirm('Remove every picture from the set "' + st.cur.name + '"?', 'Reset all', true))) return; st.cur.pieces = {}; st.li = 0; grid(); all(); q('skMsg').textContent = 'Every piece in this set is back to the default art (press Save to keep this).'; };
+    const big = q('skBig');
+    big.addEventListener('pointerdown', ev => { const L = lay(); if (!L) return; ev.preventDefault(); big.setPointerCapture(ev.pointerId); let lx = ev.clientX, ly = ev.clientY;
+      const mv = m => { const w = big.getBoundingClientRect().width; L.x = clamp(L.x + (m.clientX - lx) / w * 100, -100, 100); L.y = clamp(L.y + (m.clientY - ly) / w * 100, -100, 100); lx = m.clientX; ly = m.clientY; ctl(); stage(); paintCell(); };
+      const up = () => { big.removeEventListener('pointermove', mv); big.removeEventListener('pointerup', up); big.removeEventListener('pointercancel', up); layersUI(); }; big.addEventListener('pointermove', mv); big.addEventListener('pointerup', up); big.addEventListener('pointercancel', up); });
+    big.addEventListener('wheel', ev => { const L = lay(); if (!L) return; ev.preventDefault(); if (ev.shiftKey) { let r = L.r - Math.sign(ev.deltaY || ev.deltaX) * 5; if (r > 180) r -= 360; if (r < -180) r += 360; L.r = r; } else L.s = clamp(L.s * (ev.deltaY < 0 ? 1.06 : 1 / 1.06), 10, 500); ctl(); stage(); paintCell(); }, { passive: false });
+    const save = use => { const p = st.cur; delete p.fresh; const copy = JSON.parse(JSON.stringify(p)); Object.keys(copy.pieces).forEach(t => { copy.pieces[t].l.forEach(L => { delete L.h; }); });
+      SkDB.put(copy).then(() => { if (use) skinActivate(p); else if (SKIN.preset && SKIN.preset.id === p.id) skinActivate(p); q('skMsg').textContent = use ? 'Saved. Your pieces now use this set.' : 'Saved.'; sel(); refreshSkinNow(); }); };
     q('skSave').onclick = () => save(true); q('skSave2').onclick = () => save(false);
-    q('skOff').onclick = () => { skinActivate(null); q('skMsg').textContent = 'You are using the default pieces again.'; sel(); refreshSkinNow(); };
-    const close = () => { root.remove(); refreshSkinNow(); }; q('skX').onclick = close; root.addEventListener('pointerdown', e => { if (e.target === root) close(); });
-    Object.keys(st.cur.pieces).forEach(t => { const e = st.cur.pieces[t]; if (e && e.img) { e.h = skHash(e.img); SKIN.imgs.set(e.h, e.img); } });
-    sel(); grid(); prev();
+    q('skOff').onclick = () => { skinActivate(null); q('skMsg').textContent = 'You are using the default pieces again (your sets are still saved).'; sel(); refreshSkinNow(); };
+    const close = () => { root.remove(); refreshSkinNow(); }; q('skX').onclick = close; root.addEventListener('pointerdown', ev => { if (ev.target === root) close(); });
+    document.addEventListener('keydown', function esc(ev) { if (!document.getElementById('skinEd')) { document.removeEventListener('keydown', esc); return; } if (ev.key === 'Escape' && $('dlgBack').classList.contains('hidden')) close(); });
+    sel(); grid(); all();
   });
 }
-function refreshSkinNow() { $('skinNow').textContent = SKIN.preset ? 'Using: ' + SKIN.preset.name + ' (' + Object.keys(SKIN.mine).length + ' pieces)' : 'Using the default pieces.'; }
+function refreshSkinNow() {
+  $('skinNow').textContent = SKIN.preset ? 'Using: ' + SKIN.preset.name + ' (' + Object.keys(SKIN.mine).length + ' pieces)' : 'Using the default pieces.';
+  SkDB.all().then(list => { const box = $('skinSets'); if (!box) return; box.innerHTML = '';
+    const row = (id, label) => { const l = document.createElement('label'), r = document.createElement('input'); r.type = 'radio'; r.name = 'skSetSel'; r.checked = (SKIN.preset ? SKIN.preset.id : '') === id; r.onchange = () => { skinActivate(id ? list.find(p => p.id === id) : null); refreshSkinNow(); }; l.appendChild(r); l.appendChild(document.createTextNode(' ' + label)); box.appendChild(l); };
+    row('', 'No skin (default pieces)'); list.forEach(p => row(p.id, p.name)); });
+}
 $('skinShowChk').checked = SKIN.show; $('skinShowChk').onchange = () => { SKIN.show = $('skinShowChk').checked; skLsSet('cwfShowSkins', SKIN.show ? '1' : '0'); if (game) render(); };
 $('skinEditBtn').onclick = openSkinEditor; refreshSkinNow();
+$('skinReset').onclick = () => { skinActivate(null); setLook(false); refreshSkinNow(); };
 
 $('pfpIn').onchange = e => {
   const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
@@ -1865,8 +1969,9 @@ $('pfpIn').onchange = e => {
   img.onerror = () => URL.revokeObjectURL(url); img.src = url;
 };
 // drawers
-const drawers = ['settingsDrawer', 'helpDrawer'];
+const drawers = ['settingsDrawer', 'helpDrawer', 'pieceDrawer'];
 function toggleDrawer(id) { const open = $(id).classList.contains('hidden'); drawers.forEach(d => $(d).classList.add('hidden')); if (open) { $(id).classList.remove('hidden'); if (id === 'helpDrawer') refreshHelp(true); } }
+$('palBtn').onclick = () => { toggleDrawer('pieceDrawer'); refreshSkinNow(); }; document.querySelectorAll('input[name=lookSel]').forEach(r => { r.checked = (r.value === 'classic') === LOOK.classic; r.onchange = () => setLook(r.value === 'classic'); });
 $('gearBtn').onclick = () => toggleDrawer('settingsDrawer'); $('profBtn').onclick = () => toggleDrawer('settingsDrawer'); $('helpBtn').onclick = () => toggleDrawer('helpDrawer');
 document.querySelectorAll('[data-close]').forEach(b => { b.onclick = () => $(b.dataset.close).classList.add('hidden'); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') drawers.forEach(d => $(d).classList.add('hidden')); });
@@ -1886,8 +1991,23 @@ $('copyCodeBtn').onclick = () => copyText(roomCode, $('copyCodeBtn'), 'Copy code
 $('copyLinkBtn').onclick = () => copyText(joinUrl(), $('copyLinkBtn'), 'Copy link');
 $('copySpecBtn').onclick = () => copyText(watchUrl(), $('copySpecBtn'), 'Copy spectator link');
 // turn strip: who is playing now and who is next
+function strip2p(el) {                       // 2-player games: opponent and you, with names / pictures; the side to move is lit
+  const me = myColor, opp = me === 'w' ? 'b' : 'w', fin = !!ended();
+  el.innerHTML = ''; el.classList.remove('hidden', 'compact');
+  [opp, me].forEach(c => {
+    const mine = c === me, nameTxt = mine ? myName() : (bots2p ? 'Computer' : (peerInfo && peerInfo.n) || 'Opponent'), pfp = mine ? profile.pfp : (peerInfo && peerInfo.p);
+    const d = document.createElement('div'); d.className = 'tchip' + (game.turn === c && !fin ? ' now' : ''); d.style.setProperty('--c', c === 'w' ? '#f2f2f2' : '#222'); d.title = (c === 'w' ? 'White' : 'Black');
+    const av = document.createElement('span'); av.className = 'av'; fillAvatar(av, nameTxt, pfp, bots2p && !mine ? '#555' : (c === 'w' ? '#9a9a9a' : '#333')); if (bots2p && !mine && !pfp) av.textContent = '\u{1F916}'; d.appendChild(av);
+    const nm = document.createElement('span'); nm.className = 'tn'; nm.style.maxWidth = '220px'; nm.textContent = nameTxt + (mine ? ' (you)' : ''); d.appendChild(nm);
+    const ct = document.createElement('span'); ct.className = 'tag'; ct.textContent = c === 'w' ? 'White' : 'Black'; d.appendChild(ct);
+    if (game.turn === c && !fin) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'to move'; d.appendChild(t); }
+    try { if (game.turn === c && !fin && !gs.fog && game.inCheck()) { const t = document.createElement('span'); t.className = 'chk'; t.textContent = '+'; t.title = 'in check'; d.appendChild(t); } } catch (e) { /* ignore */ }
+    el.appendChild(d);
+  });
+}
 function renderStrip() {
   const el = $('turnStrip');
+  if (game && !game.multi && (game.turn === 'w' || game.turn === 'b') && !spectating && !replay && !(M && M.phase === 'setup')) { strip2p(el); return; }
   if (!game || !game.multi || !game.seats || game.bug || A4 && !game) { el.classList.add('hidden'); return; }
   const seats = game.seats, k = Math.max(0, seats.indexOf(game.turn)), order = seats.map((_, i) => seats[(k + i) % seats.length]);
   el.innerHTML = ''; el.classList.remove('hidden');
@@ -2054,8 +2174,8 @@ function adviseBot(pg) {                                    // host only: a team
 const pingBad = pg => { try { return !game.movesFor(pg.sx, pg.sy).some(m => m.tx === pg.tx && m.ty === pg.ty && (!pg.promo || m.promo === pg.promo)); } catch (e) { return false; } };
 function pingBubble(pg) {
   const b = document.createElement('span'); b.className = 'pingbub'; b.style.setProperty('--pc', pingColor(pg));
-  const sp = document.createElement('span'); setGlyph(sp, pg.t, pg.owner); sp.className = 'pc-' + pg.owner + (FAIRY.includes(pg.t) ? ' fairy' : ''); b.appendChild(sp);
-  if (pg.promo) { const pr = document.createElement('span'); pr.className = 'pbadge'; const q = document.createElement('span'); setGlyph(q, pg.promo, pg.owner); q.className = 'pc-' + pg.owner + (FAIRY.includes(pg.promo) ? ' fairy' : ''); pr.appendChild(q); b.appendChild(pr); }
+  const sp = document.createElement('span'); setGlyph(sp, pg.t, pg.owner); sp.className = 'pc-' + pg.owner + (isFairy(pg.t) ? ' fairy' : ''); b.appendChild(sp);
+  if (pg.promo) { const pr = document.createElement('span'); pr.className = 'pbadge'; const q = document.createElement('span'); setGlyph(q, pg.promo, pg.owner); q.className = 'pc-' + pg.owner + (isFairy(pg.promo) ? ' fairy' : ''); pr.appendChild(q); b.appendChild(pr); }
   b.title = seatName(pg.from) + ' suggests this ' + (PNAMES[pg.t] || 'piece') + ' goes here' + (pg.promo ? ', promoting to ' + (PNAMES[pg.promo] || pg.promo) : '');
   if (seatInfo[pg.owner] && seatInfo[pg.owner].bot && pingBad(pg)) { b.classList.add('bad'); b.title += ', but that is not a legal move right now'; }
   return b;
@@ -3516,7 +3636,7 @@ function renderCore() {
     if (p) {
       const s = document.createElement('span');
       setGlyph(s, shownType(p), p.c); if (p.wall && g.wallLife) addWallNum(s, g.wallLife(x, y)); if (p.rc > 0) addWallNum(s, p.rc);      // (Reviver recharge countdown)
-      s.className = (p.c === 'w' ? 'w-piece' : '') + (FAIRY.includes(p.t) ? ' fairy' : '') + (p.champ && p.c === myColor ? ' champ' : '') + fxClass(p);
+      s.className = (p.c === 'w' ? 'w-piece' : '') + (isFairy(p.t) ? ' fairy' : '') + (p.champ && p.c === myColor ? ' champ' : '') + fxClass(p);
       s.dataset.pc = '1'; d.appendChild(s);
     }
     d.onclick = () => clickSq(x, y);
@@ -3735,7 +3855,7 @@ function renderSetup() {
     const t = own && m[x + ',' + y];
     if (t) {
       const s = document.createElement('span');
-      setGlyph(s, t, myColor); s.className = (myColor === 'w' ? 'w-piece' : '') + (FAIRY.includes(t) ? ' fairy' : '');
+      setGlyph(s, t, myColor); s.className = (myColor === 'w' ? 'w-piece' : '') + (isFairy(t) ? ' fairy' : '');
       d.appendChild(s);
     }
     if (own && !locked) paintBind(d, (er, dr) => placeAt(x, y, er, dr));
@@ -3980,7 +4100,7 @@ function a4Arm(el, setup, seat, onclick) {            // one player's 10x5 arm, 
   for (let r = A4H - 1; r >= 0; r--) for (let u = 0; u < A4W; u++) {
     const d = document.createElement('div'); d.className = 'sq ' + ((u + r) % 2 === 1 ? 'l' : 'd');
     const t = setup && setup[u + ',' + r];
-    if (t) { const sp = document.createElement('span'); setGlyph(sp, t, seat); sp.className = 'pc-' + seat + (FAIRY.includes(t) ? ' fairy' : ''); d.appendChild(sp); }
+    if (t) { const sp = document.createElement('span'); setGlyph(sp, t, seat); sp.className = 'pc-' + seat + (isFairy(t) ? ' fairy' : ''); d.appendChild(sp); }
     if (onclick) paintBind(d, (er, dr) => onclick(u, r, er, dr));
     el.appendChild(d);
   }
@@ -4037,7 +4157,7 @@ function renderAlice() {
       if (sel && sel.l === l && hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (p) d.classList.add('cap'); }
       if (p) {
         const s = document.createElement('span');
-        setGlyph(s, p.t, p.c); s.className = (p.c === 'w' ? 'w-piece' : '') + (FAIRY.includes(p.t) ? ' fairy' : '');
+        setGlyph(s, p.t, p.c); s.className = (p.c === 'w' ? 'w-piece' : '') + (isFairy(p.t) ? ' fairy' : '');
         d.appendChild(s);
       }
       d.onclick = () => clickAlice(x, y, l);
@@ -4564,7 +4684,7 @@ function renderAlice4() {
       if (last && ((last.fl === l && last.fx === x && last.fy === y) || (last.fl !== l && last.tx === x && last.ty === y))) d.classList.add('last');
       if (k && k.l === l && k.x === x && k.y === y) d.classList.add('check');
       if (sel && sel.l === l && hints.some(m => m.tx === x && m.ty === y)) { d.classList.add('hint'); if (p) d.classList.add('cap'); }
-      if (p) { const sp = document.createElement('span'); setGlyph(sp, p.t); sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (FAIRY.includes(p.t) ? ' fairy' : ''); d.appendChild(sp); }
+      if (p) { const sp = document.createElement('span'); setGlyph(sp, p.t); sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (isFairy(p.t) ? ' fairy' : ''); d.appendChild(sp); }
       d.onclick = () => clickAlice4(x, y, l);
       el.appendChild(d);
     }
@@ -4617,7 +4737,7 @@ function drawBugBoard(el, bd, color, interactive, cellPx) {
     if (last && ((last.tx === x && last.ty === y) || (last.fx === x && last.fy === y))) d.classList.add('last');
     if (kingSq === x + ',' + y) d.classList.add('check');
     { const hm = hints.find(m => m.tx === x && m.ty === y); if (hm) { d.classList.add('hint'); if (p) d.classList.add('cap'); if (hm.shot) d.classList.add('shot'); } }
-    if (p) { const sp = document.createElement('span'); setGlyph(sp, p.t); sp.className = (p.c === 'w' ? 'w-piece' : '') + (FAIRY.includes(p.t) ? ' fairy' : ''); d.appendChild(sp); }
+    if (p) { const sp = document.createElement('span'); setGlyph(sp, p.t); sp.className = (p.c === 'w' ? 'w-piece' : '') + (isFairy(p.t) ? ' fairy' : ''); d.appendChild(sp); }
     if (interactive) d.onclick = () => clickBug(x, y);
     el.appendChild(d);
   }
@@ -4703,7 +4823,7 @@ function renderMulti() {
     if ((abFrom && abFrom.x === x && abFrom.y === y) || (chargeSq && chargeSq.x === x && chargeSq.y === y) || (foeSel && foeSel.x === x && foeSel.y === y)) d.classList.add('sel');
     if (shown) {
       const sp = document.createElement('span');
-      setGlyph(sp, shownType(p), p.c); if (p.wall && g.wallLife) addWallNum(sp, g.wallLife(x, y)); if (p.rc > 0) addWallNum(sp, p.rc); sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (FAIRY.includes(p.t) ? ' fairy' : '') + (p.champ && sameSide(p.c, mySeat) ? ' champ' : '') + fxClass(p);
+      setGlyph(sp, shownType(p), p.c); if (p.wall && g.wallLife) addWallNum(sp, g.wallLife(x, y)); if (p.rc > 0) addWallNum(sp, p.rc); sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (isFairy(p.t) ? ' fairy' : '') + (p.champ && sameSide(p.c, mySeat) ? ' champ' : '') + fxClass(p);
       if (p.c === 'n') d.classList.add('neu');
       if (p.t === Engine.NEUTRAL_T.boss) {
         d.classList.add('bossc');
