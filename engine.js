@@ -32,7 +32,7 @@ const Search = (() => {
   const MATE = 100000;
   function run(ad, o) {
     o = o || {};
-    const t0 = Date.now(), limit = o.ms || 1200, maxD = o.depth || 3, beam = o.beam || 1e9, qMax = o.qdepth === undefined ? 4 : o.qdepth, rand = o.rand || 0;
+    const t0 = Date.now(), limit = o.ms || (globalThis.BOT_MS || 1200), maxD = o.depth || 3, beam = o.beam || 1e9, qMax = o.qdepth === undefined ? 4 : o.qdepth, rand = o.rand || 0;
     let nodes = 0, timeout = false, hard = false;
     const sc = ad.score || (() => 0), loud = ad.loud || (() => false);
     const order = (s, ms) => { const a = ms.map(m => [sc(s, m), m]); a.sort((x, y) => y[0] - x[0]); return a.map(x => x[1]); };
@@ -223,7 +223,7 @@ const Engine = (() => {
           score: (N, m) => { const t = N.L[m.fl][idx(m.tx, m.ty)]; return (t ? 10 * vv(t.t) - vv(N.L[m.fl][idx(m.fx, m.fy)].t) : 0) + (m.promo ? 6 : 0); },
           loud: (N, m) => !!m.promo || !!N.L[m.fl][idx(m.tx, m.ty)]
         };
-        return SR.run(ad, { depth: o.depth || 4, ms: o.ms || 1200, beam: 24, qdepth: 3 });
+        return SR.run(ad, { depth: o.depth || 4, ms: o.ms || (globalThis.BOT_MS || 1200), beam: 24, qdepth: 3 });
       }
     };
   }
@@ -248,7 +248,7 @@ const Engine = (() => {
     };
     const depthMax = o.depth || Math.max(3, 2 * n);
     const accept = d => env.team(ring[(d - 1) % n]) !== mt;      // a depth that ends on one of our own moves would be too optimistic about what we just took
-    return SR.run(ad, { depth: depthMax, ms: o.ms || 1200, beam: o.beam || 7, qdepth: 0, accept });
+    return SR.run(ad, { depth: depthMax, ms: o.ms || (globalThis.BOT_MS || 1200), beam: o.beam || 7, qdepth: 0, accept });
   }
 
   // ================= simple bots (run by the host) =================
@@ -264,7 +264,7 @@ const Engine = (() => {
       const pick = sq[Math.floor(Math.random() * sq.length)]; return { reward: true, t: best, tx: pick.x, ty: pick.y };
     }
     if (game.cls && CLASSES[game.cls[seat]] && CLASSES[game.cls[seat]].secret) return null;      // bots never play a secret class (Glitch)
-    if (level === 'hard' && game.search) { const hm = game.multi || game.layers ? game.search({}) : game.search({ ms: 1200, depth: (game.w * game.h > 100 ? 3 : 4) }); if (hm) return hm; }      // hard: a real look-ahead search (every engine that has one); anything else falls through to Normal
+    if (level === 'hard' && game.search) { const hm = game.multi || game.layers ? game.search({}) : game.search({ ms: (globalThis.BOT_MS || 1200), depth: (game.w * game.h > 100 ? 3 : 4) }); if (hm) return hm; }      // hard: a real look-ahead search (every engine that has one); anything else falls through to Normal
     const rand = a => a[Math.floor(Math.random() * a.length)];
     let cands;
     if (game.evalMoves) cands = game.evalMoves(seat);
@@ -2267,7 +2267,7 @@ const Engine = (() => {
     // ---- Hard bot: iterative-deepening alpha-beta (captures searched to the end), material + a little position. Used by Engine.botChoose(..., 'hard').
     const PVAL = { p: 1, n: 3, b: 3.2, r: 5, q: 9, k: 0 }, pv = t => (t in PVAL ? PVAL[t] : 3.5);
     function searchBest(S0, o) {
-      const root = S0.turn, t0 = Date.now(), maxD = o.depth || 4, limit = o.ms || 1200, MATE = 100000, cx = (w - 1) / 2, cy = (h - 1) / 2;
+      const root = S0.turn, t0 = Date.now(), maxD = o.depth || 4, limit = o.ms || (globalThis.BOT_MS || 1200), MATE = 100000, cx = (w - 1) / 2, cy = (h - 1) / 2;
       let nodes = 0, timeout = false, hard = false;
       const evalS = S => {
         let sc = 0;

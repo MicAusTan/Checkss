@@ -682,7 +682,7 @@ const Promotion = (() => {
             score: (T, m) => { const v = hit(T, m), src = T.b[idx(m.fx, m.fy)]; return (v && v.c !== T.turn ? 10 * val(v) - (src ? val(src) : 0) : 0) + (m.promo ? 6 : 0); },
             loud: (T, m) => { const v = hit(T, m); return !!m.promo || !!(v && v.c !== T.turn); }
           };
-          return SR.run(ad, { depth: 4, ms: 1200, beam: 18, qdepth: 3 }) || pick(ms);
+          return SR.run(ad, { depth: 4, ms: (globalThis.BOT_MS || 1200), beam: 18, qdepth: 3 }) || pick(ms);
         }
         if (level === 'easy') { const caps = ms.filter(m => !m.reenter && !m.exit && !m.bump && S.b[idx(m.tx, m.ty)] && !m.swap); return pick(caps.length && Math.random() < 0.6 ? caps : ms); }
         let best = null, bs = -1e9;
