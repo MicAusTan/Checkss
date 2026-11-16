@@ -1,0 +1,6 @@
+{
+  "name": "chess-with-friends",
+  "private": true,
+  "scripts": { "test": "node tests/run.js" },
+  "devDependencies": { "playwright": "^1.48.0", "peerjs-js-binarypack": "^2.1.0" }
+}
