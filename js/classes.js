@@ -8,7 +8,7 @@ const bcast = m => (game.multi ? broadcast(m) : send(m));
 
 const CLS = id => Engine.CLASSES[id];
 const DINFO = (kind, id) => (kind === 'class' ? CLS(id) : TRAIT(id));
-const eligibleTraits = () => Object.keys(Engine.TRAITS).filter(id => { const t = TRAIT(id); return !(t.multi && !game.multi) && !(t.fog && !gs.fog); });
+const eligibleTraits = () => Object.keys(Engine.TRAITS).filter(id => { const t = TRAIT(id); return !(t.multi && !game.multi) && !(t.fog && !gs.fog) && !(t.noAlice && game.layers > 1) && !(t.multi && (game.layers > 1 || game.bug)) && !(t.noBug && game.bug) && !(t.only2p && game.multi) && !(t.noDrops && game.dropMode) && !t.team; });      // (team traits are not dealt in the random draft)      // (layers > 1 = Alice; game.bug = Bughouse: no elimination traits there)
 const eligibleFor = (kind, all) => (kind === 'class' ? Object.keys(Engine.CLASSES).filter(id => all || !Engine.CLASSES[id].secret) : eligibleTraits());      // all = include secret classes (host's secret picker)
 const needDraft = () => !!((gs.traits && !gtraits) || (gs.classes && !gclasses));
 function rollOffers(kind) {
@@ -69,54 +69,15 @@ function announceClassStart() {
 function announceTraitStart() {
   if (game && gclasses) announceClassStart();
   if (!gtraits || !game) return;
+  if (gs.trShow) { partIds().forEach(pid => { if (gtraits[pid]) addChat('', whoName(pid) + ' has the trait ' + TRAIT(gtraits[pid]).name + '. ' + TRAIT(gtraits[pid]).desc, true); }); return; }      // host option: all traits are public
   const mine = gtraits[meId()];
   if (mine) addChat('', 'Your trait (only you can see this): ' + TRAIT(mine).name + '. ' + TRAIT(mine).desc, true);
   if (game.teams && mine) partIds().forEach(pid => { if (pid !== meId() && game.teams[pid] === game.teams[meId()] && gtraits[pid]) addChat('', "Your teammate " + whoName(pid) + "'s trait: " + TRAIT(gtraits[pid]).name + '. ' + TRAIT(gtraits[pid]).desc, true); });
 }
-function renderDraft() {
-  const box = $('draftBox');
-  if (!draft) { box.classList.add('hidden'); return; }
-  box.classList.remove('hidden'); box.innerHTML = '';
-  const kind = draft.kind || 'trait';
-  const line = t => { const d = document.createElement('div'); d.textContent = t; box.appendChild(d); };
-  const btnHTML = id => { const d = DINFO(kind, id); return '<b>' + d.name + '</b><br><span>' + d.desc + '</span>' + (kind === 'class' ? '<br><span>Abilities: ' + d.abilities.map(a => a.name + ' (' + a.cost + ')').join(', ') + '</span>' : ''); };
-  const h = document.createElement('div');
-  h.innerHTML = kind === 'class' ? '<b>Choose your class</b>. A passive power plus abilities you pay for with points.' : '<b>Choose your class trait</b>. It stays secret until it matters.';
-  box.appendChild(h);
-  // Host-only hidden extra: click this heading 5 times quickly to unlock the full list for your own pick.
-  h.onclick = () => {
-    if (!isHost || !draft || draft.picked || !draft.mine) return;
-    const now = Date.now();
-    draft.taps = (draft.taps || []).filter(t => now - t < 3000).concat(now);
-    if (draft.taps.length >= 5) { draft.cheat = true; draft.taps = []; render(); }
-  };
-  if (!draft.mine) { line('Waiting for the host to deal the offers…'); return; }
-  if (draft.picked) {
-    line('You picked ' + DINFO(kind, draft.picked).name + '. Waiting for the others…' + (isHost && draft.picks ? ' (' + Object.keys(draft.picks).length + '/' + partIds().length + ' chosen)' : ''));
-    if (isHost) { const b = document.createElement('button'); b.textContent = 'Pick randomly for anyone who is still deciding'; b.onclick = autoPickRest; box.appendChild(b); }
-    return;
-  }
-  if (isHost && draft.cheat) {
-    const all = document.createElement('div');
-    all.style.cssText = 'max-height:240px;overflow:auto;border-top:1px dashed #777;margin-top:6px;padding-top:4px';
-    eligibleFor(kind, true).forEach(id => {
-      const b = document.createElement('button'); b.className = 'trait';
-      b.innerHTML = btnHTML(id); b.onclick = () => choosePick(id);
-      all.appendChild(b);
-    });
-    box.appendChild(all);
-  }
-  draft.mine.forEach(id => {
-    const b = document.createElement('button'); b.className = 'trait';
-    b.innerHTML = btnHTML(id); b.onclick = () => choosePick(id);
-    box.appendChild(b);
-  });
-}
-
 // ---- class abilities: points bar, targeting, announcements ----
 const fxSeen = by => !gs.clHideFx || spectating || replay || ended() || by === meId() || isMate(by);      // protection glows can be hidden from opponents (host option)
 const maskSeen = p => !(p.fx && p.fx.msk) || p.c === meId() || isMate(p.c) || ended();      // Missing Textures: only the owner's team (or everyone after the game) sees the real piece
-const shownType = p => (p.fx && p.fx.msk && !maskSeen(p) ? p.fx.msk : p.t);
+const shownType = p => (p.fx && p.fx.msk && !maskSeen(p) ? p.fx.msk : (p.t === 'k' && gtraits && gtraits[p.c] === 'royalQueen' ? 'q' : p.t));      // (Royal Queen: the royal piece is drawn as a queen)
 function foeClick(x, y) {                      // clicking an enemy piece (with nothing selected) previews where it can move
   if (!gs.foeMoves || !game || !game.reach || sel) { if (foeSel) { foeSel = null; render(); } return false; }
   const p = game.at(x, y);
@@ -133,10 +94,11 @@ function markClip(d, x, y, visible) {              // Clipping: dashed outline o
 }
 function abValidate() {                          // drops a stale ability selection and computes the highlighted target squares
   abSet = null;
-  mineSet = null; foeSet = null; rmarkSet = null; clipMap = null;
+  mineSet = null; foeSet = null; rmarkSet = null; metSet = null; clipMap = null;
   rngSet = null; rngF = false; rewSet = null;
   if (rewardMine() && rewardPick) { rewSet = new Set(game.rewardFor(rewardPick).map(q => q.x + ',' + q.y)); }
   if (game && game.clips) { const cz = game.clips(); if (cz.length) { clipMap = {}; cz.forEach(z => { clipMap[z.x + ',' + z.y] = z; }); } }
+  if (game && game.meteors) { const mt = game.meteors(); if (mt.length) { metSet = new Set(); mt.forEach(m => { for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) metSet.add((m.x + dx) + ',' + (m.y + dy)); }); } }      // pending Meteor areas
   if (game && game.markers) { const mk = game.markers(); if (mk.length) rmarkSet = new Set(mk.map(m => m.x + ',' + m.y)); }
   if (foeSel && game && game.reach && gs.foeMoves) {
     const fp = game.at(foeSel.x, foeSel.y);
@@ -144,7 +106,8 @@ function abValidate() {                          // drops a stale ability select
     else foeSet = new Map(game.reach(foeSel.x, foeSel.y, fp.fx && fp.fx.msk && !maskSeen(fp) ? fp.fx.msk : null).map(m => [m.tx + ',' + m.ty, !!game.at(m.tx, m.ty)]));      // (a masked piece shows the moves of its fake icon)
   } else foeSel = null;
   { const rs = sel && sel.drop === undefined && isMyTurn() ? sel : foeSel;                       // a shooter that is selected (or an enemy one being previewed) also shows its range
-    if (rs && game && game.range && game.at(rs.x, rs.y)) { try { const lst = game.range(rs.x, rs.y); if (lst.length) { rngSet = new Set(lst.map(m => m.tx + ',' + m.ty)); rngF = rs === foeSel; } } catch (e) { rngSet = null; } } }
+    if (rs && game && game.range && game.at(rs.x, rs.y) && !(rs === foeSel && game.at(rs.x, rs.y).fx && game.at(rs.x, rs.y).fx.msk && !maskSeen(game.at(rs.x, rs.y)))) {      // (a masked enemy piece never reveals its real shooting range)
+    try { const lst = game.range(rs.x, rs.y); if (lst.length) { rngSet = new Set(lst.map(m => m.tx + ',' + m.ty)); rngF = rs === foeSel; } } catch (e) { rngSet = null; } } }
   if (game && game.mines) { const all = spectating || replay || ended(), arr = game.mines(all ? null : meId()); if (arr.length) mineSet = new Set(arr.map(m => m.x + ',' + m.y)); }
   chargeSq = game && game.chargeOf && !spectating && !replay && !draft ? (game.chargeOf(meId()) || (game.overrunOf ? game.overrunOf(meId()) : null)) : null;
   if (!abMode) { abFrom = null; return; }
@@ -163,38 +126,9 @@ function abClick(x, y) {
   abMode = null; abFrom = null; sel = null;
   play(m);
 }
-function renderClassBar() {
-  const box = $('classBar');
-  if (!game || !game.cls || draft || M || replay) { box.classList.add('hidden'); return; }
-  box.classList.remove('hidden'); box.innerHTML = '';
-  const me = meId(), mine = spectating ? null : game.cls[me];
-  const add = (html, cls) => { const d = document.createElement('div'); d.innerHTML = html; if (cls) d.className = cls; box.appendChild(d); return d; };
-  if (mine) {
-    const k = CLS(mine);
-    add('<b>' + k.name + '</b> · Points <b>' + game.pts(me) + '</b>/' + game.cfg.cap + ' <span class="dim">(+' + game.cfg.gain + ' each turn) · Passive: ' + k.passive.desc + '</span>');
-    const row = document.createElement('div');
-    game.abilities(me).forEach(a => {
-      const b = document.createElement('button');
-      b.textContent = (a.replace ? '★ ' : '') + a.name + ' (' + a.cost + ')';
-      b.title = a.desc + (a.why ? ' · ' + a.why : '');
-      b.disabled = !!a.why || ended();
-      if (abMode === a.id) b.classList.add('on');
-      b.onclick = () => {
-        if (a.steps === 0) { abMode = null; abFrom = null; sel = null; play({ ab: a.id, c: me }); return; }      // no target to click: cast right away
-        abMode = abMode === a.id ? null : a.id; abFrom = null; sel = null; render();
-      };
-      row.appendChild(b);
-    });
-    const ov = game.overrunOf ? game.overrunOf(me) : null;
-    if (ov && ov.n > 0 && game.turn === me) { const b = document.createElement('button'); b.textContent = 'End Overrun'; b.onclick = () => { abMode = null; abFrom = null; sel = null; play({ ab: 'stop', c: me }); }; row.appendChild(b); }
-    box.appendChild(row);
-    add('<span class="dim">Cast an ability first, then make your normal move (an ability marked ★ replaces your move). An ability that gives check ends your turn. Glows: frozen = blue, disarmed = grey, jumping = gold, shielded = green, sanctuary = purple. Brown blocks = walls; red-outlined squares = secret mines of your team; see-through cyan = phantom, see-through purple = decoy.</span>');
-  }
-  const others = partIds().filter(p => p !== me || spectating).filter(p => game.cls[p] && (spectating || !gs.clHide || isMate(p)));
-  if (others.length) add(others.map(p => whoName(p) + ': ' + CLS(game.cls[p]).name + ' (' + game.pts(p) + ' pts)').join(' · '), 'dim');
-}
 function announceAbilities() {
   if (!game || !game.abLog || replay) return;
+  if (game.meteorLog) { const ml2 = game.meteorLog(); if (abSeenG === game) while (meteorSeen < ml2.length) { const e = ml2[meteorSeen++]; addChat('', 'Meteor! The strike on ' + sqName(e.x, e.y) + ' destroyed ' + e.n + ' piece' + (e.n === 1 ? '' : 's') + '.', 'event'); } else meteorSeen = ml2.length; }
   if (game.glitches) { const gl = game.glitches(); if (abSeenG === game) while (glitchSeen < gl.length) { const e = gl[glitchSeen++]; addChat('', e.kind === 'dup' ? 'Glitch! ' + whoName(e.c) + ' has a duplicated pawn on ' + sqName(e.x, e.y) + '.' : 'Restore Point: ' + whoName(e.c) + '\'s captured piece is back on ' + sqName(e.x, e.y) + '.', true); } else glitchSeen = gl.length; }
   if (game.mirages) { const ml2 = game.mirages(); if (abSeenG === game) while (mirageSeen < ml2.length) { const e = ml2[mirageSeen++]; addChat('', 'Mirage! ' + whoName(e.c) + ' was about to be checkmated, but that king was a decoy: the real king appears on ' + sqName(e.tx, e.ty) + '.', true); } else mirageSeen = ml2.length; }
   const log = game.abLog();
@@ -222,7 +156,7 @@ function render() {
   syncChrome();
   animAfter();
   renderDraft();
-  renderClassBar(); renderStackPick(); announceAbilities(); tidyHost();
+  renderClassBar(); renderTraitBar(); renderStackPick(); announceAbilities(); tidyHost();
   notifyTurn(); moveSounds();
   updateMoveList();
   scheduleBot();
@@ -259,7 +193,6 @@ function render() {
   }
   if (game && gtraits && !draft && !replay) {
     const mine = spectating ? null : gtraits[meId()];
-    if (mine && !$('status').textContent.includes('Your trait')) $('status').textContent += ' · Your trait: ' + TRAIT(mine).name;
     if (ended() && !revealedAll) {
       revealedAll = true;
       addChat('', 'Traits this game: ' + partIds().map(p => whoName(p) + ': ' + TRAIT(gtraits[p]).name).join(', ') + '.', true);
@@ -325,6 +258,7 @@ function renderCore() {
     if (rewSet && rewSet.has(x + ',' + y)) { d.classList.add('hint'); d.classList.add('rew'); }
     if (rngSet && rngSet.has(x + ',' + y)) { d.classList.add('rng'); if (rngF) d.classList.add('rngf'); if (!d.title) d.title = 'In range: it can shoot here if something stands on it'; }
     if (rmarkSet && rmarkSet.has(x + ',' + y)) d.classList.add('rmark');
+    if (metSet && metSet.has(x + ',' + y)) d.classList.add('met');
     markClip(d, x, y, !fogged);
     if (promoHint && game.inPromo(x, y, meId())) d.classList.add('promoz');
     if ((abFrom && abFrom.x === x && abFrom.y === y) || (chargeSq && chargeSq.x === x && chargeSq.y === y) || (foeSel && foeSel.x === x && foeSel.y === y)) d.classList.add('sel');

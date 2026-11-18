@@ -129,8 +129,8 @@ function startMulti() {
   if (needDraft()) beginDraft();
   $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
   $('hostCtl').classList.remove('hidden'); $('modeSel2').value = mode; $('roomBtn').classList.remove('hidden');
-  if (A4) { a4HostSendMates(); addChat('', 'You are ' + CN[mySeat] + '. Build your army in your own arm. Nobody sees it until everyone is ready' + (A4.teams ? ' (your partner can watch you build).' : '.'), true); render(); return; }
-  addChat('', 'You are ' + CN[mySeat] + '. Turn order: ' + game.seats.map(c => CN[c]).join(' → ') + '.', true);
+  if (A4) { a4HostSendMates(); addChat('', 'You are ' + CN[mySeat] + '. Build your army in your own arm. Nobody sees it until everyone is ready' + (A4.teams ? ' (your partner can watch you build).' : '.'), 'minor'); render(); return; }
+  addChat('', 'You are ' + CN[mySeat] + '. Turn order: ' + game.seats.map(c => CN[c]).join(' → ') + '.', 'minor');
   setTimeout(sendSucc, 1500);
   render();
 }
@@ -182,7 +182,7 @@ function announceMulti() {
     const h = game.history(), m = h[h.length - 1], bossT = Engine.NEUTRAL_T.boss;
     if (m && m.c !== 'n' && m.cap === bossT) { let left = 0; for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) { const q = game.at(x, y); if (q && q.t === bossT) left++; }
       addChat('', CN[m.c] + ' took a cell of the Boss' + (left ? ' (' + left + ' cell' + (left > 1 ? 's' : '') + ' left).' : '. The Boss is dead or claimed!'), true); }
-    if (m && m.boss && m.c !== 'n') addChat('', CN[m.c] + ' moved their Boss' + (m.cap ? ' and crushed ' + m.cap.length + ' piece' + (m.cap.length > 1 ? 's' : '') + '!' : '.'), true);
+    if (m && m.boss && m.c !== 'n') addChat('', CN[m.c] + ' moved their Boss' + (m.cap ? ' and crushed ' + m.cap.length + ' piece' + (m.cap.length > 1 ? 's' : '') + '!' : '.'), 'minor');
   }
   game.drainEvents().forEach(e => {
     if (e.e === 'trait') return;      // traits stay hidden until the end of the game
@@ -206,11 +206,11 @@ function pickNeutral(nx) {
 }
 function noteNeutral(m) {
   const h = game.history(), last = h[h.length - 1];
-  if (m && m.aim) addChat('', 'A Boar on ' + sqName(m.fx, m.fy) + ' is aiming. It charges that way next round!', true);
-  if (last && last.boss && last.c === 'n') addChat('', 'The Boss moved' + (last.cap ? ' and crushed ' + last.cap.length + ' piece' + (last.cap.length > 1 ? 's' : '') + '!' : '.'), true);
-  if (last && last.c === 'n' && last.cap && !last.boss) { const mv = game.at(last.tx, last.ty), who = mv && PNAMES[mv.t] && game.oct ? 'A ' + PNAMES[mv.t] : 'A neutral piece', what = ({ p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', c: 'commoner', i: 'imp', w: 'wraith', o: 'ox', k: 'king' }[last.cap] || (PNAMES[last.cap] || 'piece').toLowerCase()); addChat('', who + (mv && mv.t === Engine.NEUTRAL_T.boar ? ' charged and' : '') + ' captured a ' + (CN[last.capc] || '') + ' ' + what + ' on ' + sqName(last.tx, last.ty) + '!', true); }
+  if (m && m.aim) addChat('', 'A Boar on ' + sqName(m.fx, m.fy) + ' is aiming. It charges that way next round!', 'minor');
+  if (last && last.boss && last.c === 'n') addChat('', 'The Boss moved' + (last.cap ? ' and crushed ' + last.cap.length + ' piece' + (last.cap.length > 1 ? 's' : '') + '!' : '.'), 'minor');
+  if (last && last.c === 'n' && last.cap && !last.boss) { const mv = game.at(last.tx, last.ty), who = mv && PNAMES[mv.t] && game.oct ? 'A ' + PNAMES[mv.t] : 'A neutral piece', what = ({ p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', c: 'commoner', i: 'imp', w: 'wraith', o: 'ox', k: 'king' }[last.cap] || (PNAMES[last.cap] || 'piece').toLowerCase()); addChat('', who + (mv && mv.t === Engine.NEUTRAL_T.boar ? ' charged and' : '') + ' captured a ' + (CN[last.capc] || '') + ' ' + what + ' on ' + sqName(last.tx, last.ty) + '!', 'minor'); }
   game.drainEvents().forEach(e => {
-    if (e.e === 'elim') addChat('', CN[e.c] + ' was ' + (e.reason === 'checkmate' ? 'checkmated' : e.reason === 'crush' ? 'crushed by a Boss' : 'knocked out') + '.' + (e.fallen ? ' Their pieces are now neutral!' : ''), true);
+    if (e.e === 'elim') addChat('', CN[e.c] + ' was ' + (e.reason === 'checkmate' ? 'checkmated' : e.reason === 'crush' ? 'crushed by a Boss' : 'knocked out') + '.' + (e.fallen ? ' Their pieces are now neutral!' : '') + (e.heir ? ' Their pieces pass to ' + CN[e.heir] + '.' : ''), true);
   });
 }
 function maybeRunNeutral() {
@@ -468,6 +468,7 @@ function renderMulti() {
     if (rewSet && rewSet.has(x + ',' + y)) { d.classList.add('hint'); d.classList.add('rew'); }
     if (rngSet && rngSet.has(x + ',' + y)) { d.classList.add('rng'); if (rngF) d.classList.add('rngf'); if (!d.title) d.title = 'In range: it can shoot here if something stands on it'; }
     if (rmarkSet && rmarkSet.has(x + ',' + y)) d.classList.add('rmark');
+    if (metSet && metSet.has(x + ',' + y)) d.classList.add('met');
     markClip(d, x, y, !fogged);
     if (promoHint && game.inPromo(x, y, meId())) d.classList.add('promoz');
     if ((abFrom && abFrom.x === x && abFrom.y === y) || (chargeSq && chargeSq.x === x && chargeSq.y === y) || (foeSel && foeSel.x === x && foeSel.y === y)) d.classList.add('sel');

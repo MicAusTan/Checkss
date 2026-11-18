@@ -1015,6 +1015,11 @@ King's Indian Attack|Nf3 d5 g3`;
     if (!S.over) S.over = { text: 'Loaded game', win: null };
     for (let i = 0; i <= S.moves.length; i++) requestAna(i); paintAll(); return S;
   }
-  return { init, open, close, _load, _s: () => S, _SF: SF, _wp: wpOf, _pickWeak: pickWeak, _t: { buildPGN, pvSan, parseGameText, isSacrifice, lossOf, cloneWith, hangingOf, rowSet, openingAt, inBook, whyText } };
+  function reviewMoves(text, side) {      // used by the main game: open the review of a finished standard game (SAN moves). Returns an error text, or null when it loaded.
+    open(); const r = parseGameText(text);
+    if (r.error) { screen = 'import'; importDraft.text = text; importDraft.err = r.error; paintAll(); return r.error; }
+    loadImported(r.moves, side || 'w', r.meta); return null;
+  }
+  return { init, open, close, reviewMoves, _load, _s: () => S, _SF: SF, _wp: wpOf, _pickWeak: pickWeak, _t: { buildPGN, pvSan, parseGameText, isSacrifice, lossOf, cloneWith, hangingOf, rowSet, openingAt, inBook, whyText } };
 })();
 if (typeof module !== 'undefined') module.exports = Practice;

@@ -119,7 +119,7 @@ function hostPing(c, msg) {
 function adviseBot(pg) {                                    // host only: a teammate pointed at a bot's piece = advice for that bot's next turn
   if (pg.mark || !isHost || !bots[pg.owner] || pg.from === pg.owner || !sameTeam(pg.from, pg.owner) || !$('adviseChk').checked || !game.alive(pg.owner)) return;
   advice[pg.owner] = { sx: pg.sx, sy: pg.sy, tx: pg.tx, ty: pg.ty, promo: pg.promo, from: pg.from };
-  addChat('', seatName(pg.from) + ' advised ' + seatName(pg.owner) + '.', true);
+  addChat('', seatName(pg.from) + ' advised ' + seatName(pg.owner) + '.', 'minor');
   if (botTimer && botSeatToMove() === pg.owner) { clearTimeout(botTimer); botTimer = setTimeout(() => { botTimer = null; botStep(); }, 900); }
 }
 const pingBad = pg => { try { return !game.movesFor(pg.sx, pg.sy).some(m => m.tx === pg.tx && m.ty === pg.ty && (!pg.promo || m.promo === pg.promo)); } catch (e) { return false; } };
@@ -294,8 +294,8 @@ function addSpectator(c) {
     addChat(who, t);
     if (game && game.multi) broadcast({ type: 'schat', who, text: t }); else send({ type: 'schat', who, text: t });
   });
-  onOpen(c, () => { c.send({ type: 'spec', rec: buildRecord(), chat: specChatOn, clk: clkSnap() }); addChat('', 'A spectator joined (' + specs.filter(x => x.open).length + ' watching).', true); });
-  c.on('close', () => { specs = specs.filter(x => x !== c); addChat('', 'A spectator left.', true); });
+  onOpen(c, () => { c.send({ type: 'spec', rec: buildRecord(), chat: specChatOn, clk: clkSnap() }); addChat('', 'A spectator joined (' + specs.filter(x => x.open).length + ' watching).', 'minor'); });
+  c.on('close', () => { specs = specs.filter(x => x !== c); addChat('', 'A spectator left.', 'minor'); });
 }
 /* ---- host migration (multi-seat games in progress) ----
    The host tells every guest who would take over (`order`, by seat) and gives the first two a private kit (everybody's reconnect token + team, the bots).

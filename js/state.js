@@ -6,7 +6,7 @@ function teamLook(on) { const oct = !!(game && game.oct); on = on && !oct; docum
 /* ============ STATE ============ */
 const PREFIX = 'chessfriends-';
 // c/i/w/o are the neutral-mode fairy pieces; they use the hollow glyphs so they never look like real pieces.
-const GLYPH = { p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', c:'♔', i:'♘', w:'♗', o:'♖', a:'A', l:'L' };
+const GLYPH = { p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚', c:'♔', i:'♘', w:'♗', o:'♖', a:'A', l:'L', e:'♚' };      // e = the plain piece a king becomes under the Royal Queen trait (drawn as a king)
 const FAIRY = Object.values(Engine.NEUTRAL_T).join('') + Object.values(Promotion.CODE).join('') + 'pnbrqkciwoalEXHRBNghustyzjdvmf#\u03b1\u03c7\u03c9\u03bd\u03b3\u03b6\u03b4\u03b7\u03ba\u03b2\u03c0\u03b8\u03c6\u03c8\u03be\u03c4\u03c1\u03bc\u03b9\u03b5\u03bb\u03c5\u03bf';
 const SVG = inner => '<svg viewBox="0 0 24 24" aria-hidden="true">' + inner + '</svg>';
 const FAIRY_SVG = {   // custom icons for the neutral / fairy pieces (they take the owner's colour)

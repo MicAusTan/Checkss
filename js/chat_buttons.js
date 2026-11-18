@@ -1,7 +1,12 @@
 /* ============ CHAT ============ */
 function addChat(who, text, system, seat, img) {
   const d = document.createElement('div');
-  if (system) { d.className = 'sys'; d.textContent = text; }
+  if (system) {
+    d.className = 'sys' + (system === 'minor' ? ' minor' : system === 'event' ? ' evt' : ''); d.textContent = text;
+    const last = $('chatLog').lastElementChild;                       // the same note twice in a row becomes "note ×2"
+    if (last && last.className === d.className && last.dataset.t === text) { const n = (+last.dataset.n || 1) + 1; last.dataset.n = n; last.textContent = text + '  ×' + n; $('chatLog').scrollTop = $('chatLog').scrollHeight; return; }
+    d.dataset.t = text;
+  }
   else {
     const info = seat && seatInfo[seat], name = info && info.n ? info.n : (who === 'Opponent' && peerInfo && peerInfo.n ? peerInfo.n : who), pfp = info ? info.p : (who === 'Opponent' && peerInfo ? peerInfo.p : (who === 'You' ? safePfp(profile.pfp) : '')), col = seat ? seatCol(seat) : '#6b7f4e';
     d.className = 'cm'; const av = document.createElement('span'); av.className = 'av sm'; fillAvatar(av, name, pfp, col); d.appendChild(av);
@@ -31,31 +36,12 @@ function sendChat() {
 
 /* ============ BUTTONS ============ */
 $('hostBtn').onclick = host;
-Practice.init({ confirm: askConfirm, Engine, glyph: (el, t) => { setGlyph(el, t); }, onExit: () => { $('lobby').classList.remove('hidden'); } });
+let reviewBack = false;                                          // true while Practice is showing the review of the game that just ended here
+Practice.init({ confirm: askConfirm, Engine, glyph: (el, t) => { setGlyph(el, t); }, onExit: () => { if (reviewBack) { reviewBack = false; $('game').classList.remove('hidden'); } else $('lobby').classList.remove('hidden'); } });
 $('practiceBtn').onclick = () => { $('lobby').classList.add('hidden'); Practice.open(); };
 $('joinBtn').onclick = () => $('codeIn').value && join($('codeIn').value);
 $('chatBtn').onclick = sendChat;
 $('chatIn').onkeydown = e => { if (e.key === 'Enter') sendChat(); };
-$('resignBtn').onclick = async () => {
-  const can = game && game.multi ? (!ended() && game.alive(mySeat)) : (inPlay() && !ended());
-  if (!can || !(await askConfirm('Resign this game? You will lose it.', 'Resign', true))) return;
-  if (game && game.multi) {
-    if (ended() || !game.alive(mySeat)) return;
-    if (isHost) { logResign(mySeat); game.resign(mySeat); broadcast({ type: 'mresign', seat: mySeat }); announceMulti(); render(); }
-    else send({ type: 'tryResign' });
-    return;
-  }
-  if (!inPlay() || ended()) return;
-  over = (myColor === 'w' ? 'White' : 'Black') + ' resigned.';
-  overRes = myColor === 'w' ? 'b' : 'w';
-  send({ type: 'resign', color: myColor }); render();
-};
-$('drawBtn').onclick = () => {
-  if (!inPlay() || ended()) return;
-  send({ type: 'drawOffer' }); addChat('', 'You offered a draw.', true);
-};
-$('acceptDraw').onclick = () => { over = 'Draw by agreement.'; overRes = 'd'; send({ type: 'drawAccept' }); render(); };
-$('declineDraw').onclick = () => { $('drawBanner').classList.add('hidden'); send({ type: 'drawDecline' }); };
 $('newBtn').onclick = () => {
   if (replay) exitReplay();
   const m = $('modeSel2').value, swap = $('swapChk').checked;
@@ -89,8 +75,8 @@ $('specLinkBtn').onclick = () => {
   try { navigator.clipboard.writeText(url); } catch (e) { /* ignore */ }
   addChat('', 'Spectator link (copied if your browser allows): ' + url, true);
 };
-$('specChatChk').onchange = e => { specChatOn = e.target.checked; sendSpecs({ type: 'specChatSetting', on: specChatOn }); addChat('', 'Spectator chat is ' + (specChatOn ? 'on' : 'off') + '.', true); };
-$('rematchBtn').onclick = () => { send({ type: 'rematchReq' }); addChat('', 'You asked for a rematch.', true); };
+$('specChatChk').onchange = e => { specChatOn = e.target.checked; sendSpecs({ type: 'specChatSetting', on: specChatOn }); addChat('', 'Spectator chat is ' + (specChatOn ? 'on' : 'off') + '.', 'minor'); };
+$('rematchBtn').onclick = () => { send({ type: 'rematchReq' }); addChat('', 'You asked for a rematch.', 'minor'); };
 window.onresize = () => game && render();
 
 // Auto-join from a shared link like ?join=abc12

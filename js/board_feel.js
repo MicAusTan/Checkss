@@ -343,7 +343,7 @@ $('boardWrap').addEventListener('click', e => {             // click a queued pr
   else if (e.ctrlKey || e.metaKey) { preQ = []; drawOverlay(); e.stopPropagation(); e.preventDefault(); }
 }, true);
 
-function preToast(msg) { addChat('', msg, true); }
+function preToast(msg) { addChat('', msg, 'minor'); }
 function preRun() {                                          // when your turn comes, the first queued premove is played if it is still legal; otherwise the whole queue is dropped
   if (!preQ.length || preBusy) return;
   if (game && game.reward && game.reward()) return;

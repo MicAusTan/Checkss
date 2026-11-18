@@ -224,13 +224,14 @@ function mlText(g, e) {
 function canReplay() { return !!(game && !M && !draft && game.history().length > 0 && (ended() || !(gs.fog || MODES[mode].v.hidden))); }
 function updateMoveList() {
   const box = $('moveBox'), live = liveGame();
-  if (!live || M || !(replay || canReplay())) { box.classList.add('hidden'); return; }
+  if (!live || M || !(replay || canReplay())) { box.classList.add('hidden'); $('capBox').classList.add('hidden'); return; }
   box.classList.remove('hidden');
   const hist = live.history(), list = $('moveList');
   if (!ml || ml.src !== live || ml.applied > hist.length) {
     ml = { src: live, g: makeEngine(mode, live.multi ? live.seats : null, gs, gtraits, gclasses).game, applied: 0, ri: 0, ai: 0, items: [], drawn: 0 };
     list.innerHTML = '';
   }
+  ml.caps = ml.caps || [];
   while (ml.applied < hist.length) {
     while (ml.ri < resignLog.length && resignLog[ml.ri].at <= ml.applied) { ml.g.resign(resignLog[ml.ri].seat); ml.ri++; }
     const abs = live.abLog ? live.abLog() : [];
@@ -243,7 +244,10 @@ function updateMoveList() {
       cls = ml.g.bug ? 'm-' + e.seat : ml.g.multi ? 'm-' + (e.c || (p && p.c)) : 'p-' + (p ? p.c : 'w');
       if (e.c === 'n') text = '◆' + text;
     } catch (x) { /* keep placeholder */ }
+    let mover = who; try { if (e.c === 'n') mover = 'n'; else if (ml.g.multi) mover = e.c || (ml.g.at(e.fx, e.fy) || {}).c; } catch (x) { /* unknown mover */ }
+    if (ml.tally === undefined) ml.tally = capTally(ml.g);
     if (e.c === 'n') ml.g.neutralApply(e); else ml.g.move(e);
+    { const aft = capTally(ml.g); ml.caps.push(ml.tally && aft ? capDiff(ml.tally, aft, mover) : []); ml.tally = aft; }
     ml.items.push({ text, cls, who }); ml.applied++;
   }
   for (; ml.drawn < ml.items.length; ml.drawn++) {
@@ -259,5 +263,6 @@ function updateMoveList() {
   list.querySelectorAll('.mv').forEach(c => c.classList.toggle('cur', +c.dataset.i === cur - 1));
   $('moveCount').textContent = '(' + hist.length + ')';
   if (!replay && ml.scrolled !== hist.length) { list.scrollTop = list.scrollHeight; ml.scrolled = hist.length; }
+  renderCaptured();
 }
 

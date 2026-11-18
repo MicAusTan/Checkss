@@ -366,7 +366,7 @@ const LET = 'abcdefghijklmnopqrstuvwxyz';
 const sqName = (x, y) => (x < 26 ? LET[x] : LET[Math.floor(x / 26) - 1] + LET[x % 26]) + (y + 1);
 let mySeat = 'r', conns = [], mstarted = false, lobbyBase = '', mseats = null, gs = { dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false };
 let nBusy = false, gtraits = null, draft = null, revealedAll = false;
-let rewardPick = null, rewSet = null, rngSet = null, rngF = false, foeSel = null, foeSet = null, rmarkSet = null, clipMap = null, selIdx = 0, glitchSeen = 0, mirageSeen = 0, mineSet = null, gclasses = null, abFrom = null, chargeSq = null, abMode = null, abSet = null, revealedCl = false, pendTraits = null, abSeenG = null, abSeen = 0;
+let rewardPick = null, rewSet = null, rngSet = null, rngF = false, foeSel = null, foeSet = null, rmarkSet = null, metSet = null, meteorSeen = 0, clipMap = null, selIdx = 0, glitchSeen = 0, mirageSeen = 0, mineSet = null, gclasses = null, abFrom = null, chargeSq = null, abMode = null, abSet = null, revealedCl = false, pendTraits = null, abSeenG = null, abSeen = 0;
 let myToken = null, roomCode = null, spectateMode = false, spectating = false, specs = [], everJoined = false, peerToken = null;
 let resignLog = [], replay = null, retryTimer = null, retries = 0;
 let succ = null, retryCode = null, keepRetries = false;      // host migration (guests): the host's list of successors (+ a private kit for the first two), and the room id the current reconnect attempt aims at
@@ -379,7 +379,7 @@ function drawWhy() {                             // multiplayer draw reason: onl
   return 'only bare kings are left (checkmate is impossible)';
 }
 const ended = () => over || (game && (game.multi ? (!!game.winner() || game.drawn) : ['checkmate', 'stalemate', 'draw', 'bare'].includes(game.status())));
-const SPEC_OK = new Set(['clock', 'timeout', 'mtimeout', 'move', 'resign', 'drawAccept', 'newgame', 'traits', 'mmove', 'nmove', 'mresign', 'mchat', 'schat', 'specChatSetting']);
+const SPEC_OK = new Set(['clock', 'timeout', 'mtimeout', 'move', 'resign', 'drawAccept', 'newgame', 'traits', 'mmove', 'nmove', 'mresign', 'mdrawEnd', 'tbDo', 'mchat', 'schat', 'specChatSetting']);
 function sendSpecs(msg) {
   if (!isHost || !specs.length || !SPEC_OK.has(msg.type)) return;
   specs.forEach(c => c.open && c.send(msg));

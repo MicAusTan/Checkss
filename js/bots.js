@@ -2,7 +2,8 @@
 const isBotId = pid => (game.multi ? !!bots[pid] : !!(bots2p && pid !== myColor));
 const secretSeat = sd => !!(game && game.cls && game.cls[sd] && Engine.CLASSES[game.cls[sd]] && Engine.CLASSES[game.cls[sd]].secret);      // bots never play a secret class (Glitch)
 function botSeatToMove() {
-  if (!isHost || !game || spectating || replay || draft || M || game.bug || ended() || inRoom) return null;
+  if (!isHost || !game || spectating || replay || draft || M || ended() || inRoom) return null;
+  if (game.bug) return game.seats.find(s => bots[s] && game.alive(s) && game.canMove(s) && !game.stuck(game.info[s][0])) || null;      // Bughouse: the two boards run side by side, so any bot whose board is waiting for its colour can go
   if (game.multi) { if (game.neutralPending) return null; const sd = game.turn; return bots[sd] && game.alive(sd) && !secretSeat(sd) ? sd : null; }
   return bots2p && game.turn !== myColor && !secretSeat(game.turn) ? game.turn : null;
 }
@@ -10,7 +11,7 @@ function scheduleBot() {
   const sd = botSeatToMove();
   if (botTimer || botBusy || !sd) return;
   let extra = 0; const wait = +$('botWaitSel').value || 0;
-  if (game.multi && wait > 0 && !advice[sd] && game.teams && game.seats.some(c => c !== sd && sameTeam(c, sd) && !bots[c] && game.alive(c))) { extra = wait * 1000; advWait = sd; renderStrip(); }      // give a human teammate a few seconds to advise
+  if (game.multi && !game.bug && wait > 0 && !advice[sd] && game.teams && game.seats.some(c => c !== sd && sameTeam(c, sd) && !bots[c] && game.alive(c))) { extra = wait * 1000; advWait = sd; renderStrip(); }      // give a human teammate a few seconds to advise
   const base = +$('botSpeedSel').value; botTimer = setTimeout(() => { botTimer = null; botStep(); }, (base ? base + Math.random() * base * 0.7 : 0) + extra);      // a short pause so you can follow (the host picks how short)
 }
 function botStep() {
@@ -18,11 +19,11 @@ function botStep() {
   if (!sd) return;
   let m = null;
   advWait = null;
-  if (game.multi && advice[sd]) {                           // a teammate pointed at one of this bot's pieces: play it if it is legal now
+  if (game.multi && !game.bug && advice[sd]) {                           // a teammate pointed at one of this bot's pieces: play it if it is legal now
     const adv = advice[sd]; delete advice[sd];
     const c = game.moves(adv.sx, adv.sy).filter(q => q.tx === adv.tx && q.ty === adv.ty);
     m = c.find(q => (q.promo || null) === (adv.promo || null)) || (adv.promo ? null : (c.find(q => !q.promo) || c.find(q => q.promo === 'q') || c[0])) || null;
-    addChat('', m ? seatName(sd) + ' followed ' + seatName(adv.from) + '\'s advice.' : seatName(sd) + ' couldn\'t play ' + seatName(adv.from) + '\'s advice (it is not legal now) and chose its own move.', true);
+    addChat('', m ? seatName(sd) + ' followed ' + seatName(adv.from) + '\'s advice.' : seatName(sd) + ' couldn\'t play ' + seatName(adv.from) + '\'s advice (it is not legal now) and chose its own move.', 'minor');
   }
   if (!m) {
     const lvl = game.multi ? bots[sd] : bots2p;
@@ -85,7 +86,7 @@ function startVsBot(level) {
   bots2p = level; applyColorPref();
   $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
   $('hostCtl').classList.remove('hidden'); $('modeSel2').value = mode;
-  addChat('', 'You are playing against a bot (' + level + ').', true);
+  addChat('', 'You are playing against a bot (' + level + ').', 'minor');
   if (needDraft()) beginDraft();
   render();
 }
@@ -94,7 +95,7 @@ $('botEasy').onclick = () => startVsBot('easy');
 $('botNormal').onclick = () => startVsBot('normal');
 $('botHard').onclick = () => startVsBot('hard');
 const addLobbyBot = level => {
-  if (!isHost || mstarted || !MODES[mode].multi || MODES[mode].bug) return;
+  if (!isHost || mstarted || !MODES[mode].multi) return;
   if (1 + conns.length + lobbyBots.length >= maxSeats()) return;
   { const cnt = teamCounts(); lobbyBots.push({ level, team: lightestTeam(cnt) }); } renderRoster();
 };
@@ -117,7 +118,7 @@ function botTimeSetup() {
 botTimeSetup();
 $('botTakeBtn').onclick = () => {
   const sd = $('removeSel').value;
-  if (!isHost || !game || !game.multi || game.bug || !sd || !game.alive(sd) || sd === mySeat) return;
+  if (!isHost || !game || !game.multi || !sd || !game.alive(sd) || sd === mySeat) return;
   if (secretSeat(sd)) { addChat('', 'A bot can\'t take over that seat.', true); return; }      // (generic wording: it must not reveal a secret class)
   bots[sd] = 'normal'; addChat('', CN[sd] + ' is now played by a bot (Normal).', true); render();
 };

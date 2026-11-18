@@ -8,7 +8,7 @@ function send(msg) {
 
 function readGS() {
   return { dropZone: $('dropSel').value, fog: $('fogChk').checked, teams: $('teamsChk').checked, board: $('boardSel').value, height: +$('heightSel').value,
-    neutralSet: $('nsetSel').value, fallen: $('fallenChk').checked, neutralDrop: $('neutralDropChk').checked, impRoam: $('impRoamChk').checked, traits: $('traitsChk').checked, offers: +$('offerSel').value,
+    neutralSet: $('nsetSel').value, fallen: $('fallenChk').checked, neutralDrop: $('neutralDropChk').checked, impRoam: $('impRoamChk').checked, traits: $('traitsChk').checked, offers: +$('offerSel').value, trShow: $('trShowChk').checked,
     c960: $('c960Chk').checked, back960: $('c960Chk').checked ? Engine.randomBack960() : null,
     classes: $('classesChk').checked, clStart: +$('clStart').value || 0, clGain: +$('clGain').value || 0, clCap: +$('clCap').value || 8, clPer: +$('clPer').value || 0,
     clSum: +$('clSum').value || 4, clUlt: $('clUlt').checked, clHide: $('clHide').checked, clFree: $('clFree').checked, clHideFx: $('clHideFx').checked,
@@ -27,7 +27,7 @@ function newGame(m, s, o) {
   mode = m; sel = null; over = null; overRes = null; setupMsg = ''; pal = 'p'; centered = false; cylShift = 0;
   gs = Object.assign({}, GS_DEFAULTS, o.gs || gs);
   gtraits = o.traits || null; draft = null; revealedAll = false; resignLog = []; timedOut = new Set();
-  gclasses = o.classes || null; abMode = null; abFrom = null; mirageSeen = 0; foeSel = null; glitchSeen = 0; abSet = null; revealedCl = false; pendTraits = null;
+  gclasses = o.classes || null; abMode = null; abFrom = null; mirageSeen = 0; foeSel = null; glitchSeen = 0; meteorSeen = 0; abSet = null; revealedCl = false; pendTraits = null;
   gs.traits = !!gs.traits && ((MODES[m].opts || []).includes('traits'));
   gs.classes = !!gs.classes && ((MODES[m].opts || []).includes('classes'));
   gs.foeMoves = !!gs.foeMoves && FOES_MODES.includes(m) && !gs.fog;      // enemy-move preview: off in hidden-information modes
@@ -83,7 +83,7 @@ function handleMessage(msg) {
       stopRetry(); spectating = true; specChatAllowed = !!msg.chat; loadRecord(msg.rec); clkApplySnap(msg.clk);
       myColor = 'w'; if (game && game.multi) mySeat = game.seats[0];
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
-      addChat('', 'You are watching this game as a spectator.', true); render(); break;
+      addChat('', 'You are watching this game as a spectator.', 'minor'); render(); break;
     case 'schat': addChat(String(msg.who), String(msg.text).slice(0, 300)); break;
     case 'specChatSetting': specChatAllowed = !!msg.on; addChat('', specChatAllowed ? 'The host has switched spectator chat on.' : 'The host has switched spectator chat off.', true); break;
     case 'init':
@@ -95,7 +95,7 @@ function handleMessage(msg) {
       $('rematchBtn').classList.remove('hidden'); render(); break;
     case 'move': if (game.move(msg.m)) { sel = null; announce(); render(); } break;
     case 'resign':
-      over = (msg.color === 'w' ? 'White' : 'Black') + ' resigned.';
+      over = resignText(msg.color); addChat('', over, 'event');
       overRes = msg.color === 'w' ? 'b' : 'w'; render(); break;
     case 'newgame':
       newGame(msg.mode || mode, msg.settings, { gs: msg.gs, seats: msg.seats });
@@ -122,9 +122,9 @@ function handleMessage(msg) {
       }
       if (gs.traits || gs.classes) draft = { kind: gs.traits ? 'trait' : 'class', mine: null, picked: null };
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
-      if (game.teams) addChat('', 'Teams: ' + teamNames('r') + ' vs ' + teamNames('b') + '.', true);
-  Object.keys(bots).forEach(sd => addChat('', CN[sd] + ' is a bot (' + bots[sd] + ').', true));
-  addChat('', game.bug ? 'You are ' + CN[mySeat] + ' (Board ' + game.info[mySeat][0] + ', ' + (game.info[mySeat][1] === 'w' ? 'White' : 'Black') + '). Your partner is ' + CN[game.partner[mySeat]] + '. Both boards play at the same time.' : 'You are ' + CN[mySeat] + '. Turn order: ' + game.seats.map(c => CN[c]).join(' → ') + '.', true);
+      if (game.teams) addChat('', 'Teams: ' + teamNames('r') + ' vs ' + teamNames('b') + '.', 'minor');
+  Object.keys(bots).forEach(sd => addChat('', CN[sd] + ' is a bot (' + bots[sd] + ').', 'minor'));
+  addChat('', game.bug ? 'You are ' + CN[mySeat] + ' (Board ' + game.info[mySeat][0] + ', ' + (game.info[mySeat][1] === 'w' ? 'White' : 'Black') + '). Your partner is ' + CN[game.partner[mySeat]] + '. Both boards play at the same time.' : 'You are ' + CN[mySeat] + '. Turn order: ' + game.seats.map(c => CN[c]).join(' → ') + '.', 'minor');
       render(); break;
     case 'nmove': if (game && game.neutralApply && game.neutralApply(msg.m)) { noteNeutral(msg.m); render(); if (!game.neutralPending) announceMulti(); } break;
     case 'draft': draft = { kind: msg.kind || 'trait', mine: msg.offers, picked: null }; render(); break;
@@ -149,19 +149,15 @@ function handleMessage(msg) {
     case 'clock': if (!isHost && game) { clkEnsure(); if (clk) { clk.t = msg.t || clk.t; clk.turn = msg.turn; clk.run = !!msg.run; clk.at = performance.now(); clk.len = game.history().length; clkRender(); } } break;
     case 'mchat': addChat(msg.from === mySeat ? 'You' : CN[msg.from], String(msg.text || '').slice(0, 300), false, msg.from, safeImg(msg.img)); break;
     case 'rematchReq': addChat('', 'Opponent wants a rematch.', true); break;
-    case 'drawOffer':
-      if (inPlay() && !ended()) $('drawBanner').classList.remove('hidden');
-      addChat('', 'Opponent offered a draw.', true); break;
-    case 'drawAccept': over = 'Draw by agreement.'; overRes = 'd'; render(); break;
+    case 'drawOffer': case 'drawWithdraw': case 'drawDecline': case 'drawAccept': drawGot(msg.type); break;
     case 'endRound': over = 'Round ended by the host.'; overRes = 'd'; render(); break;
     case 'ready':
       if (M) {
         const prob = setupProblem(myColor === 'w' ? 'b' : 'w', msg.setup);       // an army that breaks the rules (e.g. a modified client ignoring the piece limits) is not accepted
         if (prob) { addChat('', "Opponent's army was rejected (" + prob + '). Ask them to rebuild it, or end the round.', true); render(); break; }
-        M.opp = { round: msg.round, setup: msg.setup }; addChat('', 'Opponent is ready.', true); tryStart(); render();
+        M.opp = { round: msg.round, setup: msg.setup }; addChat('', 'Opponent is ready.', 'minor'); tryStart(); render();
       }
       break;
-    case 'drawDecline': addChat('', 'Opponent declined the draw.', true); break;
     case 'chat':
       addChat('Opponent', String(msg.text || '').slice(0, 300), false, undefined, safeImg(msg.img));
       if (isHost) sendSpecs({ type: 'schat', who: myColor === 'w' ? 'Black' : 'White', text: String(msg.text).slice(0, 300) });

@@ -111,41 +111,103 @@ const Engine = (() => {
    * appears on that other board. Check only counts on the king's own board.
    * (No castling or en passant in this version.)
    */
-  function createAlice() {
+  function createAlice(v) {
     const w = 8, h = 8, idx = (x, y) => y * w + x, inB = (x, y) => x >= 0 && y >= 0 && x < w && y < h;
-    const opp = c => (c === 'w' ? 'b' : 'w'), defs = STANDARD.pieces;
+    const opp = c => (c === 'w' ? 'b' : 'w');
+    // ---- class traits (see TRAITS). Supported: starting-army changes, piece-move changes, pawn changes, and the "can't be captured by" traits.
+    // Not available here (flagged noAlice): Martyr, Booby Trap, Swap, Friendly Fire, Champion Pawns (they need machinery this simple engine does not have).
+    const TR = {}, TRid = {}; ['w', 'b'].forEach(c => { const id = (v && v.traits && v.traits[c]) || '', t = TRAITS[id]; if (t && !t.noAlice) { TR[c] = t; TRid[c] = id; } });
+    const PCS = Object.assign({}, STANDARD.pieces, EXTRA_PIECES), dcache = {};
+    const defsOf = c => (TR[c] && TR[c].defs ? (dcache[c] || (dcache[c] = Object.assign({}, PCS, TR[c].defs(c === 'w' ? [0, 1] : [0, -1])))) : PCS);
+    const pflags = c => (TR[c] && TR[c].pawn) || {};
+    // can piece p never take t? (Shield Wall, Bodyguard, Glass Cannon's queen)
+    const blk = (B, p, t, tx, ty) => {
+      if (!t || t.c === p.c) return false;
+      const k = TRid[t.c];
+      if (k === 'shieldWall' && p.t === 'n' && t.t === 'p') return true;
+      if (k === 'glassCannon' && p.t === 'p' && t.t === 'q') return true;
+      if (k === 'ironQueen' && t.t === 'q' && 'bnal'.includes(p.t)) return true;
+      if (k === 'phalanx' && p.t === 'b' && t.t === 'p') { for (const sx of [-1, 1]) if (inB(tx + sx, ty)) { const q = B[idx(tx + sx, ty)]; if (q && q.t === 'p' && q.c === t.c) return true; } }
+      if (k === 'bodyguard' && p.t === 'p' && t.t !== 'k') {
+        for (let i = 0; i < 64; i++) { const q = B[i]; if (q && q.t === 'k' && q.c === t.c) return Math.abs((i % w) - tx) <= 1 && Math.abs(Math.floor(i / w) - ty) <= 1; }
+      }
+      return false;
+    };
     let S = { L: [new Array(64).fill(null), new Array(64).fill(null)], turn: 'w' };
     STANDARD.setup.forEach((row, i) => [...row].forEach((ch, x) => {
       if (ch !== '.') S.L[0][idx(x, 7 - i)] = { t: ch.toLowerCase(), c: ch === ch.toUpperCase() ? 'w' : 'b' };
     }));
+    ['w', 'b'].forEach(c => {                                   // starting-army traits (Twin Towers, Flanker, Overlord, ...)
+      if (!TR[c] || !TR[c].setup) return;
+      const yb = c === 'w' ? 0 : 7, yp = c === 'w' ? 1 : 6, back = [], pawns = [];
+      for (let x = 0; x < 8; x++) { const a = S.L[0][idx(x, yb)], b = S.L[0][idx(x, yp)]; back.push(a ? a.t : '.'); pawns.push(b ? b.t : '.'); }
+      TR[c].setup(back, pawns);
+      for (let x = 0; x < 8; x++) { S.L[0][idx(x, yb)] = back[x] === '.' ? null : { t: back[x], c }; S.L[0][idx(x, yp)] = pawns[x] === '.' ? null : { t: pawns[x], c }; }
+    });
     const hist = [], stC = new WeakMap();
 
     function reach(B, x, y, atk) {
-      const p = B[idx(x, y)], out = [], def = defs[p.t];
+      const p = B[idx(x, y)], out = [], def = defsOf(p.c)[p.t] || {};
       const add = (tx, ty, e) => out.push(Object.assign({ tx, ty }, e));
+      const can = (t, tx, ty) => !t || (t.c !== p.c && !blk(B, p, t, tx, ty));        // empty, or a capturable enemy
       if (p.t === 'p') {
-        const d = p.c === 'w' ? 1 : -1, last = p.c === 'w' ? 7 : 0, start = p.c === 'w' ? 1 : 6;
-        const push = (tx, ty, e) => (ty === last ? STANDARD.promoteTo.forEach(t => add(tx, ty, { promo: t })) : add(tx, ty, e));
+        const d = p.c === 'w' ? 1 : -1, F = pflags(p.c);
+        const last = (p.c === 'w' ? 7 : 0) + (F.promoShift ? F.promoShift * d : 0), start = p.c === 'w' ? 1 : 6;
+        const push = (tx, ty, e) => (ty === last && !F.nopromo ? STANDARD.promoteTo.forEach(t => add(tx, ty, { promo: t })) : add(tx, ty, e));
+        const foeAt = (tx, ty) => { const t = inB(tx, ty) && B[idx(tx, ty)]; return t && t.c !== p.c && !blk(B, p, t, tx, ty) ? t : null; };
         if (!atk && inB(x, y + d) && !B[idx(x, y + d)]) {
           push(x, y + d);
-          if (y === start && !B[idx(x, y + 2 * d)]) add(x, y + 2 * d);
-        }
-        for (const dx of [-1, 1]) {
+          if ((y === start || (F.march && y === start + d) || F.charge) && !F.single && inB(x, y + 2 * d) && !B[idx(x, y + 2 * d)]) add(x, y + 2 * d);
+        } else if (F.brawl && foeAt(x, y + d)) push(x, y + d);
+        if (F.side && !atk) for (const dx of [-1, 1]) if (inB(x + dx, y) && !B[idx(x + dx, y)]) add(x + dx, y);
+        if (F.back && !atk && inB(x, y - d) && !B[idx(x, y - d)]) add(x, y - d);
+        if (F.sidecap) for (const dx of [-1, 1]) if (foeAt(x + dx, y)) add(x + dx, y);
+        if (F.backcap) for (const dx of [-1, 1]) if (foeAt(x + dx, y - d)) add(x + dx, y - d);
+        if (F.sling && foeAt(x, y + 2 * d)) push(x, y + 2 * d);
+        for (const dx of F.nocap ? [] : [-1, 1]) {
           const tx = x + dx, ty = y + d;
-          if (inB(tx, ty) && (atk || (B[idx(tx, ty)] && B[idx(tx, ty)].c !== p.c))) push(tx, ty);
+          if (inB(tx, ty) && (atk ? !(B[idx(tx, ty)] && blk(B, p, B[idx(tx, ty)], tx, ty)) : foeAt(tx, ty))) push(tx, ty);
         }
+        if (F.storm && !atk) for (const dx of [-1, 1]) if (inB(x + dx, y + d) && !B[idx(x + dx, y + d)]) push(x + dx, y + d);      // Pawn Storm
         return out;
       }
       for (const [dx, dy] of def.leap || []) {
         const tx = x + dx, ty = y + dy;
-        if (inB(tx, ty) && (!B[idx(tx, ty)] || B[idx(tx, ty)].c !== p.c)) add(tx, ty);
+        if (inB(tx, ty) && can(B[idx(tx, ty)], tx, ty)) add(tx, ty);
+      }
+      if (!atk) for (const [dx, dy] of def.leapNC || []) {      // moves only (never captures)
+        const tx = x + dx, ty = y + dy;
+        if (inB(tx, ty) && !B[idx(tx, ty)]) add(tx, ty);
       }
       for (const [dx, dy] of def.slide || []) {
-        let tx = x + dx, ty = y + dy;
-        while (inB(tx, ty)) {
+        let tx = x + dx, ty = y + dy, n = 1;
+        while (inB(tx, ty) && n <= (def.max || 99)) {
           const t = B[idx(tx, ty)];
-          if (!t) add(tx, ty); else { if (t.c !== p.c) add(tx, ty); break; }
-          tx += dx; ty += dy;
+          if (!t) add(tx, ty); else { if (can(t, tx, ty)) add(tx, ty); break; }
+          tx += dx; ty += dy; n++;
+        }
+      }
+      if (def.kwalk) for (const [lx, ly] of STANDARD.pieces.n.leap) {        // knight-shaped squares reached by walking: one connecting square must be free
+        const tx = x + lx, ty = y + ly;
+        if (!inB(tx, ty)) continue;
+        const sgx = Math.sign(lx), sgy = Math.sign(ly), m1 = Math.abs(lx) === 2 ? [sgx, 0] : [0, sgy], m2 = [sgx, sgy];
+        const free = m => inB(x + m[0], y + m[1]) && !B[idx(x + m[0], y + m[1])];
+        if ((free(m1) || free(m2)) && can(B[idx(tx, ty)], tx, ty)) add(tx, ty);
+      }
+      if (def.plus) {                                          // Juggernaut rooks: along a clear line and 1 square to either side of it
+        const seen = new Set();
+        for (const [dx, dy] of ROOK) {
+          const px = -dy, py = dx;
+          for (let dd = 1; dd <= def.plus; dd++) {
+            const lx = x + dx * dd, ly = y + dy * dd;
+            if (!inB(lx, ly) || B[idx(lx, ly)]) break;
+            for (const sg of [-1, 1]) {
+              const tx = lx + px * sg, ty = ly + py * sg, key = tx + ',' + ty;
+              if (!inB(tx, ty) || seen.has(key)) continue;
+              seen.add(key);
+              if (can(B[idx(tx, ty)], tx, ty)) add(tx, ty);
+            }
+          }
         }
       }
       return out;
@@ -257,6 +319,11 @@ const Engine = (() => {
   const BOT_VAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0, c: 2, i: 3, w: 3, o: 3, a: 6, l: 6 };
   const bv = t => BOT_VAL[t] || 0;
   function botChoose(game, seat, level) {
+    if (game.bug) {                                          // Bughouse: a seat plays one colour on one board; pick on that board's own 2-player engine (Easy/Normal only)
+      const info = game.info[seat]; if (!info || !game.canMove(seat) || game.stuck(info[0])) return null;
+      const m = botChoose(game.boards[info[0]], info[1], level === 'hard' ? 'normal' : level);
+      return m ? Object.assign({ seat }, m) : null;
+    }
     const rw = game.reward ? game.reward() : null;           // a Boss was just killed by this bot: bring back its most valuable fallen piece
     if (rw && rw.c === seat) {
       const best = rw.kinds.slice().sort((x, y) => bv(y) - bv(x))[0], sq = best ? game.rewardFor(best) : [];
@@ -360,6 +427,7 @@ const Engine = (() => {
     twinTowers:    { name: 'Twin Towers', desc: 'Both of your knights are replaced by rooks.', setup: back => back.forEach((t, i) => { if (t === 'n') back[i] = 'r'; }) },
     bishopBrigade: { name: 'Bishop Brigade', desc: 'Both of your knights are replaced by bishops.', setup: back => back.forEach((t, i) => { if (t === 'n') back[i] = 'b'; }) },
     knightCavalry: { name: 'Knight Cavalry', desc: 'Both of your bishops are replaced by knights.', setup: back => back.forEach((t, i) => { if (t === 'b') back[i] = 'n'; }) },
+    rookery:       { name: 'Rookery', desc: 'Both of your bishops are replaced by rooks.', setup: back => back.forEach((t, i) => { if (t === 'b') back[i] = 'r'; }) },
     // ---- piece movement ----
     longKing:      { name: 'Long Reach King', desc: 'Your king reaches every square in the 5×5 around it except the four corners, but it cannot jump: a square 2 away in a straight line needs the square between to be empty, and a knight-shaped square needs at least one of its two connecting squares to be empty.', defs: () => ({ k: { slide: ROOK, max: 2, leap: BISHOP, kwalk: true } }) },
     steadfast:     { name: 'Steadfast Knights', desc: 'Your knights can also step 1 square: straight steps can capture, diagonal steps can only move to empty squares.', defs: () => ({ n: { leap: knightOffsets().concat(ROOK), leapNC: BISHOP } }) },
@@ -374,30 +442,43 @@ const Engine = (() => {
     stags:         { name: 'Stag Knights', desc: 'Your knights can also jump exactly 2 squares straight in any direction.', defs: () => ({ n: { leap: knightOffsets().concat([[2, 0], [-2, 0], [0, 2], [0, -2]]) } }) },
     // ---- pawns ----
     brawlers:      { name: 'Brawlers', desc: 'Your pawns can also capture straight ahead.', pawn: { brawl: true } },
+    pawnStorm:     { name: 'Pawn Storm', desc: 'Your pawns can also step 1 square diagonally forward onto an empty square.', pawn: { storm: true } },
+    longMarch:     { name: 'Long March', desc: 'Your pawns can make their 2-square step from their starting rank or from the rank in front of it.', pawn: { march: true } },
     wanderers:     { name: 'Wanderers', desc: 'Your pawns can also step 1 square sideways.', pawn: { side: true } },
     charge:        { name: 'Charge', desc: 'Your pawns can jump 2 squares forward from any rank, not just their first move.', pawn: { charge: true } },
     knuckle:       { name: 'Knuckle Pawns', desc: 'Your pawns can also capture sideways.', pawn: { sidecap: true } },
     retreaters:    { name: 'Retreaters', desc: 'Your pawns can also step 1 square backwards.', pawn: { back: true } },
     earlyBloom:    { name: 'Early Bloom', desc: 'Your pawns promote one rank sooner.', pawn: { promoShift: -1 } },
     // ---- special rules ----
-    martyr:        { name: 'Martyr', desc: 'If your queen is captured (by anything but a king), the capturing piece is destroyed too.' },
+    martyr:        { name: 'Martyr', noAlice: true, desc: 'If your queen is captured (by anything but a king), the capturing piece is destroyed too.' },
     conqueror:     { name: 'Conqueror', desc: 'When you checkmate someone, their pieces become yours (their king becomes a commoner).', multi: true },
     lastStand:     { name: 'Last Stand', desc: 'If you are knocked out, your pieces turn neutral and keep attacking on their own.', multi: true },
+    // Team traits (multiplayer team games only). `team: true` keeps them out of the normal random draft: they are meant to be chosen by a whole team together.
+    inheritance:   { name: 'Inheritance', multi: true, team: true, desc: 'If you are checkmated, your pieces pass to your partner instead of turning gray.' },
+    openRanks:     { name: 'Open Ranks', multi: true, team: true, desc: 'Your sliding pieces can pass through your partner\'s pieces (but cannot stop on them).' },
     backstabbers:  { name: 'Backstabbers', desc: 'Your pawns can also capture diagonally backward.', pawn: { backcap: true } },
     slingers:      { name: 'Slingers', desc: 'Your pawns can also capture 2 squares straight ahead, jumping the square in front.', pawn: { sling: true } },
     shieldWall:    { name: 'Shield Wall', desc: 'Your pawns cannot be captured by knights.' },
+    ironQueen:     { name: 'Iron Queen', desc: 'Your queen cannot be captured by bishops or knights.' },
+    phalanx:       { name: 'Phalanx', desc: 'Your pawns standing side by side with another of your pawns cannot be captured by bishops.' },
+    // Royal Queen: the queen takes the king's place as the one royal piece (check / checkmate / never moves into capture) and the old king becomes an ordinary piece ('e', drawn as a king).
+    // Done by a type swap at setup: the queen becomes engine type 'k' (shown as a queen by the UI), so all the check logic works unchanged. 2-player engines only (see only2p / noAlice / noBug / noDrops).
+    royalQueen:    { name: 'Royal Queen', desc: 'Your queen is your royal piece: she is the one that can be checkmated, and she can never move into capture. Your king is an ordinary piece that can be captured. If your queen is your only piece left, you lose.',
+                     only2p: true, noAlice: true, noBug: true, noDrops: true,
+                     setup: back => { const q = back.indexOf('q'), k = back.indexOf('k'); if (q >= 0 && k >= 0) { back[q] = 'k'; back[k] = 'e'; } },
+                     defs: () => ({ k: STANDARD.pieces.q, e: STANDARD.pieces.k }) },
     bodyguard:     { name: 'Bodyguard', desc: 'Your other pieces standing next to your king cannot be captured by pawns.' },
-    boobyTrap:     { name: 'Booby Trap', desc: 'The first piece that gives check to your king is destroyed.' },
-    swap:          { name: 'Swap', desc: 'Once per game, instead of moving, swap two of your pieces (not kings or pawns).' },
+    boobyTrap:     { name: 'Booby Trap', noAlice: true, desc: 'The first piece that gives check to your king is destroyed.' },
+    swap:          { name: 'Swap', noAlice: true, noBug: true, desc: 'Once per game, instead of moving, swap two of your pieces (not kings or pawns).' },
     loneWolf:      { name: 'Lone Wolf', desc: 'Your king reaches every square in the full 5×5 around it: it jumps to the knight-shaped squares, and the other squares need the square between to be empty. Your rooks move at most 3 squares and your bishops at most 4.', defs: () => ({ k: { slide: EDGE8, max: 2, leap: KN8 }, r: { slide: ROOK, max: 3 }, b: { slide: BISHOP, max: 4 } }) },
-    glassCannon:   { name: 'Glass Cannon', desc: 'Your queen can also jump like a knight, but you start without one knight.', setup: back => { const i = back.indexOf('n'); if (i >= 0) back[i] = '.'; }, defs: () => ({ q: { slide: EDGE8, leap: knightOffsets() } }) },
+    glassCannon:   { name: 'Glass Cannon', desc: 'Your queen can also jump like a knight, and pawns cannot capture her. But your king is fragile: it can only step straight, never diagonally.', defs: () => ({ q: { slide: EDGE8, leap: knightOffsets() }, k: { leap: ROOK } }) },
     overlord:      { name: 'Overlord', desc: 'You start with a second queen in place of an edge pawn, but your pawns move 1 square at a time and can never capture.', setup: (back, pawns) => { pawns[0] = 'q'; }, pawn: { nocap: true, single: true } },
-    friendlyFire:  { name: 'Friendly Fire', desc: 'Your pieces can capture your own pieces (never your king). Click the target twice to confirm.' },
+    friendlyFire:  { name: 'Friendly Fire', noAlice: true, noBug: true, desc: 'Your pieces can capture your own pieces (never your king). Click the target twice to confirm.' },
     archbishop:    { name: 'Archbishop', desc: 'One of your bishops becomes an Archbishop (it also jumps like a knight and jumps to the 2nd square in every direction), but your other bishop is gone.', setup: back => { const a = back.indexOf('b'), z = back.lastIndexOf('b'); if (a >= 0) back[a] = 'a'; if (z > a) back[z] = '.'; } },
     paladin:       { name: 'Paladin', desc: 'One of your knights becomes a Paladin (it also makes the long 3-and-1 and 3-and-2 jumps), but your other knight is gone.', setup: back => { const a = back.indexOf('n'), z = back.lastIndexOf('n'); if (a >= 0) back[a] = 'l'; if (z > a) back[z] = '.'; } },
     juggernaut:    { name: 'Juggernauts', desc: 'Your rooks can also move up to 3 squares along a line and 1 square to either side of it (the line must be clear), but your bishops move at most 3 squares and your knights cannot jump (they need a free connecting square).', defs: () => ({ r: { slide: ROOK, plus: 3 }, b: { slide: BISHOP, max: 3 }, n: { kwalk: true } }) },
     empress:       { name: 'Empress', desc: 'Your queen also jumps like a knight and jumps to the 2nd square in every direction, but your rooks and bishops move at most 4 squares and your knights cannot jump.', defs: () => ({ q: { slide: EDGE8, leap: KN8.concat(HOP8) }, r: { slide: ROOK, max: 4 }, b: { slide: BISHOP, max: 4 }, n: { kwalk: true } }) },
-    champions:     { name: 'Champion Pawns', desc: 'Your d- and e-pawns are Champions: they step and capture 1 square in any of the 8 directions, can also jump exactly 2 squares straight (moves only, over anything), and still promote. Your other six pawns can no longer promote.', setup: (back, pawns) => { pawns[3] = 'h'; pawns[4] = 'h'; }, pawn: { nopromo: true } },
+    champions:     { name: 'Champion Pawns', noAlice: true, desc: 'Your d- and e-pawns are Champions: they step and capture 1 square in any of the 8 directions, can also jump exactly 2 squares straight (moves only, over anything), and still promote. Your other six pawns can no longer promote.', setup: (back, pawns) => { pawns[3] = 'h'; pawns[4] = 'h'; }, pawn: { nopromo: true } },
     scout:         { name: 'Scout', desc: 'Fog of war: you can also see every square next to any of your pieces.', fog: true }
   };
   // Chess960: random back rank with bishops on opposite colours and the king between the rooks.
@@ -521,7 +602,8 @@ const Engine = (() => {
       c: { leap: STANDARD.pieces.k.leap }, i: v.impRoam ? { leap: STANDARD.pieces.n.leap, leapNC: ROAM5 } : { leap: STANDARD.pieces.n.leap },
       w: { slide: BISHOP, max: 2 }, o: { slide: ROOK, max: 2 }
     }, EXTRA_PIECES, v.austang ? GRAND_PIECES : {});
-    const TR = v.traits || {}, traitOf = c => TRAITS[TR[c]] || null, rev = new Set(), dcache = {}, trapUsed = new Set(), swapUsed = new Set();
+    const TR = {}; Object.keys(v.traits || {}).forEach(c => { const t = TRAITS[v.traits[c]]; if (!(t && t.only2p)) TR[c] = v.traits[c]; });      // (2-player-only traits are ignored here)
+    const traitOf = c => TRAITS[TR[c]] || null, rev = new Set(), dcache = {}, trapUsed = new Set(), swapUsed = new Set();
     const D = (c, nt) => {
       if (nt) return baseDefs;
       if (dcache[c]) return dcache[c];
@@ -725,6 +807,9 @@ const Engine = (() => {
       const blocked = (t, tx, ty) => {
         if (t.dead || nt) return false;
         if (p.t === 'n' && t.t === 'p' && TR[t.c] === 'shieldWall') return true;
+        if (p.t === 'p' && t.t === 'q' && TR[t.c] === 'glassCannon') return true;       // Glass Cannon: pawns can't take the queen
+        if (t.t === 'q' && 'bnal'.includes(p.t) && TR[t.c] === 'ironQueen') return true;       // Iron Queen (a = Archbishop, l = Paladin count as bishops/knights)
+        if (p.t === 'b' && t.t === 'p' && TR[t.c] === 'phalanx') { const ff = FWD[t.c], ps = ff && ff[0] === 0 ? [1, 0] : [0, 1]; for (const sx of [-1, 1]) { const nx = tx + ps[0] * sx, ny = ty + ps[1] * sx; if (valid(nx, ny)) { const q = B[idx(nx, ny)]; if (q && q.t === 'p' && q.c === t.c && !q.dead) return true; } } }      // Phalanx
         if (p.t === 'p' && t.t !== 'k' && TR[t.c] === 'bodyguard') {
           for (let i = 0; i < SZ; i++) { const k = B[i]; if (k && k.t === 'k' && k.c === t.c && !k.dead) { return dX(i % BW, tx) <= 1 && Math.abs(Math.floor(i / BW) - ty) <= 1; } }
         }
@@ -765,7 +850,7 @@ const Engine = (() => {
         if (!atk && oct && p.c !== 'n' && isHole(fx, fy) && !(F.nopromo && !p.champ)) promoList.forEach(t => add(x, y, { promo: t, inplace: true }));      // a hole right ahead: the pawn promotes where it stands
         if (!atk && valid(fx, fy) && !B[idx(fx, fy)]) {
           push(fx, fy);
-          if (((rankOf(oc, x, y) === 1 || F.charge) && !F.single) && valid(fx + dx, fy + dy) && !B[idx(fx + dx, fy + dy)]) add(fx + dx, fy + dy);
+          if (((rankOf(oc, x, y) === 1 || (F.march && rankOf(oc, x, y) === 2) || F.charge) && !F.single) && valid(fx + dx, fy + dy) && !B[idx(fx + dx, fy + dy)]) add(fx + dx, fy + dy);
         } else if (F.brawl && valid(fx, fy)) {
           const t = B[idx(fx, fy)];
           if (atk || (t && can(t, fx, fy))) push(fx, fy);
@@ -797,6 +882,7 @@ const Engine = (() => {
           const t = B[idx(tx, ty)];
           if (atk || (t && can(t, tx, ty))) push(tx, ty);
         }
+        if (!atk && F.storm) for (const s of [-1, 1]) { const tx = fx + pp[0] * s, ty = fy + pp[1] * s; if (valid(tx, ty) && !B[idx(tx, ty)]) push(tx, ty); }      // Pawn Storm: a quiet diagonal step
         return out;
       }
       for (const [lx, ly] of def.leap || []) {
@@ -837,7 +923,9 @@ const Engine = (() => {
         let tx = x + sx, ty = y + sy, n = 1;
         while (valid(tx, ty) && (!mx || n <= mx) && (!cyl || n < BW)) {
           const t = B[idx(tx, ty)];
-          if (!t) add(tx, ty); else { if (can(t, tx, ty)) add(tx, ty); if (!(p.fx && p.fx.jmp)) break; }
+          if (!t) add(tx, ty);
+          else if (TR[p.c] === 'openRanks' && t.c !== p.c && t.c !== 'n' && !t.dead && !t.wall && teamOf(t.c) === teamOf(p.c)) { /* Open Ranks: slide on through a partner's piece */ }
+          else { if (can(t, tx, ty)) add(tx, ty); if (!(p.fx && p.fx.jmp)) break; }
           tx += sx; ty += sy; n++;
         }
       }
@@ -1044,15 +1132,18 @@ const Engine = (() => {
     function eliminate(c, reason, takers) {
       alive[c] = false;
       const taker = reason === 'checkmate' ? (takers || []).find(t => t !== 'n' && TR[t] === 'conqueror' && alive[t]) : null;
-      const fallen = !taker && NEU && (!!v.fallen || TR[c] === 'lastStand');
+      const heir = !taker && reason === 'checkmate' && TR[c] === 'inheritance' && v.teams ? seats.find(t => t !== c && alive[t] && teamOf(t) === teamOf(c)) || null : null;      // Inheritance: the first living partner
+      const fallen = !taker && !heir && NEU && (!!v.fallen || TR[c] === 'lastStand');
       for (let i = 0; i < SZ; i++) if (b[i] && b[i].c === c) {
         if (b[i].auto || (b[i].t === T.boss && !fallen)) { b[i] = null; continue; }
         const bx = b[i].bid ? { bid: b[i].bid } : null;
         b[i] = taker ? { t: b[i].t === 'k' ? 'c' : b[i].t, c: taker, m: true }
+          : heir ? { t: b[i].t === 'k' ? 'c' : b[i].t, c: heir, m: true }
           : fallen ? { t: b[i].t === 'k' ? 'c' : b[i].t, c: 'n', o: c, id: bx ? bx.bid : ++nid, m: true, bid: bx ? bx.bid : undefined, part: b[i].part } : Object.assign({}, b[i], { dead: true });
       }
-      events.push({ e: 'elim', c, reason, fallen, taken: taker || null });
+      events.push({ e: 'elim', c, reason, fallen, taken: taker || null, heir: heir || null });
       if (taker) { rev.add(taker); events.push({ e: 'trait', c: taker, id: 'conqueror' }); }
+      if (heir) { rev.add(c); events.push({ e: 'trait', c, id: 'inheritance' }); }
       if (fallen && TR[c] === 'lastStand') { rev.add(c); events.push({ e: 'trait', c, id: 'lastStand' }); }
     }
     // Checkmate eliminates a player. Being stalemated does NOT: the turn is simply skipped.
@@ -1382,17 +1473,36 @@ const Engine = (() => {
   function createAlice4(v) {
     const { BW, BH, SZ, idx, valid, FWD, rankOf, promoRank, place } = multiGeom(v);
     const ORDER = ['r', 'b', 'y', 'g'], seats = v.seats, teamOf = c => (v.teams ? v.teams[c] : c);
-    const defs = STANDARD.pieces, BACK = 'rnbqkbnr';
+    // ---- class traits, same support as 2-player Alice: starting army, piece moves, pawn changes, "can't be captured by". Not available (never used here):
+    // anything flagged noAlice, and the elimination traits (Conqueror, Last Stand).
+    const TR = {}, TRid = {}; ORDER.forEach(c => { const id = (v.traits && v.traits[c]) || '', t = TRAITS[id]; if (t && !t.noAlice && !t.multi && !t.only2p) { TR[c] = t; TRid[c] = id; } });
+    const PCS = Object.assign({}, STANDARD.pieces, EXTRA_PIECES), dcache = {};
+    const defsOf = c => (TR[c] && TR[c].defs ? (dcache[c] || (dcache[c] = Object.assign({}, PCS, TR[c].defs([0, 1])))) : PCS);
+    const pflags = c => (TR[c] && TR[c].pawn) || {};
     const L = [new Array(SZ).fill(null), new Array(SZ).fill(null)], alive = {}, events = [], hist = [];
     ORDER.forEach(c => {
       if (!seats.includes(c) && !(v.dead || []).includes(c)) return;
       alive[c] = seats.includes(c);
+      const LY = layoutFor(TRid[c], v.back960);
       for (let k = 0; k < 8; k++) {
         const [bx, by] = place(c, k, 0), [px, py] = place(c, k, 1);
-        L[0][idx(bx, by)] = { t: BACK[k], c, dead: !alive[c] };
-        L[0][idx(px, py)] = { t: 'p', c, dead: !alive[c] };
+        if (LY.back[k] !== '.') L[0][idx(bx, by)] = { t: LY.back[k], c, dead: !alive[c] };
+        if (LY.pawns[k] !== '.') L[0][idx(px, py)] = { t: LY.pawns[k], c, dead: !alive[c] };
       }
     });
+    // can piece p never take t? (Shield Wall, Bodyguard, Glass Cannon's queen)
+    const blk = (B, p, t, tx, ty) => {
+      if (!t || t.dead || teamOf(t.c) === teamOf(p.c)) return false;
+      const k = TRid[t.c];
+      if (k === 'shieldWall' && p.t === 'n' && t.t === 'p') return true;
+      if (k === 'glassCannon' && p.t === 'p' && t.t === 'q') return true;
+      if (k === 'ironQueen' && t.t === 'q' && 'bnal'.includes(p.t)) return true;
+      if (k === 'phalanx' && p.t === 'b' && t.t === 'p') { const ff = FWD[t.c], ps = ff[0] === 0 ? [1, 0] : [0, 1]; for (const sx of [-1, 1]) { const nx = tx + ps[0] * sx, ny = ty + ps[1] * sx; if (valid(nx, ny)) { const q = B[idx(nx, ny)]; if (q && q.t === 'p' && q.c === t.c && !q.dead) return true; } } }
+      if (k === 'bodyguard' && p.t === 'p' && t.t !== 'k') {
+        for (let i = 0; i < SZ; i++) { const q = B[i]; if (q && q.t === 'k' && q.c === t.c && !q.dead) return Math.abs((i % BW) - tx) <= 1 && Math.abs(Math.floor(i / BW) - ty) <= 1; }
+      }
+      return false;
+    };
     const S = { turn: seats[0], drawn: false };
     const activeCount = () => seats.filter(c => alive[c]).length;
     const liveTeams = () => new Set(seats.filter(c => alive[c]).map(teamOf)).size;
@@ -1405,36 +1515,68 @@ const Engine = (() => {
     const over = () => S.drawn || liveTeams() <= 1;
 
     function pseudo(B, x, y, atk) {
-      const p = B[idx(x, y)], out = [], def = defs[p.t];
+      const p = B[idx(x, y)], out = [], def = defsOf(p.c)[p.t] || {};
       if (p.dead) return out;
       const add = (tx, ty, e) => out.push(Object.assign({ fx: x, fy: y, tx, ty }, e));
       const can = t => t.dead || (teamOf(t.c) !== teamOf(p.c) && (atk || t.t !== 'k'));
+      const ok = (t, tx, ty) => !t || (can(t) && !blk(B, p, t, tx, ty));              // empty, or a capturable enemy
       if (p.t === 'p') {
-        const [dx, dy] = FWD[p.c], pp = dx === 0 ? [1, 0] : [0, 1];
-        const push = (tx, ty) => (!atk && rankOf(p.c, tx, ty) === promoRank ? STANDARD.promoteTo.forEach(t => add(tx, ty, { promo: t })) : add(tx, ty));
+        const [dx, dy] = FWD[p.c], pp = dx === 0 ? [1, 0] : [0, 1], F = pflags(p.c), promoAt = promoRank + (F.promoShift || 0);
+        const push = (tx, ty) => (!atk && rankOf(p.c, tx, ty) === promoAt && !F.nopromo ? STANDARD.promoteTo.forEach(t => add(tx, ty, { promo: t })) : add(tx, ty));
+        const foeAt = (tx, ty) => { const t = valid(tx, ty) && B[idx(tx, ty)]; return t && can(t) && !blk(B, p, t, tx, ty) ? t : null; };
         const fx = x + dx, fy = y + dy;
         if (!atk && valid(fx, fy) && !B[idx(fx, fy)]) {
           push(fx, fy);
-          if (rankOf(p.c, x, y) === 1 && valid(fx + dx, fy + dy) && !B[idx(fx + dx, fy + dy)]) add(fx + dx, fy + dy);
-        }
-        for (const sd of [-1, 1]) {
+          if ((rankOf(p.c, x, y) === 1 || (F.march && rankOf(p.c, x, y) === 2) || F.charge) && !F.single && valid(fx + dx, fy + dy) && !B[idx(fx + dx, fy + dy)]) add(fx + dx, fy + dy);
+        } else if (F.brawl && foeAt(fx, fy)) push(fx, fy);
+        if (F.side && !atk) for (const sd of [-1, 1]) { const tx = x + pp[0] * sd, ty = y + pp[1] * sd; if (valid(tx, ty) && !B[idx(tx, ty)]) add(tx, ty); }
+        if (F.back && !atk && valid(x - dx, y - dy) && !B[idx(x - dx, y - dy)]) add(x - dx, y - dy);
+        if (F.sidecap) for (const sd of [-1, 1]) if (foeAt(x + pp[0] * sd, y + pp[1] * sd)) add(x + pp[0] * sd, y + pp[1] * sd);
+        if (F.backcap) for (const sd of [-1, 1]) { const tx = x - dx + pp[0] * sd, ty = y - dy + pp[1] * sd; if (foeAt(tx, ty)) add(tx, ty); }
+        if (F.sling && foeAt(x + 2 * dx, y + 2 * dy)) push(x + 2 * dx, y + 2 * dy);
+        for (const sd of F.nocap ? [] : [-1, 1]) {
           const tx = fx + pp[0] * sd, ty = fy + pp[1] * sd;
           if (!valid(tx, ty)) continue;
           const t = B[idx(tx, ty)];
-          if (atk || (t && can(t))) push(tx, ty);
+          if (atk ? !(t && blk(B, p, t, tx, ty)) : (t && can(t) && !blk(B, p, t, tx, ty))) push(tx, ty);
         }
+        if (F.storm && !atk) for (const sd of [-1, 1]) { const tx = fx + pp[0] * sd, ty = fy + pp[1] * sd; if (valid(tx, ty) && !B[idx(tx, ty)]) push(tx, ty); }      // Pawn Storm
         return out;
       }
       for (const [lx, ly] of def.leap || []) {
         const tx = x + lx, ty = y + ly;
-        if (valid(tx, ty)) { const t = B[idx(tx, ty)]; if (!t || can(t)) add(tx, ty); }
+        if (valid(tx, ty) && ok(B[idx(tx, ty)], tx, ty)) add(tx, ty);
       }
+      if (!atk) for (const [lx, ly] of def.leapNC || []) { const tx = x + lx, ty = y + ly; if (valid(tx, ty) && !B[idx(tx, ty)]) add(tx, ty); }
       for (const [sx, sy] of def.slide || []) {
-        let tx = x + sx, ty = y + sy;
-        while (valid(tx, ty)) {
+        let tx = x + sx, ty = y + sy, n = 1;
+        while (valid(tx, ty) && n <= (def.max || 99)) {
           const t = B[idx(tx, ty)];
-          if (!t) add(tx, ty); else { if (can(t)) add(tx, ty); break; }
-          tx += sx; ty += sy;
+          if (!t) add(tx, ty); else { if (ok(t, tx, ty)) add(tx, ty); break; }
+          tx += sx; ty += sy; n++;
+        }
+      }
+      if (def.kwalk) for (const [lx, ly] of STANDARD.pieces.n.leap) {          // knight-shaped squares reached by walking: one connecting square must be free
+        const tx = x + lx, ty = y + ly;
+        if (!valid(tx, ty)) continue;
+        const sgx = Math.sign(lx), sgy = Math.sign(ly), m1 = Math.abs(lx) === 2 ? [sgx, 0] : [0, sgy], m2 = [sgx, sgy];
+        const free = m => valid(x + m[0], y + m[1]) && !B[idx(x + m[0], y + m[1])];
+        if ((free(m1) || free(m2)) && ok(B[idx(tx, ty)], tx, ty)) add(tx, ty);
+      }
+      if (def.plus) {                                                          // Juggernaut rooks: along a clear line and 1 square to either side of it
+        const seen = new Set();
+        for (const [dx, dy] of ROOK) {
+          const px = -dy, py = dx;
+          for (let dd = 1; dd <= def.plus; dd++) {
+            const lx = x + dx * dd, ly = y + dy * dd;
+            if (!valid(lx, ly) || B[idx(lx, ly)]) break;
+            for (const sg of [-1, 1]) {
+              const tx = lx + px * sg, ty = ly + py * sg, key = tx + ',' + ty;
+              if (!valid(tx, ty) || seen.has(key)) continue;
+              seen.add(key);
+              if (ok(B[idx(tx, ty)], tx, ty)) add(tx, ty);
+            }
+          }
         }
       }
       return out;
@@ -1689,7 +1831,7 @@ const Engine = (() => {
       valid, kingPos,
       at: (x, y) => b[idx(x, y)],
       moves: (x, y) => { const p = b[idx(x, y)]; return p && p.c === S.turn ? legalAt(x, y) : []; },
-      reach: (x, y) => { const p = b[idx(x, y)]; return p && !p.dead ? pseudo(b, x, y, false) : []; },      // enemy-move preview: where this piece could go (ignores whose turn it is and check)
+      reach: (x, y, asType) => { const p = b[idx(x, y)]; if (!p || p.dead) return []; if (!asType || asType === p.t) return pseudo(b, x, y, false); const B = b.slice(); B[idx(x, y)] = Object.assign({}, p, { t: asType }); return pseudo(B, x, y, false); },      // enemy-move preview (asType: a Missing Textures fake icon): where this piece could go (ignores whose turn it is and check)
       sees(c) {
         const set = new Set();
         for (let i = 0; i < N * N; i++) {
@@ -1757,10 +1899,12 @@ const Engine = (() => {
    * There are no clocks. Checkmate on either board ends the game; a player with no legal move (stalemate) simply
    * waits for a piece from their partner; if both boards are stuck like that the game is drawn.
    */
-  function createBughouse() {
-    const mk = () => create(Object.assign({}, CRAZYHOUSE, { bugBoard: true }));
-    const bd = { A: mk(), B: mk() };
+  function createBughouse(v) {
     const INFO = { r: ['A', 'w'], b: ['A', 'b'], g: ['B', 'w'], y: ['B', 'b'] };
+    // class traits: every seat's trait goes to its colour on its board. Not available here (the bughouse screen has no click flow for them): Swap, Friendly Fire, and the elimination traits.
+    const boardTraits = k => { const o = {}; Object.keys(INFO).forEach(c => { const id = v && v.traits && v.traits[c], t = TRAITS[id]; if (t && !t.noBug && !t.multi && INFO[c][0] === k) o[INFO[c][1]] = id; }); return o; };
+    const mk = k => create(Object.assign({}, CRAZYHOUSE, { bugBoard: true, traits: boardTraits(k) }));
+    const bd = { A: mk('A'), B: mk('B') };
     const PARTNER = { r: 'y', y: 'r', b: 'g', g: 'b' }, TEAMS = { r: 0, y: 0, b: 1, g: 1 };
     const seats = ['r', 'b', 'y', 'g'], S = { result: null, resigned: null }, hist = [];
     const seatOf = (board, color) => seats.find(c => INFO[c][0] === board && INFO[c][1] === color);
@@ -1815,10 +1959,10 @@ const Engine = (() => {
   }
 
   function create(v = STANDARD) {
-    if (v.bug) return createBughouse();
+    if (v.bug) return createBughouse(v);
     if (v.hex) return createHex(v);
     if (v.multi) return v.alice ? createAlice4(v) : createMulti(v);
-    if (v.alice) return createAlice();
+    if (v.alice) return createAlice(v);
     const w = v.w, h = v.h;
     // Cylinder chess (v.cyl): the left and right edges touch, so everything that moves sideways wraps around.
     const cyl = !!v.cyl;
@@ -1836,7 +1980,8 @@ const Engine = (() => {
       if (ch !== '.') b0[idx(x, h - 1 - i)] = { t: ch.toLowerCase(), c: ch === ch.toUpperCase() ? 'w' : 'b', m: false };
     }));
     // class traits (hidden picks, see index.html); only set-ups that are plain 8x8 are modified
-    const TR = v.traits || {}, traitOf = c => TRAITS[TR[c]] || null, rev = new Set(), events = [], dcache = {}, trapUsed = new Set(), swapUsed = new Set();
+    const TR = {}; Object.keys(v.traits || {}).forEach(c => { const t = TRAITS[v.traits[c]]; if (t && t.noDrops && v.drops) return; TR[c] = v.traits[c]; });      // (a trait flagged noDrops is ignored in drop modes)
+    const traitOf = c => TRAITS[TR[c]] || null, rev = new Set(), events = [], dcache = {}, trapUsed = new Set(), swapUsed = new Set();
     const PCS = Object.assign({}, v.pieces, EXTRA_PIECES);
     const D2 = (c, nt) => {
       if (nt) return PCS;
@@ -1849,8 +1994,8 @@ const Engine = (() => {
     const HAUNT = !!(v.cpass && Object.keys(v.cpass).some(k => v.cpass[k] && v.cpass[k].haunt));
     const hauntMax = (B, x, y, p, max) => {          // Spook: an enemy slider next to one of an Illusioner's ghosts moves at most 2 squares
       for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
-        if ((!dx && !dy) || x + dx < 0 || x + dx >= w || y + dy < 0 || y + dy >= h) continue;
-        const q = B[(y + dy) * w + x + dx], o = q && q.fx && (q.fx.dcy || q.fx.phn);
+        if ((!dx && !dy) || !inB(x + dx, y + dy)) continue;
+        const q = B[idx(x + dx, y + dy)], o = q && q.fx && (q.fx.dcy || q.fx.phn);
         if (o && o !== p.c && v.cpass[o] && v.cpass[o].haunt) return max ? Math.min(max, 2) : 2;
       }
       return max;
@@ -1865,8 +2010,8 @@ const Engine = (() => {
       const i = curB.indexOf(t); if (i < 0) return false;
       const tx = i % w, ty = Math.floor(i / w);
       for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
-        if ((!dx && !dy) || tx + dx < 0 || tx + dx >= w || ty + dy < 0 || ty + dy >= h) continue;
-        const k = curB[(ty + dy) * w + tx + dx]; if (k && k.t === 'k' && k.c === t.c) return true;
+        if ((!dx && !dy) || !inB(tx + dx, ty + dy)) continue;
+        const k = curB[idx(tx + dx, ty + dy)]; if (k && k.t === 'k' && k.c === t.c) return true;
       }
       return false;
     };
@@ -1876,20 +2021,24 @@ const Engine = (() => {
     // Shield Wall (knights can't take pawns) / Bodyguard (pawns can't take pieces beside their king)
     const blocked2 = (S, p, t, tx, ty) => {
       if (p.t === 'n' && t.t === 'p' && TR[t.c] === 'shieldWall') return true;
+        if (p.t === 'p' && t.t === 'q' && TR[t.c] === 'glassCannon') return true;       // Glass Cannon: pawns can't take the queen
+        if (t.t === 'q' && 'bnal'.includes(p.t) && TR[t.c] === 'ironQueen') return true;       // Iron Queen
+        if (p.t === 'b' && t.t === 'p' && TR[t.c] === 'phalanx') { for (const sx of [-1, 1]) if (inB(tx + sx, ty)) { const q = S.b[idx(tx + sx, ty)]; if (q && q.t === 'p' && q.c === t.c) return true; } }      // Phalanx
       if (p.t === 'p' && t.t !== 'k' && TR[t.c] === 'bodyguard') {
-        for (let i = 0; i < w * h; i++) { const k = S.b[i]; if (k && k.t === 'k' && k.c === t.c) { const kx = i % w, ky = (i - kx) / w; return Math.abs(kx - tx) <= 1 && Math.abs(ky - ty) <= 1; } }
+        for (let i = 0; i < w * h; i++) { const k = S.b[i]; if (k && k.t === 'k' && k.c === t.c) { const kx = i % w, ky = (i - kx) / w; return distX(kx, tx) <= 1 && Math.abs(ky - ty) <= 1; } }
       }
       return false;
     };
-    if (w === 8 && h === 8) ['w', 'b'].forEach(c => {
+    const [ix, iy] = v.inset || [0, 0];       // big boards (Infinite) keep the normal 8x8 army in the middle
+    if ((w === 8 && h === 8) || v.inset) ['w', 'b'].forEach(c => {
       const t = traitOf(c);
       if (!t || !t.setup) return;
-      const yb = c === 'w' ? 0 : h - 1, yp = c === 'w' ? 1 : h - 2, back = [], pawns = [];
-      for (let x = 0; x < 8; x++) { back.push(b0[idx(x, yb)] ? b0[idx(x, yb)].t : '.'); pawns.push(b0[idx(x, yp)] ? b0[idx(x, yp)].t : '.'); }
+      const yb = iy + (c === 'w' ? 0 : 7), yp = iy + (c === 'w' ? 1 : 6), back = [], pawns = [];
+      for (let x = 0; x < 8; x++) { back.push(b0[idx(ix + x, yb)] ? b0[idx(ix + x, yb)].t : '.'); pawns.push(b0[idx(ix + x, yp)] ? b0[idx(ix + x, yp)].t : '.'); }
       t.setup(back, pawns);
       for (let x = 0; x < 8; x++) {
-        b0[idx(x, yb)] = back[x] === '.' ? null : Object.assign({ c, m: false }, b0[idx(x, yb)], { t: back[x] });
-        b0[idx(x, yp)] = pawns[x] === '.' ? null : pawns[x] === 'h' ? Object.assign({ c, m: false }, b0[idx(x, yp)], { t: 'p', champ: true }) : Object.assign({ c, m: false }, b0[idx(x, yp)], { t: pawns[x] });
+        b0[idx(ix + x, yb)] = back[x] === '.' ? null : Object.assign({ c, m: false }, b0[idx(ix + x, yb)], { t: back[x] });
+        b0[idx(ix + x, yp)] = pawns[x] === '.' ? null : pawns[x] === 'h' ? Object.assign({ c, m: false }, b0[idx(ix + x, yp)], { t: 'p', champ: true }) : Object.assign({ c, m: false }, b0[idx(ix + x, yp)], { t: pawns[x] });
       }
     });
     let S = { b: b0, turn: v.first || 'w', ep: null, hands: { w: {}, b: {} }, left: v.firstSingle ? 1 : (v.movesPerTurn || 1), yard: { w: [], b: [] }, fr: null, fn: 0 };
@@ -1914,7 +2063,7 @@ const Engine = (() => {
     }
     function pseudoRaw(S, x, y, attackOnly, nt) {
       // Kings never give check beyond their normal 3x3 (so extended-reach kings can't check or box in other kings).
-      const p = S.b[idx(x, y)], out = [], def = (attackOnly && p.t === 'k') ? v.pieces.k : D2(p.c, nt)[p.t];
+      const p = S.b[idx(x, y)], out = [], def = (attackOnly && p.t === 'k' && TR[p.c] !== 'royalQueen') ? v.pieces.k : D2(p.c, nt)[p.t];       // (attack range of a king is always the plain king's, except the Royal Queen)
       curB = S.b;
       if (p.fx && p.fx.frz) return out;                 // frozen (class ability): can't move or attack
       const mx = HAUNT ? hauntMax(S.b, x, y, p, def.max) : def.max;
@@ -1953,7 +2102,7 @@ const Engine = (() => {
         }
         if (inB(x, y + d) && !S.b[idx(x, y + d)]) {
           push(x, y + d);
-          if (((y === start || F.charge) && !F.single) && inB(x, y + 2 * d) && !S.b[idx(x, y + 2 * d)]) add(x, y + 2 * d, { dbl: true });
+          if (((y === start || (F.march && y === start + d) || F.charge) && !F.single) && inB(x, y + 2 * d) && !S.b[idx(x, y + 2 * d)]) add(x, y + 2 * d, { dbl: true });
         } else if (F.brawl && inB(x, y + d)) {
           const t = S.b[idx(x, y + d)];
           if (t && foe(p, t, attackOnly) && !blocked2(S, p, t, x, y + d)) push(x, y + d);
@@ -1969,6 +2118,10 @@ const Engine = (() => {
           const t = S.b[idx(tx, ty)];
           if (t && foe(p, t, attackOnly) && !blocked2(S, p, t, tx, ty)) push(tx, ty);
           else if (!t && S.ep && S.ep.c !== p.c && S.ep.x === tx && S.ep.y === ty && !(p.fx && (p.fx.dis || p.fx.phn)) && !(S.b[idx(tx, y)] && S.b[idx(tx, y)].fx && (S.b[idx(tx, y)].fx.shd || S.b[idx(tx, y)].fx.sct || S.b[idx(tx, y)].fx.phn))) add(tx, ty, { ep: true });
+        }
+        if (F.storm && !attackOnly) for (const dx of [-1, 1]) {       // Pawn Storm: a quiet diagonal step (after the capture loop so en passant wins a duplicate)
+          const tx = cyl ? ((x + dx) % w + w) % w : x + dx;
+          if (inB(tx, y + d) && !S.b[idx(tx, y + d)]) push(tx, y + d);
         }
         return out;
       }
@@ -2058,7 +2211,7 @@ const Engine = (() => {
           if ((dx || dy) && inB(tx, ty) && !S.b[idx(tx, ty)]) kinds.forEach(t => { if (okAt(t, ty)) add(tx, ty, { rev: t }); });
         }
       }
-      if (p.t === 'k' && v.castling && !p.m && !attackOnly && v.back960 && !attacked(S, x, y, opp(p.c))) {
+      if (p.t === 'k' && v.castling && !p.m && !attackOnly && TR[p.c] !== 'royalQueen' && v.back960 && !attacked(S, x, y, opp(p.c))) {
         // Chess960: king ends on c/g, rook on d/f; click target = your own rook
         for (const d of [1, -1]) {
           let rx = x + d;
@@ -2075,7 +2228,7 @@ const Engine = (() => {
           for (let sx = Math.min(x, kx2); ok && sx <= Math.max(x, kx2); sx++) if (attacked(S, sx, y, opp(p.c))) ok = false;
           if (ok) add(rx, y, { castle: d > 0 ? 'k' : 'q', c960: true, kx2, rx, rtx: rx2 });
         }
-      } else if (p.t === 'k' && v.castling && !p.m && !attackOnly && !v.back960 && !attacked(S, x, y, opp(p.c))) {
+      } else if (p.t === 'k' && v.castling && !p.m && !attackOnly && TR[p.c] !== 'royalQueen' && !v.back960 && !attacked(S, x, y, opp(p.c))) {
         for (const d of [1, -1]) {
           let rx = x + d;
           while (inRow(rx, y) && !S.b[idx(rx, y)]) rx += d;
@@ -2204,6 +2357,11 @@ const Engine = (() => {
     }
 
     // Draw by insufficient material: bare kings, king + one minor piece, or only same-coloured bishops.
+    function onlyRoyalLeft(S, c) {                    // Royal Queen: nothing of that colour is left but the royal piece itself (walls are not pieces)
+      for (let i = 0; i < w * h; i++) { const q = S.b[i]; if (q && q.c === c && q.t !== 'k' && !q.wall) return false; }
+      return true;
+    }
+
     function deadPosition(S) {
       const minors = [];
       for (let i = 0; i < w * h; i++) {
@@ -2435,6 +2593,7 @@ const Engine = (() => {
       inCheck: () => inCheck(S, S.turn),
       status() {
         if (stCache.has(S)) return stCache.get(S);
+        if (TR[S.turn] === 'royalQueen' && onlyRoyalLeft(S, S.turn)) { stCache.set(S, 'checkmate'); return 'checkmate'; }      // Royal Queen: left alone on the board, she loses (reported as a checkmate)
         if (!v.drops && !(xHook && xHook(S.b, idx)) && deadPosition(S)) { stCache.set(S, 'draw'); return 'draw'; }      // (a stack hides pieces: no insufficient-material draw while one exists)
         const none = all(S).length === 0, c = inCheck(S, S.turn);
         const r = none ? (c ? 'checkmate' : 'stalemate') : (c ? 'check' : 'playing');
@@ -2442,6 +2601,7 @@ const Engine = (() => {
       },
       history: () => hist.slice(),
       perTurn: v.movesPerTurn || 1,
+      dropMode: !!v.drops,
       perft: d => perft(S, d),
       // Low-level hooks used by the class layer (withClasses). Not for normal play.
       raw: {
@@ -2453,7 +2613,7 @@ const Engine = (() => {
         home: c => { const out = []; for (const y of c === 'w' ? [0, 1] : [h - 1, h - 2]) for (let x = 0; x < w; x++) out.push([x, y]); return out; },
         ok: () => !['checkmate', 'stalemate', 'draw'].includes(api.status()),
         scan: () => { const out = []; for (let i = 0; i < w * h; i++) if (S.b[i]) out.push({ x: i % w, y: Math.floor(i / w), p: S.b[i] }); return out; },
-        valid: (x, y) => inRow(x, y), size: [w, h], depth: h,
+        valid: (x, y) => inRow(x, y), nx: x => (cyl ? ((x % w) + w) % w : x), size: [w, h], depth: h,
         foe: (c, p) => !!p && !p.wall && p.c !== c,
         rank: (c, x, y) => (c === 'w' ? y : h - 1 - y),
         promo: c => h - 1 + (pf2(c).promoShift || 0),
@@ -2516,7 +2676,7 @@ const Engine = (() => {
         { id: 'freeze', name: 'Freeze', cost: 3, kind: 'freeze', desc: 'An enemy piece (not a king) can\'t move or give check until your next turn.' },
         { id: 'blink', name: 'Blink', cost: 2, kind: 'blink', desc: 'Move one of your pieces (not the king) to an empty square within 2 squares. Doesn\'t use your turn.' },
         { id: 'jump', name: 'Jump', cost: 4, kind: 'jump', desc: 'One of your rooks, bishops or queens ignores blockers (also for check) until your next turn.' },
-        { id: 'meteor', name: 'Meteor', cost: 8, ult: true, kind: 'meteor', desc: 'Ultimate: every piece in a 3x3 area is destroyed, kings excepted (your own pieces too).' }
+        { id: 'meteor', name: 'Meteor', cost: 8, ult: true, kind: 'meteor', desc: 'Ultimate: marks a 3x3 area that everybody can see. At the start of your next turn every piece in it is destroyed, kings excepted (your own pieces too).' }
       ]
     },
     engineer: {
@@ -2533,7 +2693,7 @@ const Engine = (() => {
     glitch: {
       name: 'Glitch', secret: true,
       desc: 'SECRET CLASS (unbalanced on purpose): a video-game-bug class that breaks the normal rules.',
-      passive: { desc: 'Duplication Bug: at the start of each of your turns there is a 12% chance that a random pawn of yours with an empty square in front is copied onto that square (max 3 per game).', glitchDup: true },
+      passive: { desc: 'Duplication Bug: at the start of each of your turns there is a 6% chance that ONE random pawn of yours with an empty square in front is copied onto that square (no limit per game). Overlap Bonus: at the start of each of your turns you earn 1 extra point for every piece that overlaps another of yours (2 pieces on one square = +1, 3 = +2).', glitchDup: true },
       abilities: [
         { id: 'wires', name: 'Crossed Wires', cost: 4, kind: 'wires', desc: 'Pick two of your pieces (not kings) of different types: for 2 turns they swap movement types. It ends early if either is captured or destroyed, or if a swapped pawn promotes.' },
         { id: 'restore', name: 'Restore Point', cost: 3, kind: 'restore', desc: 'Cast right after one of your pieces was captured: mark that square. At the start of your turn, if the square is empty, the captured piece is revived there.' },
@@ -2588,13 +2748,14 @@ const Engine = (() => {
     const grave = {}, g = Object.create(game);
     ids.forEach(c => { grave[c] = []; });
     const recent = {}, markers = [], clips = [], stacks = {}, maskTurns = {}, glitchLog = [], dupUsed = {}, ultSeen = {};
-    const DUP_CHANCE = 0.12, DUP_CAP = 3, MASK_TURNS = 4, CORRUPT_TRIES = 300, MARKER_TURNS = 3, CLIP_TURNS = 3;      // MARKER_TURNS: how many of the Glitch player's turns a Restore Point lasts
+    const DUP_CHANCE = 0.06, MASK_TURNS = 4, CORRUPT_TRIES = 300, MARKER_TURNS = 3, CLIP_TURNS = 3;      // MARKER_TURNS: how many of the Glitch player's turns a Restore Point lasts
     let seedState = (+cfg.seed || 1) >>> 0;       // one seedable RNG for everything random (mulberry32), so replays/reconnects match exactly
     const rnd = () => { seedState = (seedState + 0x6D2B79F5) >>> 0; let t = seedState; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
     const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; };
     let chg = null;                                // Charge in progress: {c, x, y, stage:1|2}
     let ovr = null;                                // Overrun: {c, x, y, n, locked} while chain-capturing, {resume, c, responder} while the checked player answers
     const mirageUsed = {}, mirageLog = [];
+    let meteors = [], meteorLog = [];              // delayed Meteors {x, y, c} (they strike when their caster's next turn begins) and what they destroyed
     let mines = [];                                // secret mines {x, y, c, ttl} (kept off the board; the UI shows them only to the owner's team)
     const stepsOf = (c, a) => { const st = KINDS[a.kind].steps; return typeof st === 'function' ? st(c, a) : st; };
     const tyOf = q => (q.pr ? 'p' : ((q.fx && q.fx.xt) || q.t));
@@ -2607,6 +2768,7 @@ const Engine = (() => {
       }
     };
     // NOTE: stored history entries lose flags like `castle` / `ep`, so these are detected from the board only (live play and replay must agree)
+    const NX = x => (raw.nx ? raw.nx(x) : x);            // Cylinder: the a- and h-files touch, so neighbour squares wrap
     const isCastle = m => { const p = m && !m.drop && game.at(m.fx, m.fy), t = p && game.at(m.tx, m.ty); return !!(p && p.t === 'k' && (Math.abs(m.tx - m.fx) >= 2 || (t && t.c === p.c))); };
     const isEp = m => { const p = m && !m.drop && game.at(m.fx, m.fy); if (!p || p.t !== 'p' || p.champ || m.tx === m.fx || game.at(m.tx, m.ty)) return false; const v = game.at(m.tx, m.fy); return !!(v && v.t === 'p' && v.c !== p.c); };
     const victimOf = m => (!m || m.drop || m.ab || isCastle(m) ? null : (isEp(m) ? game.at(m.tx, m.fy) : game.at(m.tx, m.ty)));
@@ -2624,7 +2786,7 @@ const Engine = (() => {
       for (const [x, y] of raw.home(c)) {
         if (game.at(x, y)) continue;
         const s0 = raw.snap(); raw.remove(k.x, k.y); raw.put(x, y, Object.assign({}, k.p, { m: true }));
-        const nearKing = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]].some(([dx, dy]) => { const t = raw.valid(x + dx, y + dy) && game.at(x + dx, y + dy); return t && t.t === 'k' && raw.foe(c, t); });
+        const nearKing = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]].some(([dx, dy]) => { const X = NX(x + dx), t = raw.valid(X, y + dy) && game.at(X, y + dy); return t && t.t === 'k' && raw.foe(c, t); });
         if (!raw.check(c) && !nearKing) { mirageUsed[c] = true; mirageLog.push({ at: game.history().length, c, fx: k.x, fy: k.y, tx: x, ty: y }); return true; }
         raw.restore(s0);
       }
@@ -2634,7 +2796,7 @@ const Engine = (() => {
     const afterAction = () => { if (!game.multi && cls[game.turn] === 'illusioner' && game.status() === 'checkmate') tryMirage(game.turn); };   // (4-player: handled inside the engine's elimination step)
     const WALL = (c, ttl) => ({ t: '#', c: 'x', wall: true, by: c, ttl });
     const empties = () => { const out = [], [W, H] = raw.size; for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) if (raw.valid(x, y) && !game.at(x, y)) out.push({ x, y }); return out; };
-    const fortressSquares = c => { const k = raw.scan().find(({ p }) => p.t === 'k' && p.c === c && !p.dead); return k ? [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]].map(([dx, dy]) => ({ x: k.x + dx, y: k.y + dy })).filter(q => raw.valid(q.x, q.y) && !game.at(q.x, q.y)) : []; };
+    const fortressSquares = c => { const k = raw.scan().find(({ p }) => p.t === 'k' && p.c === c && !p.dead); return k ? [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]].map(([dx, dy]) => ({ x: NX(k.x + dx), y: k.y + dy })).filter(q => raw.valid(q.x, q.y) && !game.at(q.x, q.y)) : []; };
     const cheap = (list, c, a) => (raw.check(c) ? list.filter(q => legalCast(c, a, undefined, undefined, q.x, q.y)).map(q => sq(q.x, q.y)) : list.map(q => sq(q.x, q.y)));   // walls/mines can't endanger the own king: only test while in check
     function triggerMines() {                      // an enemy non-king piece standing on a mine is destroyed (unless that would expose its own king)
       for (let i = mines.length - 1; i >= 0; i--) {
@@ -2649,7 +2811,7 @@ const Engine = (() => {
     const at = (x, y) => game.at(x, y);
     const sq = (x, y) => ({ x, y });
     const withFx = (p, k, by) => Object.assign({}, p, { fx: Object.assign({}, p.fx, { [k]: by }) });
-    const around = (x, y, r) => { const out = []; for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) if ((dx || dy) && raw.valid(x + dx, y + dy)) out.push([x + dx, y + dy]); return out; };
+    const around = (x, y, r) => { const out = []; for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) if ((dx || dy) && raw.valid(NX(x + dx), y + dy)) out.push([NX(x + dx), y + dy]); return out; };
     const foes = (c, f) => raw.scan().filter(({ x, y, p }) => raw.foe(c, p) && p.t !== 'k' && f(p, x, y));
     const mine = (c, f) => raw.scan().filter(({ x, y, p }) => p.c === c && !p.dead && p.t !== 'k' && f(p, x, y));
     // trial: would the cast leave the caster's own king attacked? (the board is restored afterwards)
@@ -2691,18 +2853,12 @@ const Engine = (() => {
       },
       meteor: {
         steps: 1,
-        first: (c, a) => {
+        first: (c, a) => {                         // any square: the area is hit later, when the board will look different
           const cands = [], [W, H] = raw.size;
-          for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) {
-            if (!raw.valid(x, y)) continue;
-            if ([[0, 0]].concat(around(x, y, 1).map(q => [q[0] - x, q[1] - y])).some(([dx, dy]) => { const p = raw.valid(x + dx, y + dy) && at(x + dx, y + dy); return p && p.t !== 'k'; })) cands.push(sq(x, y));
-          }
+          for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) if (raw.valid(x, y)) cands.push(sq(x, y));
           return oneClick(cands, c, a);
         },
-        run: (c, a, fx, fy, tx, ty) => {
-          [[tx, ty]].concat(around(tx, ty, 1)).forEach(([x, y]) => { const p = at(x, y); if (p && p.t !== 'k') raw.remove(x, y); });
-          raw.clearEp();
-        }
+        run: (c, a, fx, fy, tx, ty, dry) => { if (!dry) meteors.push({ x: tx, y: ty, c }); }      // (the board does not change now, so it can't endanger a king)
       },
       wall: {
         steps: 1,
@@ -2821,7 +2977,7 @@ const Engine = (() => {
           let n = 0;
           ghostsOf(c).filter(({ p }) => p.t !== 'k').forEach(({ x, y, p }) => {
             for (const [dx, dy] of [[0, 1], [1, 0], [0, -1], [-1, 0], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
-              const tx = x + dx, ty = y + dy;
+              const tx = NX(x + dx), ty = y + dy;
               if (!raw.valid(tx, ty) || at(tx, ty)) continue;
               if (p.t === 'p' && (raw.rank(c, tx, ty) < 1 || raw.rank(c, tx, ty) >= raw.promo(c))) continue;
               raw.put(tx, ty, { t: p.t, c, m: true, fx: { dcy: c, gt: p.fx.gt || 2, dec: true } }); n++; break;
@@ -3020,13 +3176,12 @@ const Engine = (() => {
         }
         glitchLog.push({ at: game.history().length, c, kind: 'revive', x: m.x, y: m.y, t: m.t });
       }
-      dupUsed[c] = dupUsed[c] || 0;
-      if (dupUsed[c] < DUP_CAP && rnd() < DUP_CHANCE) {
+      if (rnd() < DUP_CHANCE) {                    // at most ONE pawn per turn, and no limit per game
         const [dx, dy] = raw.fwd(c);
         const cands = raw.scan().filter(({ x, y, p }) => p.c === c && p.t === 'p' && !p.dead && !(p.fx && p.fx.xw) && raw.valid(x + dx, y + dy) && !at(x + dx, y + dy) && raw.rank(c, x + dx, y + dy) < raw.promo(c));
         if (cands.length) {
           const q = cands[Math.floor(rnd() * cands.length)];
-          raw.put(q.x + dx, q.y + dy, { t: 'p', c, m: false }); dupUsed[c]++; changed = true;
+          raw.put(q.x + dx, q.y + dy, { t: 'p', c, m: false }); changed = true;
           glitchLog.push({ at: game.history().length, c, kind: 'dup', x: q.x + dx, y: q.y + dy, t: 'p' });
         }
       }
@@ -3034,6 +3189,7 @@ const Engine = (() => {
     }
     const TIMED = { frz: 1, dis: 1, jmp: 1, shd: 1, sct: 1 };
     function expire() {                            // status effects end when their caster's next turn begins (or the caster is out)
+      meteors = meteors.filter(m => !(game.alive && !game.alive(m.c)));
       raw.scan().forEach(({ x, y, p }) => {
         if (!p.fx) return;
         const nf = {}; let ch = false;
@@ -3079,12 +3235,31 @@ const Engine = (() => {
       }));
       mines = mines.filter(m => !(game.alive && !game.alive(m.c)) && !(m.c === game.turn && --m.ttl <= 0));
     }
+    function overlapBonus(c) {                     // a stack of 2 pieces = +1, a stack of 3 = +2, and so on (summed over all stacks)
+      let n = 0; for (const k in stacks) { const st = stacks[k], xy = k.split(',').map(Number), p = at(xy[0], xy[1]); if (st.c === c && p && p.c === c && !p.dead) n += st.pass.length; }
+      return n;
+    }
+    function meteorStart(c) {                      // Meteors cast by c strike now. Returns true if the board changed
+      let changed = false;
+      meteors.filter(m => m.c === c).forEach(m => {
+        let n = 0;
+        [[m.x, m.y]].concat(around(m.x, m.y, 1)).forEach(([x, y]) => { const p = raw.valid(x, y) && at(x, y); if (p && p.t !== 'k') { raw.remove(x, y); delete stacks[kk(x, y)]; n++; } });
+        meteorLog.push({ at: game.history().length, c, x: m.x, y: m.y, n }); changed = changed || n > 0;
+      });
+      meteors = meteors.filter(m => m.c !== c); if (changed) { raw.clearEp(); syncStacks(); }
+      return changed;
+    }
     function turnChanged() {                       // a new turn starts: that player earns points
       if (game.turn === lastTurn) return;
       lastTurn = game.turn;
       expire(); syncStacks();
-      if (pts[lastTurn] != null) { pts[lastTurn] = Math.max(pts[lastTurn], Math.min(+cfg.cap, pts[lastTurn] + +cfg.gain)); casts[lastTurn] = 0; }
-      if (cls[lastTurn] === 'glitch' && raw.ok(lastTurn) && glitchStart(lastTurn) && raw.foeCheck(lastTurn)) { raw.pass(); turnChanged(); }      // a revival/duplicate that gives check ends the turn
+      if (pts[lastTurn] != null) {
+        const lap = cls[lastTurn] === 'glitch' ? overlapBonus(lastTurn) : 0;      // Glitch: +1 point for every piece that overlaps another one of yours
+        pts[lastTurn] = Math.max(pts[lastTurn], Math.min(+cfg.cap, pts[lastTurn] + +cfg.gain + lap)); casts[lastTurn] = 0;
+      }
+      let boom = meteors.length ? meteorStart(lastTurn) : false;
+      if (cls[lastTurn] === 'glitch' && raw.ok(lastTurn) && glitchStart(lastTurn)) boom = true;
+      if (boom && raw.ok(lastTurn) && raw.foeCheck(lastTurn)) { raw.pass(); turnChanged(); }      // a strike, revival or duplicate that gives check ends the turn
     }
     const base = (c, a) => {                       // reasons an ability can't be cast right now (not counting targets)
       if (game.turn !== c) return 'Not your turn';
@@ -3204,6 +3379,9 @@ const Engine = (() => {
     g.cls = cls; g.cfg = cfg;
     g.abLog = () => log.slice();
     g.pts = c => pts[c];
+    g.meteors = () => meteors.map(m => ({ x: m.x, y: m.y, c: m.c }));      // pending Meteors (visible to everyone)
+    g.meteorLog = () => meteorLog.slice();
+    g.overlap = c => (cls[c] === 'glitch' ? overlapBonus(c) : 0);      // Glitch: the extra points the stacks will give at the start of your next turn
     g.abilities = c => { const k = CLASSES[cls[c]]; return k ? k.abilities.map(a => ({ id: a.id, name: a.name, cost: a.cost, ult: !!a.ult, replace: !!a.replace, steps: stepsOf(c, a), desc: a.desc, why: why(c, a) })) : []; };
     g.abSteps = (c, id) => { const a = find(c, id); return a ? stepsOf(c, a) : 0; };
     g.abTargets = (c, id, from) => {               // squares to click: the first click, or (with `from`) the second click of a two-click ability
@@ -3229,7 +3407,7 @@ const Engine = (() => {
       }
       rows.push(row);
     }
-    return Object.assign({}, STANDARD, { w: W, h: H, setup: rows, castling: true,
+    return Object.assign({}, STANDARD, { w: W, h: H, setup: rows, castling: true, inset: [ox, oy],
       pawnStart: { w: oy + 1, b: oy + 6 }, promoRank: { w: oy + 7, b: oy } });
   }
   const INFINITE = bigVariant(32, 32);

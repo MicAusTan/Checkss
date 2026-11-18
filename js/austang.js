@@ -75,7 +75,8 @@ function updateAustUI() {
   $('gsFoes').classList.toggle('hidden', !FOES_MODES.includes(v) || $('fogChk').checked);
   $('impRoamLbl').classList.toggle('hidden', $('nsetSel').value !== 'mixed' || !!(MODES[v] && MODES[v].oct));            // imps only exist in the Mixed set
   $('specLinkBtn').classList.toggle('hidden', !!(M || A4)); $('specChatLbl').classList.toggle('hidden', !!(M || A4));      // Austang has no spectators
-  $('drawBtn').classList.toggle('hidden', !!(game && game.multi) || !!(A4 && A4.phase === 'setup')); $('resignBtn').classList.toggle('hidden', !!(A4 && A4.phase === 'setup'));
+  const noFight = !!(M && M.phase !== 'play') || !!(A4 && A4.phase === 'setup');      // while armies are being built (or between rounds) there is nothing to resign or draw
+  $('drawBtn').classList.toggle('hidden', !!(game && game.multi && game.bug) || noFight); $('resignBtn').classList.toggle('hidden', noFight);
   const hostMulti = !!(game && game.multi && isHost);
   $('removeSel').classList.toggle('hidden', !hostMulti); $('removeBtn').classList.toggle('hidden', !hostMulti);
   if (game && game.multi) $('rematchBtn').classList.add('hidden');
@@ -241,7 +242,7 @@ function startRound() {
   const o = mk(other);
   if (o.inCheck()) game = o;   // the side not due to move is already in check, so it must move first
   M.phase = 'play'; over = null; overRes = null; sel = null;
-  addChat('', 'Round ' + M.round + ' begins. ' + (game.turn === 'w' ? 'White' : 'Black') + ' moves first.', true);
+  addChat('', 'Round ' + M.round + ' begins. ' + (game.turn === 'w' ? 'White' : 'Black') + ' moves first.', 'minor');
 }
 
 function finishRound() {
@@ -379,7 +380,7 @@ function a4HostReady(seat, setup, cn) {
   }
   A4.setups[seat] = setup; A4.ready[seat] = true;
   broadcast({ type: 'a4status', round: A4.round, ready: Object.keys(A4.ready).filter(c => A4.ready[c]) });
-  addChat('', CN[seat] + ' is ready.', true);
+  addChat('', CN[seat] + ' is ready.', 'minor');
   if (A4.seats.every(c => A4.ready[c])) a4HostStart(); else render();
 }
 function a4HostStart() {

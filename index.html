@@ -8,7 +8,7 @@
 </head>
 <body>
 <h1>♞ Chess with Friends</h1>
-<div id="topRight"><button id="helpBtn" class="iconbtn" title="Rules and piece guide for this mode">?</button><button id="profBtn" class="profchip" title="Your name and picture"><span class="av" id="profAv"></span><span id="profName"></span></button><button id="menuBtn" class="iconbtn" title="Main menu (leave this game)" aria-label="Main menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h4.5v-6h4v6h4.5V10"/></svg></button><button id="palBtn" class="iconbtn" title="Pieces: look, skins and the piece editor" aria-label="Pieces"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4a3.6 3.6 0 0 0 3.6-3.6C21 6.7 17 3 12 3z"/><circle cx="7.5" cy="11" r="1" fill="currentColor"/><circle cx="10.5" cy="7" r="1" fill="currentColor"/><circle cx="15.5" cy="7.5" r="1" fill="currentColor"/></svg></button><button id="gearBtn" class="iconbtn" title="Settings">⚙</button></div>
+<div id="topRight"><button id="helpBtn" class="iconbtn" title="Rules and piece guide for this mode (press ?)">? Rules</button><button id="profBtn" class="profchip" title="Your name and picture"><span class="av" id="profAv"></span><span id="profName"></span></button><button id="menuBtn" class="iconbtn" title="Main menu (leave this game)" aria-label="Main menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h4.5v-6h4v6h4.5V10"/></svg></button><button id="palBtn" class="iconbtn" title="Pieces: look, skins and the piece editor" aria-label="Pieces"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4a3.6 3.6 0 0 0 3.6-3.6C21 6.7 17 3 12 3z"/><circle cx="7.5" cy="11" r="1" fill="currentColor"/><circle cx="10.5" cy="7" r="1" fill="currentColor"/><circle cx="15.5" cy="7.5" r="1" fill="currentColor"/></svg></button><button id="gearBtn" class="iconbtn" title="Settings">⚙</button></div>
 <div id="pieceDrawer" class="drawer hidden">
   <div class="dhead"><b>Pieces</b><button class="iconbtn dclose" data-close="pieceDrawer" title="Close">✕</button></div>
   <div class="dsec"><div class="dlabel">Piece look</div>
@@ -31,7 +31,8 @@
   <div class="dsec"><div class="dlabel">Your profile</div>
     <div class="profrow"><span class="av big" id="profAv2"></span><div class="profcol"><input id="nameIn" maxlength="24" placeholder="Your name" autocomplete="off"><div class="profbtns"><label class="filebtn">Choose picture<input type="file" id="pfpIn" accept="image/*" hidden></label><button id="pfpClear" class="small">Remove</button></div></div></div>
     <div class="dim">Other players see this. It is saved only in this browser. You can change it any time.</div></div>
-  <div class="dsec"><div class="dlabel">Chat</div><label><input type="checkbox" id="showImgChk" checked> Show pictures and GIFs in chat</label></div>
+  <div class="dsec"><div class="dlabel">Chat</div><label><input type="checkbox" id="showImgChk" checked> Show pictures and GIFs in chat</label>
+  <label><input type="checkbox" id="minorChk"> Show minor game notes in chat (turn order, bot notes, who joined or left…)</label></div>
   <div class="dsec"><div class="dlabel">Sound</div>
   <label><input type="checkbox" id="soundChk" checked> Sounds on</label>
   <label><input type="checkbox" id="pieceSndChk" checked> Piece sounds (moves, captures, check, promotions…)</label>
@@ -60,6 +61,7 @@
       <div><b>Turning things off:</b> the gear at the top right has switches for sliding pieces, dragging, premoves and sounds.</div>
     </div>
   </details>
+  <details id="clsGuide" class="hidden"><summary><b>Classes &amp; traits</b></summary><div id="clsGuideBody"></div></details>
   <div id="helpNone" class="dim">This mode has no special rules to explain. It plays like the usual chess, with the changes named in its title. Start a game to see its guide here.</div>
   <div id="helpBody"></div>
 </div>
@@ -135,20 +137,23 @@
   </div>
   </div>
   <div class="optgrp" id="grpExtras"><div class="gh">Traits &amp; classes</div>
-  <div id="gsTraits"><label><input type="checkbox" id="traitsChk"> Class traits: each player secretly picks 1 of a few random traits</label>
-    <span id="offerWrap">Offers per player: <select id="offerSel"><option>3</option><option selected>4</option></select></span>
+  <div id="gsTraits" class="optcard"><label class="optmain"><input type="checkbox" id="traitsChk"> <b>Class traits</b><span class="opthelp">Each player secretly picks 1 of a few random traits that bend the rules for their army.</span></label>
+    <div id="offerWrap" class="optsub"><label>Offers per player <select id="offerSel"><option>3</option><option selected>4</option></select></label>
+      <label class="optchk"><input type="checkbox" id="trShowChk"> Everyone sees everyone's traits <span class="opthelp">(off: you see only your own, plus your teammates')</span></label></div>
   </div>
-  <div id="gsClasses"><label><input type="checkbox" id="classesChk"> Classes (spell-chess style): earn points each turn and spend them on class abilities</label>
-    <div id="classWrap">
-      Start points <input type="number" id="clStart" min="0" max="30" value="2" style="width:3.4em">
-      + per turn <input type="number" id="clGain" min="0" max="10" value="1" style="width:3.4em">
-      cap <input type="number" id="clCap" min="1" max="30" value="8" style="width:3.4em">
-      · abilities per turn <select id="clPer"><option value="0" selected>unlimited</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
-      · summons per game <input type="number" id="clSum" min="1" max="20" value="4" style="width:3.4em"><br>
-      <label><input type="checkbox" id="clUlt"> Ultimates can be used more than once</label><br>
-      <label><input type="checkbox" id="clHide"> Hide classes from opponents (teammates always see yours)</label><br>
-      <label><input type="checkbox" id="clFree"> Free pick: everyone chooses any class (instead of 3 random offers)</label><br>
-      <label><input type="checkbox" id="clHideFx"> Hide Shield / Sanctuary glows from opponents (they can't see which pieces are protected)</label>
+  <div id="gsClasses" class="optcard"><label class="optmain"><input type="checkbox" id="classesChk"> <b>Classes</b><span class="opthelp">Spell-chess style: earn points every turn and spend them on class abilities. Everyone picks 1 of 3 random classes.</span></label>
+    <div id="classWrap" class="optsub">
+      <div class="optgrid">
+        <label>Start points <input type="number" id="clStart" min="0" max="30" value="2"></label>
+        <label>Points per turn <input type="number" id="clGain" min="0" max="10" value="1"></label>
+        <label>Point cap <input type="number" id="clCap" min="1" max="30" value="8"></label>
+        <label>Abilities per turn <select id="clPer"><option value="0" selected>unlimited</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
+        <label>Summons per game <input type="number" id="clSum" min="1" max="20" value="4"></label>
+      </div>
+      <label class="optchk"><input type="checkbox" id="clUlt"> Ultimates can be used more than once</label>
+      <label class="optchk"><input type="checkbox" id="clHide"> Hide classes from opponents <span class="opthelp">(teammates always see yours)</span></label>
+      <label class="optchk"><input type="checkbox" id="clFree"> Free pick <span class="opthelp">everyone chooses any class instead of 3 random offers</span></label>
+      <label class="optchk"><input type="checkbox" id="clHideFx"> Hide Shield / Sanctuary glows from opponents <span class="opthelp">(they can't see which pieces are protected)</span></label>
     </div>
   </div>
   </div>
@@ -161,7 +166,11 @@
 <div id="game" class="hidden">
  <div id="gameMain">
   <div id="turnStrip" class="hidden"></div>
+  <div id="drawBanner" class="hidden"><span id="drawTxt">Your opponent offers a draw.</span><span class="dbtns"><button id="acceptDraw">Accept draw</button><button id="declineDraw">Decline</button></span><i id="drawBar"></i></div>
+  <div id="resultCard" class="hidden"><div class="rhead"><span id="rIcon"></span><div><div id="rTitle"></div><div id="rSub"></div></div></div><div id="rBtns"></div></div>
+  <div id="tbBanner" class="hidden"><span id="tbTxt"></span><span class="dbtns"><button id="tbAllow">Allow</button><button id="tbRefuse">Refuse</button></span></div>
   <div id="status"></div>
+  <div id="hint" class="hidden"></div>
   <div id="promo" class="hidden"></div>
   <div id="voidTray" class="hidden"></div>
   <div id="stackPick" class="hidden"></div>
@@ -179,11 +188,9 @@
  <div id="gameSide">
   <div id="draftBox" class="hidden"></div>
   <div id="classBar" class="hidden"></div>
+  <div id="traitBar" class="hidden"></div>
   <div id="replayBar" class="hidden"><b>Replay</b> <button id="rpStart" title="Start">⏮</button><button id="rpBack" title="Back one move">◀</button><button id="rpPlay" title="Play / pause">▶▶</button><button id="rpFwd" title="Forward one move">▶</button><button id="rpEnd" title="Latest">⏭</button> <input type="range" id="rpSlider" min="0" max="0" value="0" style="width:38%;vertical-align:middle"> <span id="rpLabel"></span> <button id="rpExit">Back to game</button></div>
-  <div id="drawBanner" class="hidden">
-    Your opponent offers a draw.
-    <button id="acceptDraw">Accept</button><button id="declineDraw">Decline</button>
-  </div>
+  <details id="capBox" class="hidden" open><summary>Captured pieces</summary><div id="capBody"></div></details>
   <details id="moveBox" class="hidden" open><summary>Moves <span id="moveCount"></span></summary><div id="moveList"></div></details>
   <details id="grandBox" class="hidden"><summary>Austang Grand pieces</summary><div id="grandBody">
 <ul><li>10×10 board. Each player builds on their own 5 ranks with points, exactly like Austang. Castling and the pawn's 2-step from its 2nd rank work as usual; pawns promote to Queen, Rook, Bishop, Knight, Cardinal, Marshal or Nightrider (never an Amazon).</li></ul>
@@ -220,10 +227,11 @@
     <button id="rematchBtn" class="hidden">Ask for rematch</button>
     <button id="readyBtn" class="hidden">Ready</button>
     <button id="nextBtn" class="hidden">Continue to next round</button>
+    <button id="tbBtn" class="hidden" title="Ask your opponent to let you undo your last move">Take back</button>
     <button id="resignBtn">Resign</button>
     <button id="drawBtn">Offer draw</button>
   </div>
-  <div id="chatBox"><div id="chatHead"><b>Chat</b><span id="chatBadge" class="hidden"></span></div>
+  <div id="chatBox"><div id="chatHead"><b>Chat</b><span id="chatBadge" class="hidden"></span><span id="netDot" class="hidden">●</span></div>
   <div id="chatLog"></div>
   <div id="emojiRow" class="hidden"></div>
   <div id="attPrev" class="hidden"></div>
@@ -272,7 +280,11 @@
 <script src="js/austang.js"></script>
 <script src="js/multi.js"></script>
 <script src="js/modes_ui.js"></script>
+<script src="js/classes_ui.js"></script>
 <script src="js/chat_buttons.js"></script>
+<script src="js/resign_draw.js"></script>
+<script src="js/result_ui.js"></script>
+<script src="js/extras.js"></script>
 <script src="js/appearance.js"></script>
 </body>
 </html>
