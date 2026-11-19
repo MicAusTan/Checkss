@@ -157,5 +157,6 @@ const clearUnread = () => { if (unread) { unread = 0; $('chatBadge').classList.a
 document.addEventListener('visibilitychange', () => { if (!document.hidden && chatInView()) clearUnread(); });
 $('chatBox').addEventListener('pointerdown', clearUnread); $('chatIn').addEventListener('focus', clearUnread);
 refreshProfileUI();
-
-
+try { $('fixedCodeIn').value = localStorage.getItem('chessFixedCode') || ''; } catch (e) { /* no storage */ }      // the code you chose last time
+$('fixedCodeIn').oninput = () => { const v = $('fixedCodeIn').value, c = v.toLowerCase().replace(/[^a-z0-9]/g, ''); if (v !== c) $('fixedCodeIn').value = c; };
+if (navigator.share) { $('shareBtn').classList.remove('hidden'); $('shareBtn').onclick = () => { navigator.share({ title: 'Chess with friends', text: 'Join my chess game!', url: joinUrl() }).catch(() => { /* closed the share sheet */ }); }; }

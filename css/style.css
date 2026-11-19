@@ -433,3 +433,8 @@
   .dr-tools { display:flex; align-items:center; gap:10px; margin-bottom:6px; } .dr-tools input { flex:1; max-width:320px; padding:5px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); }
   .dr-chips { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:6px; } .dr-fchip { margin:0; padding:3px 10px; border-radius:999px; border:1px solid var(--line); background:transparent; color:var(--fg); cursor:pointer; font-size:.82rem; } .dr-fchip.on { background:#a45bd6; border-color:#a45bd6; color:#fff; }
   .dr-hostlist { max-height:420px; overflow:auto; padding-right:4px; } .dcard { position:relative; } .dc-dealt { position:absolute; top:-8px; right:10px; font-size:.65rem; background:#e0a800; color:#222; padding:1px 7px; border-radius:999px; font-weight:700; }
+
+  #teamHow { margin:6px 0; } #teamHow select, #teamHow button { margin-left:8px; } #teamHow button { background:#3a5a8b; }
+  .tmPick { margin-bottom:4px; } .tmBtn { padding:3px 10px; margin:2px 6px 2px 0; font-size:.85rem; } .tmBtn.mine { outline:2px solid #fff; } .tmBtn:disabled { opacity:.55; cursor:default; }
+
+  .dc-votes { display:block; margin-top:6px; min-height:1.1em; font-size:.78rem; font-weight:bold; color:#ffd36b; } .dc-votes.none { visibility:hidden; }

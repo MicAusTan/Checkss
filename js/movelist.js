@@ -1,5 +1,5 @@
 // ---- Swap trait: pick two of your pieces ----
-let swapMode = false, swapFirst = null, pendingFriendly = null;
+let swapMode = false, swapFirst = null, pendingFriendly = null, tributeMode = false;
 // Glitch 'Clipping': a square can hold a stack of the owner's pieces. selIdx = which member of the selected stack moves (0 = the piece on top).
 function selMoves() {
   if (!(game.memberMoves && sel && !sel.drop)) return game.moves(sel.x, sel.y);
@@ -24,11 +24,11 @@ function renderStackPick() {
   box.classList.remove('hidden');
 }
 function friendlyPending(x, y, cand) {            // returns true while waiting for the confirming second click
-  const tg = game.at(x, y);
-  if (!sel || !cand.length || !tg || tg.c !== meId() || cand[0].castle || cand[0].swap || cand[0].join || cand[0].rev) return false;      // (a Sacrificer's own square is not a friendly-fire target)
+  const tg = game.at(x, y), lc = !!(cand.length && cand[0].tt === 'lcastle');      // a long castle (Crown Link) is once per game: it asks for a second click on the rook, whoever owns it
+  if (!sel || !cand.length || !tg || (!lc && (tg.c !== meId() || cand[0].castle || cand[0].swap || cand[0].join || cand[0].rev || cand[0].tt))) return false;      // (a Sacrificer's own square is not a friendly-fire target)
   const from = sel.x + ',' + sel.y;
   if (pendingFriendly && pendingFriendly.x === x && pendingFriendly.y === y && pendingFriendly.from === from) { pendingFriendly = null; return false; }
-  pendingFriendly = { x, y, from }; render(); return true;
+  pendingFriendly = { x, y, from, lc }; render(); return true;
 }
 function swapEligible() {
   return !!(game && gtraits && !spectating && !replay && !draft && !M && !ended() && myTurnNow() && gtraits[meId()] === 'swap' && game.canSwap && game.canSwap(meId()));
@@ -43,6 +43,20 @@ function swapClick(x, y) {
   play(m);
 }
 $('swapBtn').onclick = () => { swapMode = !swapMode; swapFirst = null; sel = null; render(); };
+// Tribute (team trait): sacrifice one of your pieces; your next teammate gets an extra move
+function tributeEligible() { return !!(game && game.multi && game.canTribute && !spectating && !replay && !draft && !M && !ended() && myTurnNow() && game.canTribute(meId())); }
+async function tributeClick(x, y) {
+  const p = game.at(x, y); if (!p || p.c !== meId() || !game.tributeOk(meId(), x, y)) { addChat('', p && p.t === 'k' ? 'Tribute: the king cannot be sacrificed.' : 'Tribute: pick one of your own pieces (it must not leave your king in check).', true); return; }
+  if (!(await askConfirm('Sacrifice your ' + (PNAMES[p.t] || 'piece') + ' on ' + sqName(x, y) + '? This is your move, and your next teammate gets an extra move.', 'Sacrifice', true))) return;
+  if (!tributeMode || !tributeEligible()) return;
+  tributeMode = false; sel = null; playMulti({ tt: 'tribute', fx: x, fy: y, tx: x, ty: y });
+}
+$('tributeBtn').onclick = () => { tributeMode = !tributeMode; swapMode = false; swapFirst = null; sel = null; render(); };
+const ttText = (e, sq) => {                       // the move list for team trait actions
+  const A = sq(e.fx, e.fy), Z = sq(e.tx, e.ty), pr = e.promo ? '=' + (GLYPH[e.promo] || e.promo) : '';
+  return e.tt === 'switch' ? A + '⇄' + Z + pr + ' (switch)' : e.tt === 'double' ? 'K' + A + '⇄' + Z + ' (body double)' : e.tt === 'anchor' ? A + '⚓' + Z
+    : e.tt === 'lcastle' ? 'K' + A + '⇄' + Z + ' (long castle)' : e.tt === 'tether' ? 'K' + A + '–' + Z + ' +🔗 ' + sq(e.qx, e.qy) + '–' + sq(e.px, e.py) : e.tt === 'tribute' ? 'tribute ' + A + ' ✝' : '';
+};
 $('endRoundBtn').onclick = async () => {                 // Austang: the host can call a round a draw if something goes wrong
   if (!isHost || !M || M.phase !== 'play' || ended()) return;
   if (!(await askConfirm('End this round as a draw?', 'End round', true)) || !M || M.phase !== 'play' || ended()) return;
@@ -212,6 +226,7 @@ function mlText(g, e) {
   if (g.imperial) return impText(g, e);
   const sq = (x, y) => (g.hex ? (x - g.radius) + ',' + (y - g.radius) : sqName(x, y));
   if (e.swap) return 'swap ' + sq(e.fx, e.fy) + '⇄' + sq(e.tx, e.ty);
+  if (e.tt) return ttText(e, sq);
   if (e.drop) return mlLetter(e.drop) + '@' + sq(e.tx, e.ty);
   if (e.rev) return 'revive ' + (GLYPH[e.rev] || '') + '@' + sq(e.tx, e.ty);
   if (e.free) return 'free ' + sq(e.fx, e.fy) + '→' + sq(e.tx, e.ty);

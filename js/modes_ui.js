@@ -104,7 +104,7 @@ function hostMultiConn(c) {
     c.ready = true; renderRoster();
     if ($('autoChk').checked && conns.filter(x => x.ready).length + lobbyBots.length === maxSeats() - 1) startMulti();
   });
-  c.on('data', msg => { if (msg && msg.type === 'pickseat') { if (!mstarted) { if (String(msg.seat) === 'random') rollPref(c, false); else setPref(c, String(msg.seat), false); renderRoster(); } return; } if (msg && msg.type === 'skinPut') { takeSkins(msg.imgs); conns.forEach(sendSkins); specs.forEach(sendSkins); return; } if (msg && msg.type === 'profile') { c.name = cleanName(msg.name); c.pfp = safePfp(msg.pfp); c.sk = cleanSk(msg.sk); if (mstarted) pushSeatInfo(); else renderRoster(); return; } hostRecv(c, msg); });
+  c.on('data', msg => { if (msg && msg.type === 'pickteam') { if (!mstarted && teamsOn() && teamMode === 'free' && !teamLock && setTeam(c, +msg.team)) renderRoster(); return; } if (msg && msg.type === 'pickseat') { if (!mstarted) { if (String(msg.seat) === 'random') rollPref(c, false); else setPref(c, String(msg.seat), false); renderRoster(); } return; } if (msg && msg.type === 'skinPut') { takeSkins(msg.imgs); conns.forEach(sendSkins); specs.forEach(sendSkins); return; } if (msg && msg.type === 'profile') { c.name = cleanName(msg.name); c.pfp = safePfp(msg.pfp); c.sk = cleanSk(msg.sk); if (mstarted) pushSeatInfo(); else renderRoster(); return; } hostRecv(c, msg); });
   c.on('close', () => {
     if (c.replaced) return;
     if (!mstarted) { conns = conns.filter(x => x !== c); renderRoster(); }
@@ -157,6 +157,8 @@ function hostRecv(c, msg) {
     c.send({ type: 'resume', rec: buildRecord(), seat: c.seat, draft: draftFor(c.seat), resync: true, a4x: A4 ? a4Extra(c.seat) : undefined, clk: clkSnap() });
   } else if (msg.type === 'pick') {
     recvPick(c.seat, msg.id);
+  } else if (msg.type === 'tvote') {
+    recvTeamVote(c.seat, msg.id);
   } else if (msg.type === 'tryResign') {
     if (!ended() && game.alive(c.seat)) { logResign(c.seat); game.resign(c.seat); broadcast({ type: 'mresign', seat: c.seat }); announceMulti(); render(); }
   } else if (msg.type === 'chat') {
@@ -262,6 +264,7 @@ function clickMulti(x, y) {
   if (rewardMine()) { if (rewardPick && rewSet && rewSet.has(x + ',' + y)) { const t = rewardPick; rewardPick = null; playMulti({ reward: true, t, tx: x, ty: y }); } return; }
   if (pingMode) return pingClick(x, y);
   if (swapMode) return swapClick(x, y);
+  if (tributeMode) return tributeClick(x, y);
   if (abMode) return abClick(x, y);
   if (foeClick(x, y)) return;
   if (ended() || game.neutralPending || game.turn !== mySeat || !game.alive(mySeat)) return;

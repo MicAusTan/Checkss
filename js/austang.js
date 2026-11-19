@@ -62,6 +62,7 @@ function updateAustUI() {
   $('gsOct').classList.toggle('hidden', !op.includes('oct')); $('nsetWrap').classList.toggle('hidden', !!(MODES[v] && MODES[v].oct));
   $('gsTraits').classList.toggle('hidden', !op.includes('traits'));
   $('gsClasses').classList.toggle('hidden', !op.includes('classes'));
+  { const teamsNow = MODES[v] && MODES[v].oct ? $('teams8Sel').value !== 'ffa' : $('teamsChk').checked; $('gsTeamTrait').classList.toggle('hidden', !(op.includes('teamtrait') && teamsNow)); }
   $('classWrap').classList.toggle('hidden', !$('classesChk').checked);
   $('gsC960').classList.toggle('hidden', !op.includes('c960'));
   $('offerWrap').classList.toggle('hidden', !$('traitsChk').checked);

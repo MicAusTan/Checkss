@@ -73,6 +73,7 @@
   <select id="modeSel"></select>
   <div id="startCtl">
     <button id="hostBtn">Create game</button>
+    <span id="fixedWrap" class="dim" title="Optional. Leave it empty for a random code. A code you choose is remembered on this device, so your friends can use the same one every time."> Room code: <input id="fixedCodeIn" placeholder="random (or your own)" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false" style="width:150px"></span>
     <button id="practiceBtn" title="Standard chess against Stockfish, with an optional Coach">Practice</button>
     <div style="margin-top:8px">
       <input id="codeIn" placeholder="Room code" style="width:140px">
@@ -81,7 +82,7 @@
   </div>
   <p id="lobbyMsg"></p>
   <div id="seatPick" class="hidden"></div>
-  <div id="copyRow" class="hidden"><button id="copyCodeBtn">Copy code</button><button id="copyLinkBtn">Copy link</button><button id="copySpecBtn">Copy spectator link</button><button id="leaveRoomBtn" class="ghost" title="Close this room and go back to the start screen">Cancel room</button></div>
+  <div id="copyRow" class="hidden"><button id="shareBtn" class="hidden" title="Send the room link with your phone's share menu">Share…</button><button id="copyCodeBtn">Copy code</button><button id="copyLinkBtn">Copy link</button><button id="copySpecBtn">Copy spectator link</button><button id="leaveRoomBtn" class="ghost" title="Close this room and go back to the start screen">Cancel room</button></div>
   <canvas id="roomPreview" class="hidden"></canvas><div id="roomPreviewNote" class="hidden"></div>
   <div id="botLobby" class="hidden"><span class="dim">Nobody to play with? Start against a bot:</span><div><button id="botEasy">Easy bot</button> <button id="botNormal">Normal bot</button> <button id="botHard">Hard bot</button></div><div class="bprow bptime" style="margin-top:6px"></div></div>
   <div id="lobbyCtl" class="hidden">
@@ -141,6 +142,7 @@
     <div id="offerWrap" class="optsub"><label>Offers per player <select id="offerSel"><option>3</option><option selected>4</option></select></label>
       <label class="optchk"><input type="checkbox" id="trShowChk"> Everyone sees everyone's traits <span class="opthelp">(off: you see only your own, plus your teammates')</span></label></div>
   </div>
+  <div id="gsTeamTrait" class="optcard hidden"><label class="optmain"><input type="checkbox" id="teamTraitChk"> <b>Team trait</b><span class="opthelp">Each team is dealt 3 shared traits and the partners must agree on one. It works for the whole team and is separate from the class traits and classes below. Needs teams.</span></label></div>
   <div id="gsClasses" class="optcard"><label class="optmain"><input type="checkbox" id="classesChk"> <b>Classes</b><span class="opthelp">Spell-chess style: earn points every turn and spend them on class abilities. Everyone picks 1 of 3 random classes.</span></label>
     <div id="classWrap" class="optsub">
       <div class="optgrid">
@@ -189,6 +191,7 @@
   <div id="draftBox" class="hidden"></div>
   <div id="classBar" class="hidden"></div>
   <div id="traitBar" class="hidden"></div>
+  <div id="teamTraitBar" class="hidden"></div>
   <div id="replayBar" class="hidden"><b>Replay</b> <button id="rpStart" title="Start">⏮</button><button id="rpBack" title="Back one move">◀</button><button id="rpPlay" title="Play / pause">▶▶</button><button id="rpFwd" title="Forward one move">▶</button><button id="rpEnd" title="Latest">⏭</button> <input type="range" id="rpSlider" min="0" max="0" value="0" style="width:38%;vertical-align:middle"> <span id="rpLabel"></span> <button id="rpExit">Back to game</button></div>
   <details id="capBox" class="hidden" open><summary>Captured pieces</summary><div id="capBody"></div></details>
   <details id="moveBox" class="hidden" open><summary>Moves <span id="moveCount"></span></summary><div id="moveList"></div></details>
@@ -224,6 +227,7 @@
   </details>
   <div class="actions">
     <button id="swapBtn" class="hidden">Swap two pieces</button>
+    <button id="tributeBtn" class="hidden" title="Team trait Tribute">Tribute: sacrifice a piece</button>
     <button id="rematchBtn" class="hidden">Ask for rematch</button>
     <button id="readyBtn" class="hidden">Ready</button>
     <button id="nextBtn" class="hidden">Continue to next round</button>

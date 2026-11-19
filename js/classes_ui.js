@@ -7,7 +7,7 @@ const TRAIT_TAGS = {
   Pawns: ['brawlers', 'pawnStorm', 'longMarch', 'wanderers', 'charge', 'knuckle', 'retreaters', 'earlyBloom', 'backstabbers', 'slingers', 'champions'],
   Defence: ['martyr', 'royalQueen', 'shieldWall', 'ironQueen', 'phalanx', 'bodyguard', 'boobyTrap'],
   Special: ['conqueror', 'lastStand', 'swap', 'friendlyFire', 'scout'],
-  Team: ['inheritance', 'openRanks']
+  Team: ['inheritance', 'openRanks', 'mutualDefence', 'avengerPact', 'relayPawns', 'switcheroo', 'bodyDouble', 'anchor', 'tribute', 'crownLink', 'sharedBank']
 };
 const traitTag = id => Object.keys(TRAIT_TAGS).find(k => TRAIT_TAGS[k].includes(id)) || 'Other';
 const TAG_ICON = { Army: '🛡️', Movement: '👣', Pawns: '♟', Defence: '🧱', Special: '✨', Team: '🤝', Other: '🧬' };
@@ -98,10 +98,39 @@ function infoCardHTML(kind, id) {                         // one class or trait,
 }
 
 /* ---- the draft ---- */
+function renderTeamDraft(box) {                         // the team trait: three cards, both partners pick the same one
+  const total = [gs.teamTrait, gs.traits, gs.classes].filter(Boolean).length;
+  box.appendChild(uiEl('div', 'dr-head', '<div class="dr-step">' + (total > 1 ? 'Step 1 of ' + total + ' · ' : '') + 'Team trait</div><h3>Pick your team\'s trait together</h3><p>Both partners get it. Click the same card as your partner to lock it in. If time runs out, the most-voted card wins (a tie is random). The other team cannot see your cards.</p>'));
+  if (!draft.mine) { box.appendChild(uiEl('div', 'dr-wait', 'Waiting for the host to deal the cards…')); return; }
+  const me = meId(), mates = partIds().filter(p => p !== me && game.teams && game.teams[p] === game.teams[me]).filter(p => !isBotId(p));
+  const tail = () => {
+    if (isHost) { const b = uiEl('button', null, 'Decide now: most votes wins, ties random'); b.onclick = autoPickRest; box.appendChild(b); }
+  };
+  if (draft.final) {
+    box.appendChild(uiEl('div', 'dcard on locked', infoCardHTML('trait', draft.final)));
+    box.appendChild(uiEl('div', 'dr-wait', 'Your team chose ' + esc(TRAIT(draft.final).name) + '. Waiting for the other team…')); tail(); return;
+  }
+  const grid = uiEl('div', 'dr-grid');
+  draft.mine.forEach(id => {
+    const b = uiEl('button', 'dcard' + (draft.vote === id ? ' on' : ''), infoCardHTML('trait', id)); b.type = 'button';
+    b.onclick = () => teamVote(id);
+    const who = []; if (draft.vote === id) who.push('You'); mates.forEach(m => { if (draft.mates && draft.mates[m] === id) who.push(whoName(m)); });
+    b.appendChild(uiEl('span', 'dc-votes' + (who.length ? '' : ' none'), who.length ? who.map(esc).join(' · ') : '&nbsp;'));
+    grid.appendChild(b);
+  });
+  box.appendChild(grid);
+  const disagree = mates.filter(m => !(draft.mates && draft.mates[m]) || draft.mates[m] !== draft.vote);
+  const status = !draft.vote ? 'Click a card to vote.' : disagree.length ? 'Waiting for ' + disagree.map(whoName).join(' and ') + ' to pick the same card…' : '';
+  const timer = uiEl('div', 'dr-wait', ''); const paint = () => { const s = Math.max(0, Math.ceil(((draft && draft.deadline) - Date.now()) / 1000)); timer.innerHTML = esc(status) + ' <span id="trTimer" class="dim">' + (draft && draft.deadline ? s + ' s left' : '') + '</span>'; };
+  paint(); box.appendChild(timer);
+  const d = draft, iv = setInterval(() => { if (draft !== d || draft.final) { clearInterval(iv); return; } const e = $('trTimer'); if (e) e.textContent = Math.max(0, Math.ceil((d.deadline - Date.now()) / 1000)) + ' s left'; }, 500);
+  tail();
+}
 function renderDraft() {
   const box = $('draftBox');
   if (!draft) { box.classList.add('hidden'); return; }
   box.classList.remove('hidden'); box.innerHTML = '';
+  if (draft.kind === 'team') { renderTeamDraft(box); return; }
   const kind = draft.kind || 'trait', both = !!(gs.traits && gs.classes);
   const h = uiEl('div', 'dr-head', '<div class="dr-step">' + (both ? 'Step ' + (kind === 'trait' ? '1' : '2') + ' of 2 · ' : '') + (kind === 'class' ? 'Class' : 'Trait') + '</div><h3>' + (kind === 'class' ? 'Choose your class' : 'Choose your trait') + '</h3><p>'
     + (kind === 'class' ? 'A passive power plus abilities you pay for with points. Hover an ability for details.' : 'A permanent twist for your army. It stays secret until it matters.') + '</p>');
@@ -222,6 +251,32 @@ function renderTraitBar() {
   }
   box.appendChild(d);
 }
+
+/* ---- the team trait chip during the game ---- */
+let teamTraitOpen = false;
+function renderTeamTraitBar() {
+  const box = $('teamTraitBar'); if (!box) return;
+  const mine = game && gs && gs.tteam && !spectating && !draft && !replay && !M ? gs.tteam[meId()] : null, all = !!(game && gs && gs.tteam && !draft && !replay && !M && (ended() || (gs.trShow && !spectating)));
+  if (!mine && !all) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden'); box.innerHTML = '';
+  const d = uiEl('details', 'tb'); d.open = teamTraitOpen; d.ontoggle = () => { teamTraitOpen = d.open; };
+  if (all) {
+    d.innerHTML = '<summary>🤝 ' + (ended() ? 'Team traits this game' : 'Team traits') + '</summary>'; const body = uiEl('div', 'tb-body'), done = new Set();
+    partIds().forEach(p => { const t = game.teams && game.teams[p]; if (done.has(t) || !gs.tteam[p]) return; done.add(t); body.appendChild(uiEl('div', null, '<b>' + esc(teamNames(p)) + ':</b> ' + esc(TRAIT(gs.tteam[p]).name) + ' <span class="dim">' + esc(TRAIT(gs.tteam[p]).desc) + '</span>')); });
+    d.appendChild(body);
+  } else {
+    const inf = game.ttInfo ? game.ttInfo(meId()) : null, bits = [];
+    if (inf) {
+      if (inf.cd > 0) bits.push('ready in ' + inf.cd + ' turn' + (inf.cd > 1 ? 's' : '')); else if (inf.id === 'switcheroo' || inf.id === 'anchor') bits.push('ready');
+      if (inf.id === 'bodyDouble') bits.push(inf.bd ? 'unused' : 'used'); if (inf.id === 'crownLink') bits.push((inf.lc ? 'long castle ready' : 'long castle used') + (inf.cd > 0 ? '' : ', tether ready'));
+      if (inf.bonus) bits.push('EXTRA MOVE this turn');
+    }
+    d.innerHTML = '<summary>🤝 Your team\'s trait: <b>' + esc(TRAIT(mine).name) + '</b> <span class="dim">' + (bits.length ? '(' + esc(bits.join(' · ')) + ')' : '(only your team can see this)') + '</span></summary>';
+    d.appendChild(uiEl('div', 'tb-body', esc(TRAIT(mine).desc) + (inf && inf.bonus ? '<br><b>Your partner paid a Tribute: you move twice this turn. The second move must be by a piece the sacrifice pays for.</b>' : '')));
+  }
+  box.appendChild(d);
+}
+{ const baseTB = renderTraitBar; renderTraitBar = function () { baseTB.apply(this, arguments); try { renderTeamTraitBar(); } catch (e) { /* optional */ } }; }
 
 /* ---- the guide in the Rules drawer ---- */
 let clsGuideBuilt = false;

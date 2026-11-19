@@ -10,7 +10,10 @@ const CLS = id => Engine.CLASSES[id];
 const DINFO = (kind, id) => (kind === 'class' ? CLS(id) : TRAIT(id));
 const eligibleTraits = () => Object.keys(Engine.TRAITS).filter(id => { const t = TRAIT(id); return !(t.multi && !game.multi) && !(t.fog && !gs.fog) && !(t.noAlice && game.layers > 1) && !(t.multi && (game.layers > 1 || game.bug)) && !(t.noBug && game.bug) && !(t.only2p && game.multi) && !(t.noDrops && game.dropMode) && !t.team; });      // (team traits are not dealt in the random draft)      // (layers > 1 = Alice; game.bug = Bughouse: no elimination traits there)
 const eligibleFor = (kind, all) => (kind === 'class' ? Object.keys(Engine.CLASSES).filter(id => all || !Engine.CLASSES[id].secret) : eligibleTraits());      // all = include secret classes (host's secret picker)
-const needDraft = () => !!((gs.traits && !gtraits) || (gs.classes && !gclasses));
+const needDraft = () => !!((gs.teamTrait && !gs.tteam) || (gs.traits && !gtraits) || (gs.classes && !gclasses));
+// The drafts run in this order: team trait, then personal trait, then class (each only when it is switched on).
+const wantsDraft = () => !!(gs.teamTrait || gs.traits || gs.classes);
+const firstDraftKind = () => (gs.teamTrait && !gs.tteam ? 'team' : gs.traits ? 'trait' : 'class');
 function rollOffers(kind) {
   const pool = eligibleFor(kind);
   if (kind === 'class' && gs.clFree) return pool;
@@ -18,8 +21,57 @@ function rollOffers(kind) {
   while (out.length < n) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
   return out;
 }
-function beginDraft(kind) {                                   // host only; traits first (if on), then classes (if on)
-  kind = kind || ((gs.traits && !gtraits) ? 'trait' : 'class');
+// ---- the team trait: each team is dealt 3 cards and its human players must agree on one ----
+let TEAM_PICK_MS = 30000;
+const dropsOn = () => { const V = MODES[mode].v; return !!(V.neutral ? gs.neutralDrop : V.drops); };
+const teamIds = () => Object.keys(Engine.TRAITS).filter(id => TRAIT(id).team && !(TRAIT(id).needDrops && !dropsOn()));
+const teamList = () => [...new Set(game.seats.map(c => game.teams[c]))];
+const teamSeatsOf = t => game.seats.filter(c => game.teams[c] === t);
+const rndOf = a => a[Math.floor(Math.random() * a.length)];
+function beginTeamDraft() {                                   // host only
+  const pool = teamIds(), offers = {}, byTeam = {};
+  teamList().forEach(t => { const p = pool.slice(), o = []; while (o.length < Math.min(3, p.length)) o.push(p.splice(Math.floor(Math.random() * p.length), 1)[0]); byTeam[t] = o; });
+  game.seats.forEach(c => { offers[c] = byTeam[game.teams[c]]; });
+  draft = { kind: 'team', offers, picks: {}, votes: {}, mates: {}, tres: {}, mine: offers[meId()], vote: null, final: null, picked: null, deadline: Date.now() + TEAM_PICK_MS };
+  conns.forEach(c => { if (!bots[c.seat]) c.send({ type: 'draft', kind: 'team', offers: offers[c.seat], ms: TEAM_PICK_MS }); });
+  const d = draft; d.timer = setTimeout(() => { if (draft === d) teamCheck(true); }, TEAM_PICK_MS);
+  teamCheck(false);                                           // a team made only of bots is settled at once
+  render();
+}
+function teamVote(id) {                                       // this player's vote (it can be changed until the team agrees)
+  if (!draft || draft.kind !== 'team' || !draft.mine || draft.final || !draft.mine.includes(id)) return;
+  draft.vote = id;
+  if (isHost) recvTeamVote(meId(), id); else send({ type: 'tvote', id });
+  render();
+}
+function recvTeamVote(seat, id) {                             // host: a vote arrived (from a guest, or the host's own)
+  if (!draft || draft.kind !== 'team' || !draft.offers || !draft.offers[seat] || !draft.offers[seat].includes(id)) return;
+  const t = game.teams[seat]; if (draft.tres[t]) return;
+  draft.votes[seat] = id;
+  teamSeatsOf(t).forEach(c => {                               // teammates (and only they) see each other's current vote
+    if (c === seat) return;
+    if (c === meId()) draft.mates[seat] = id; else { const cn = conns.find(x => x.seat === c); if (cn && !bots[c] && cn.open !== false) cn.send({ type: 'tvoted', seat, id }); }
+  });
+  teamCheck(false);
+}
+function teamCheck(force) {                                   // settle every team that has agreed (or, when time is up, by most votes; ties and no votes are random)
+  if (!draft || draft.kind !== 'team' || !draft.offers) return;
+  teamList().forEach(t => {
+    if (draft.tres[t]) return;
+    const seats = teamSeatsOf(t), hum = seats.filter(c => !isBotId(c)), offers = draft.offers[seats[0]], votes = hum.map(c => draft.votes[c]).filter(Boolean);
+    let pick = null;
+    if (!hum.length) pick = rndOf(offers);
+    else if (votes.length === hum.length && votes.every(v => v === votes[0])) pick = votes[0];
+    else if (force) { const cnt = {}; votes.forEach(v => { cnt[v] = (cnt[v] || 0) + 1; }); const top = Math.max(0, ...Object.values(cnt)); pick = rndOf(top ? Object.keys(cnt).filter(k => cnt[k] === top) : offers); }
+    if (!pick) return;
+    draft.tres[t] = pick; seats.forEach(c => { draft.picks[c] = pick; });
+    seats.forEach(c => { if (c === meId()) draft.final = pick; else { const cn = conns.find(x => x.seat === c); if (cn && !bots[c]) cn.send({ type: 'tdone', id: pick }); } });
+  });
+  if (teamList().every(t => draft.tres[t])) { clearTimeout(draft.timer); checkDraft(); } else render();
+}
+function beginDraft(kind) {                                   // host only; team trait first (if on), then traits (if on), then classes (if on)
+  kind = kind || firstDraftKind();
+  if (kind === 'team') { beginTeamDraft(); return; }
   const offers = {};
   partIds().forEach(p => { offers[p] = rollOffers(kind); });
   draft = { kind, offers, picks: {}, mine: offers[meId()], picked: null };
@@ -40,6 +92,7 @@ function recvPick(who, id) {
 }
 function autoPickRest() {
   if (!draft || !draft.offers) return;
+  if (draft.kind === 'team') { teamCheck(true); return; }
   partIds().forEach(p => { if (!draft.picks[p]) { const o = draft.offers[p].filter(id => !(draft.kind === 'class' && isBotId(p) && CLS(id).secret)); draft.picks[p] = o[Math.floor(Math.random() * o.length)]; } });
   if (draft.offers[meId()] && !draft.picked) draft.picked = draft.picks[meId()];
   checkDraft();
@@ -49,6 +102,11 @@ function checkDraft() {
   if (!partIds().every(p => draft.picks[p])) { render(); return; }
   const map = draft.picks, kind = draft.kind || 'trait';
   draft = null;
+  if (kind === 'team') {                                      // the team traits are stored in the game settings (so records, replays and reconnects carry them)
+    gs.tteam = Object.assign({}, map);
+    if (gs.traits && !gtraits) { beginDraft('trait'); return; }
+    if (gs.classes && !gclasses) { beginDraft('class'); return; }
+  }
   if (kind === 'trait') { pendTraits = map; if (gs.classes) { beginDraft('class'); return; } }
   const traits = kind === 'trait' ? map : (pendTraits || null), classes = kind === 'class' ? map : null;
   pendTraits = null;
@@ -66,7 +124,14 @@ function announceClassStart() {
     if (gclasses[pid] && (spectating || !gs.clHide || isMate(pid))) addChat('', whoName(pid) + ' is a ' + CLS(gclasses[pid]).name + '.', true);
   });
 }
+function announceTeamTrait() {
+  if (!game || !gs.tteam) return;
+  const mine = spectating ? null : gs.tteam[meId()];
+  if (mine && TRAIT(mine)) addChat('', 'Your team\'s trait (the other team can\'t see it): ' + TRAIT(mine).name + '. ' + TRAIT(mine).desc, true);
+  if (gs.trShow) { const done = new Set(); partIds().forEach(p => { const t = game.teams && game.teams[p]; if (done.has(t) || !gs.tteam[p] || (!spectating && t === game.teams[meId()])) return; done.add(t); addChat('', teamNames(p) + ' have the team trait ' + TRAIT(gs.tteam[p]).name + '.', true); }); }
+}
 function announceTraitStart() {
+  announceTeamTrait();
   if (game && gclasses) announceClassStart();
   if (!gtraits || !game) return;
   if (gs.trShow) { partIds().forEach(pid => { if (gtraits[pid]) addChat('', whoName(pid) + ' has the trait ' + TRAIT(gtraits[pid]).name + '. ' + TRAIT(gtraits[pid]).desc, true); }); return; }      // host option: all traits are public
@@ -164,11 +229,15 @@ function render() {
   $('swapBtn').classList.toggle('hidden', !canSwapNow);
   if (!canSwapNow) { swapMode = false; swapFirst = null; }
   else $('swapBtn').textContent = swapMode ? 'Cancel swap' : 'Swap two pieces';
+  const canTribNow = tributeEligible();
+  $('tributeBtn').classList.toggle('hidden', !canTribNow);
+  if (!canTribNow) tributeMode = false; else $('tributeBtn').textContent = tributeMode ? 'Cancel tribute' : 'Tribute: sacrifice a piece';
   if (!sel) pendingFriendly = null;
-  if (pendingFriendly) $('status').textContent = 'Friendly Fire: click that piece again to capture your own piece, or choose something else.';
+  if (pendingFriendly) $('status').textContent = pendingFriendly.lc ? 'Long castle: click that rook again to swap places with it (once per game), or choose something else.' : 'Friendly Fire: click that piece again to capture your own piece, or choose something else.';
   if (abMode) { const ab = game.abilities(meId()).find(a => a.id === abMode); $('status').textContent = (ab ? ab.name : 'Ability') + (abFrom ? ': now click the destination/target square' : (ab && ab.steps === 2 ? ': first click the piece to use' : ': click a highlighted square')) + ' (click anywhere else to cancel).'; }
   if (game && !abMode && !replay && !spectating && game.overrunOf && game.overrunOf(meId()) && game.turn === meId() && !ended()) $('status').textContent = 'Overrun! Keep capturing with the marked piece' + (game.overrunOf(meId()).n ? ' or press End Overrun.' : '.');
   else if (!abMode && chargeSq && game.turn === meId() && !ended()) $('status').textContent = 'Charge! Move the marked piece' + (chargeSq.stage === 2 ? ' again (its second move).' : '.');
+  if (tributeMode) $('status').textContent = 'Tribute: click one of your pieces (not the king) to sacrifice it. It is your move, and your next teammate gets an extra move.';
   if (swapMode) $('status').textContent = 'Swap: ' + (swapFirst ? 'now pick the second piece (first: ' + sqName(swapFirst.x, swapFirst.y) + ')' : 'pick the first of your two pieces') + '. Not kings or pawns. Once per game.';
   $('endRoundBtn').classList.toggle('hidden', !(isHost && M && M.phase === 'play' && !ended()));
   $('botTakeBtn').classList.toggle('hidden', !(isHost && game && game.multi && !game.bug));
@@ -190,6 +259,11 @@ function render() {
   if (game && gclasses && !draft && !replay && ended() && !revealedCl) {
     revealedCl = true;
     addChat('', 'Classes this game: ' + partIds().map(p => whoName(p) + ': ' + CLS(gclasses[p]).name).join(', ') + '.', true);
+  }
+  if (game && gs.tteam && !draft && !replay && ended() && !revealedTeam) {
+    revealedTeam = true; const done = new Set(), parts = [];
+    partIds().forEach(p => { const t = game.teams && game.teams[p]; if (done.has(t) || !gs.tteam[p]) return; done.add(t); parts.push(teamNames(p) + ': ' + TRAIT(gs.tteam[p]).name); });
+    if (parts.length) addChat('', 'Team traits this game: ' + parts.join('; ') + '.', true);
   }
   if (game && gtraits && !draft && !replay) {
     const mine = spectating ? null : gtraits[meId()];

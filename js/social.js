@@ -252,7 +252,15 @@ function classify(c, hello) {
   if (everJoined || bots2p || (conn && conn.open)) return addSpectator(c);
   setupConn(c);
 }
-const draftFor = seat => (draft && draft.offers && draft.offers[seat] ? { kind: draft.kind, offers: draft.offers[seat], picked: draft.picks[seat] || null } : null);
+const draftFor = seat => {
+  if (!(draft && draft.offers && draft.offers[seat])) return null;
+  const o = { kind: draft.kind, offers: draft.offers[seat], picked: draft.kind === 'team' ? null : draft.picks[seat] || null };
+  if (draft.kind === 'team' && game && game.teams) {            // a player who comes back sees their own vote, their partner's, and the time left
+    const t = game.teams[seat], mates = {}; teamSeatsOf(t).forEach(c => { if (c !== seat && draft.votes[c]) mates[c] = draft.votes[c]; });
+    Object.assign(o, { vote: draft.votes[seat] || null, mates, final: draft.tres[t] || null, left: Math.max(0, (draft.deadline || 0) - Date.now()) });
+  }
+  return o;
+};
 function rebindMulti(c, old) {
   setTimeout(pushSeatInfo, 500);
   c.seat = old.seat; c.team = old.team; c.ready = true; c.token = old.token; old.replaced = true;

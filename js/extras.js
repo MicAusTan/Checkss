@@ -139,7 +139,7 @@ document.addEventListener('keydown', e => {
   if (typing || e.ctrlKey || e.metaKey || e.altKey || $('game').classList.contains('hidden')) return;
   if (e.key === '?') { $('helpBtn').click(); e.preventDefault(); }
   else if (e.key === '/' || e.key === 'c' || e.key === 'C') { $('chatIn').focus(); e.preventDefault(); }
-  else if (e.key === 'Escape') { if (sel || abMode || swapMode) { sel = null; abMode = null; swapMode = false; swapFirst = null; render(); } }
+  else if (e.key === 'Escape') { if (sel || abMode || swapMode || tributeMode) { sel = null; abMode = null; swapMode = false; swapFirst = null; tributeMode = false; render(); } }
   else if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key) && game && !draft && (replay || (ended() && canReplay()))) {
     if (!replay) enterReplay(); if (!replay) return;
     const n = e.key === 'Home' ? 0 : e.key === 'End' ? replay.total : replay.ply + (e.key === 'ArrowRight' ? 1 : -1);

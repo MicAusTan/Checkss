@@ -13,9 +13,22 @@ const TEAM_SLOTS = () => {
 const seatHex = c => (octMode() ? OCT_HEX[c] : SEAT_HEX[c]);
 const teamCounts = () => { const cnt = Array(teamCount()).fill(0); cnt[normTeam(hostTeam)]++; conns.filter(x => x.ready).forEach(x => cnt[normTeam(x.team)]++); lobbyBots.forEach(b => cnt[normTeam(b.team)]++); return cnt; };
 const lightestTeam = cnt => cnt.indexOf(Math.min(...cnt));
+var teamMode = 'host', teamLock = false;                 // how teams are made: 'host' = only the host moves people, 'free' = players pick their own team, 'random' = shuffled by the host. Lobby only (never part of the game record).
+const teamLabel = t => octMode() ? 'Team ' + (t + 1) + ': ' + TEAM_SLOTS()[t].map(c => CN[c]).join(', ') : 'Team ' + 'AB'[t] + ': ' + (t ? 'Blue & Teal' : 'Red & Orange');
+function setTeam(p, t) {                                     // move one player to team t if it has room (the host's own buttons skip this check, the start button still validates)
+  if (!Number.isInteger(t) || t < 0 || t >= teamCount() || normTeam(p.team) === t) return false;
+  const cnt = Array(teamCount()).fill(0); lobbyPlayers().forEach(q => { if (q !== p) cnt[normTeam(q.team)]++; });
+  if (cnt[t] >= teamCap()) return false;
+  p.pref = null; p.team = t; return true;
+}
+function shuffleTeams() {                                    // everybody (bots too) is dealt to a random team, as evenly as possible
+  const pl = lobbyPlayers(); for (let i = pl.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pl[i], pl[j]] = [pl[j], pl[i]]; }
+  const off = Math.floor(Math.random() * teamCount());
+  pl.forEach((q, i) => { q.pref = null; q.team = (i + off) % teamCount(); });
+}
 const teamsOn = () => !!MODES[mode].bug || (MODES[mode].oct ? $('teams8Sel').value !== 'ffa' : (!!(MODES[mode].opts || []).includes('teams') && $('teamsChk').checked));
 var hostPref = null;                                         // the seat each player asked for (null = whatever is left)
-const hostObj = { get team() { return hostTeam; }, get pref() { return hostPref; }, set pref(v) { hostPref = v; } };
+const hostObj = { get team() { return hostTeam; }, set team(v) { hostTeam = v; }, get pref() { return hostPref; }, set pref(v) { hostPref = v; } };
 const lobbyPlayers = () => [hostObj].concat(conns.filter(c => c.ready)).concat(lobbyBots);
 function lobbySeats() {
   const players = lobbyPlayers(), order = octMode() ? Engine.OCT_ORDER : ['r', 'b', 'y', 'g'], by = Array(players.length), taken = new Set();
@@ -63,13 +76,34 @@ function shuffleSeats() {                                    // everybody gets a
   groups.forEach(ks => { const seats = ks.map(k => ls.by[k]); for (let i = seats.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [seats[i], seats[j]] = [seats[j], seats[i]]; } ks.forEach((k, i) => { players[k].pref = seats[i]; }); });
 }
 function pickInfo(c, ls) {
-  const k = lobbyPlayers().indexOf(c); if (k < 0 || MODES[mode].match4 || seatChoices(c).length < 2) return null;
-  return { opts: seatChoices(c).map(sc => ({ s: sc, hex: seatHex(sc), name: seatLabel(sc), mine: ls.by[k] === sc, free: ls.by.indexOf(sc) < 0 })) };
+  const k = lobbyPlayers().indexOf(c); if (k < 0) return null;
+  const out = {};
+  if (!MODES[mode].match4 && seatChoices(c).length >= 2) out.opts = seatChoices(c).map(sc => ({ s: sc, hex: seatHex(sc), name: seatLabel(sc), mine: ls.by[k] === sc, free: ls.by.indexOf(sc) < 0 }));
+  if (teamsOn()) {                                           // guests only get team buttons when the host chose "players pick"
+    const cnt = Array(teamCount()).fill(0); lobbyPlayers().forEach(q => { cnt[normTeam(q.team)]++; });
+    out.tm = { how: teamMode, locked: teamLock, cur: normTeam(c.team), teams: Array.from({ length: teamCount() }, (_, t) => ({ name: teamLabel(t), n: cnt[t], cap: teamCap() })) };
+  }
+  return out.opts || out.tm ? out : null;
 }
-function drawSeatPick(p) {                                   // guests: pick one of the colours nobody has yet
+function drawSeatPick(p) {                                   // guests: pick a team (when the host allows it) and one of the colours nobody has yet
   const el = $('seatPick'); el.innerHTML = '';
-  if (!p || !p.opts) { el.classList.add('hidden'); return; }
-  el.classList.remove('hidden'); el.appendChild(document.createTextNode('Your colour:'));
+  if (!p || (!p.opts && !p.tm)) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  if (p.tm) {
+    const row = document.createElement('div'); row.className = 'tmPick'; row.style.flexBasis = '100%';
+    const free = p.tm.how === 'free' && !p.tm.locked;
+    row.appendChild(document.createTextNode('Your team: '));
+    p.tm.teams.forEach((t, i) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'tmBtn' + (i === p.tm.cur ? ' mine' : ''); b.textContent = t.name + ' (' + t.n + '/' + t.cap + ')';
+      const full = t.n >= t.cap && i !== p.tm.cur; b.disabled = !free || i === p.tm.cur || full;
+      b.title = i === p.tm.cur ? 'Your team' : !free ? (p.tm.locked ? 'The host locked the teams' : p.tm.how === 'random' ? 'The host deals the teams at random' : 'The host picks the teams') : full ? 'That team is full' : 'Click to join this team';
+      b.onclick = () => send({ type: 'pickteam', team: i }); row.appendChild(b);
+    });
+    const n = document.createElement('div'); n.className = 'dim'; n.textContent = p.tm.locked ? 'The host locked the teams.' : p.tm.how === 'free' ? 'Click a team to join it (full teams are greyed out). The host can also move you.' : p.tm.how === 'random' ? 'The host deals the teams at random.' : 'The host picks the teams.';
+    row.appendChild(n); el.appendChild(row);
+  }
+  if (!p.opts) return;
+  el.appendChild(document.createTextNode('Your colour:'));
   p.opts.forEach(o => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'swt' + (o.mine ? ' mine' : o.free ? '' : ' taken'); b.style.background = o.hex;
     b.title = o.name + (o.mine ? ' (yours)' : o.free ? ' (free: click to take it)' : ' (taken)');
@@ -99,13 +133,22 @@ function renderRoster() {
     if (row.kick) { const kb = document.createElement('button'); kb.textContent = row.kick === undefined ? '' : (row.bot ? 'Remove' : 'Kick'); kb.onclick = row.kick; d.appendChild(kb); }
     return d;
   };
+  if (tOn) {                                                 // who decides the teams
+    const bar = document.createElement('div'); bar.id = 'teamHow'; bar.className = 'dim';
+    const sel = document.createElement('select'); [['host', 'Host picks the teams'], ['free', 'Players pick their own team'], ['random', 'Random teams']].forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; if (v === teamMode) o.selected = true; sel.appendChild(o); });
+    sel.onchange = () => { teamMode = sel.value; if (teamMode === 'random') shuffleTeams(); renderRoster(); };
+    bar.appendChild(document.createTextNode('Teams: ')); bar.appendChild(sel);
+    if (teamMode === 'free') { const l = document.createElement('label'); l.style.marginLeft = '10px'; const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = teamLock; cb.onchange = () => { teamLock = cb.checked; renderRoster(); }; l.appendChild(cb); l.appendChild(document.createTextNode(' Lock teams')); bar.appendChild(l); }
+    if (teamMode === 'random') { const sb = document.createElement('button'); sb.type = 'button'; sb.className = 'small'; sb.textContent = '🎲 Shuffle teams'; sb.onclick = () => { shuffleTeams(); renderRoster(); }; bar.appendChild(sb); }
+    r.appendChild(bar);
+  }
   if (tOn) {
     const cols = document.createElement('div'); cols.id = 'teamCols';
     Array.from({ length: teamCount() }, (_, t) => t).forEach(t => {
       const col = document.createElement('div'); col.className = 'tcol t' + t;
       const members = rows.map((row, k) => ({ row, k })).filter(o => normTeam(o.row.team) === t);
       const h = document.createElement('div'); h.className = 'thead';
-      h.textContent = octMode() ? 'Team ' + (t + 1) + ': ' + TEAM_SLOTS()[t].map(c => CN[c]).join(', ') + ' (' + members.length + '/' + teamCap() + ')' : 'Team ' + 'AB'[t] + ': ' + (t ? 'Blue & Teal' : 'Red & Orange') + ' (' + members.length + '/2)';
+      h.textContent = teamLabel(t) + ' (' + members.length + '/' + teamCap() + ')';
       col.appendChild(h);
       members.forEach(o => col.appendChild(mk(o.row, o.k)));
       if (!members.length) { const e = document.createElement('div'); e.className = 'dim'; e.textContent = '(empty)'; col.appendChild(e); }

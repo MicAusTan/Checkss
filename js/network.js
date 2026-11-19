@@ -8,7 +8,7 @@ function send(msg) {
 
 function readGS() {
   return { dropZone: $('dropSel').value, fog: $('fogChk').checked, teams: $('teamsChk').checked, board: $('boardSel').value, height: +$('heightSel').value,
-    neutralSet: $('nsetSel').value, fallen: $('fallenChk').checked, neutralDrop: $('neutralDropChk').checked, impRoam: $('impRoamChk').checked, traits: $('traitsChk').checked, offers: +$('offerSel').value, trShow: $('trShowChk').checked,
+    neutralSet: $('nsetSel').value, fallen: $('fallenChk').checked, neutralDrop: $('neutralDropChk').checked, impRoam: $('impRoamChk').checked, teamTrait: $('teamTraitChk').checked, traits: $('traitsChk').checked, offers: +$('offerSel').value, trShow: $('trShowChk').checked,
     c960: $('c960Chk').checked, back960: $('c960Chk').checked ? Engine.randomBack960() : null,
     classes: $('classesChk').checked, clStart: +$('clStart').value || 0, clGain: +$('clGain').value || 0, clCap: +$('clCap').value || 8, clPer: +$('clPer').value || 0,
     clSum: +$('clSum').value || 4, clUlt: $('clUlt').checked, clHide: $('clHide').checked, clFree: $('clFree').checked, clHideFx: $('clHideFx').checked,
@@ -26,7 +26,7 @@ function newGame(m, s, o) {
   if (!MODES[m].match4) A4 = null;
   mode = m; sel = null; over = null; overRes = null; setupMsg = ''; pal = 'p'; centered = false; cylShift = 0;
   gs = Object.assign({}, GS_DEFAULTS, o.gs || gs);
-  gtraits = o.traits || null; draft = null; revealedAll = false; resignLog = []; timedOut = new Set();
+  gtraits = o.traits || null; draft = null; revealedAll = false; revealedTeam = false; resignLog = []; timedOut = new Set();
   gclasses = o.classes || null; abMode = null; abFrom = null; mirageSeen = 0; foeSel = null; glitchSeen = 0; meteorSeen = 0; abSet = null; revealedCl = false; pendTraits = null;
   gs.traits = !!gs.traits && ((MODES[m].opts || []).includes('traits'));
   gs.classes = !!gs.classes && ((MODES[m].opts || []).includes('classes'));
@@ -74,7 +74,7 @@ function handleMessage(msg) {
       if (msg.seat) mySeat = msg.seat;
       if (msg.a4x && A4) a4Apply(msg.a4x);
       if (msg.color) myColor = msg.color;
-      draft = msg.draft && msg.draft.offers ? { kind: msg.draft.kind || 'trait', mine: msg.draft.offers, picked: msg.draft.picked } : null;
+      draft = msg.draft && msg.draft.offers ? { kind: msg.draft.kind || 'trait', mine: msg.draft.offers, picked: msg.draft.picked, vote: msg.draft.vote || null, mates: msg.draft.mates || {}, final: msg.draft.final || null, deadline: Date.now() + (+msg.draft.left || 0) } : null;
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       if (game && game.multi) $('rematchBtn').classList.add('hidden'); else $('rematchBtn').classList.remove('hidden');
       addChat('', msg.resync ? 'Board refreshed from the host.' : 'Reconnected. You are back in the game.', true); render(); break;
@@ -90,7 +90,7 @@ function handleMessage(msg) {
       if (msg.hostColor) myColor = msg.hostColor === 'w' ? 'b' : 'w';
       if (msg.from) peerInfo = { n: cleanName(msg.from.n), p: safePfp(msg.from.p), k: cleanSk(msg.from.sk) };
       newGame(msg.mode, msg.settings, { gs: msg.gs }); if (game) msg.moves.forEach(m => game.move(m));
-      if (gs.traits || gs.classes) draft = { kind: gs.traits ? 'trait' : 'class', mine: null, picked: null };
+      if (wantsDraft()) draft = { kind: firstDraftKind(), mine: null, picked: null };
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       $('rematchBtn').classList.remove('hidden'); render(); break;
     case 'move': if (game.move(msg.m)) { sel = null; announce(); render(); } break;
@@ -100,7 +100,7 @@ function handleMessage(msg) {
     case 'newgame':
       newGame(msg.mode || mode, msg.settings, { gs: msg.gs, seats: msg.seats });
       if (msg.swap && !spectating) myColor = myColor === 'w' ? 'b' : 'w';
-      if ((gs.traits || gs.classes) && !spectating) draft = { kind: gs.traits ? 'trait' : 'class', mine: null, picked: null };
+      if (wantsDraft() && !spectating) draft = { kind: firstDraftKind(), mine: null, picked: null };
       $('modeSel2').value = mode; $('promo').classList.add('hidden'); $('drawBanner').classList.add('hidden');
       addChat('', 'New game: ' + MODES[mode].name + (MODES[mode].multi ? '.' : '. You are ' + (myColor === 'w' ? 'White' : 'Black') + '.'), true);
       render(); break;
@@ -120,14 +120,16 @@ function handleMessage(msg) {
         addChat('', 'You are ' + CN[mySeat] + '. Build your army in your own arm. Nobody sees it until everyone is ready' + (A4.teams ? ' (your partner can watch you build).' : '.'), true);
         render(); break;
       }
-      if (gs.traits || gs.classes) draft = { kind: gs.traits ? 'trait' : 'class', mine: null, picked: null };
+      if (wantsDraft()) draft = { kind: firstDraftKind(), mine: null, picked: null };
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       if (game.teams) addChat('', 'Teams: ' + teamNames('r') + ' vs ' + teamNames('b') + '.', 'minor');
   Object.keys(bots).forEach(sd => addChat('', CN[sd] + ' is a bot (' + bots[sd] + ').', 'minor'));
   addChat('', game.bug ? 'You are ' + CN[mySeat] + ' (Board ' + game.info[mySeat][0] + ', ' + (game.info[mySeat][1] === 'w' ? 'White' : 'Black') + '). Your partner is ' + CN[game.partner[mySeat]] + '. Both boards play at the same time.' : 'You are ' + CN[mySeat] + '. Turn order: ' + game.seats.map(c => CN[c]).join(' → ') + '.', 'minor');
       render(); break;
     case 'nmove': if (game && game.neutralApply && game.neutralApply(msg.m)) { noteNeutral(msg.m); render(); if (!game.neutralPending) announceMulti(); } break;
-    case 'draft': draft = { kind: msg.kind || 'trait', mine: msg.offers, picked: null }; render(); break;
+    case 'draft': draft = { kind: msg.kind || 'trait', mine: msg.offers, picked: null, mates: {}, vote: null, final: null, deadline: Date.now() + (+msg.ms || 0) }; render(); break;
+    case 'tvoted': if (draft && draft.kind === 'team' && draft.mine && game && game.teams && game.teams[msg.seat] !== undefined && game.teams[msg.seat] === game.teams[mySeat] && msg.seat !== mySeat && draft.mine.includes(msg.id)) { draft.mates[msg.seat] = msg.id; render(); } break;
+    case 'tdone': if (draft && draft.kind === 'team' && draft.mine && draft.mine.includes(msg.id)) { draft.final = msg.id; render(); } break;
     case 'pick': if (isHost && !game.multi) recvPick(myColor === 'w' ? 'b' : 'w', msg.id); break;
     case 'traits':
       newGame(msg.mode || mode, null, { seats: msg.seats, gs: msg.gs, traits: msg.traits, classes: msg.classes }); draft = null;
@@ -196,12 +198,21 @@ function setupConn(c) {
   });
 }
 
+// A room code you choose yourself (kept on this device). Letters and digits only: a PeerJS id may not end in '-' or '_'.
+const cleanRoomCode = v => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
+const saveFixedCode = c => { try { localStorage.setItem('chessFixedCode', c); } catch (e) { /* private mode: it is simply not remembered */ } };
+let hostAttempt = 0, HOST_RETRY_MS = 4000;
 function host() {
-  banned.clear(); isHost = true; myColor = 'w'; hostPref = null; mseats = null; bots = {}; bots2p = null; lobbyBots = []; specChatOn = false; $('specChatChk').checked = false; newGame($('modeSel').value, readSettings($('modeSel').value), { gs: readGS() });
-  const code = Math.random().toString(36).slice(2, 7);
+  { const raw = $('fixedCodeIn').value.trim(); if (raw && cleanRoomCode(raw).length < 4) { $('lobbyMsg').textContent = 'A room code needs at least 4 letters or digits (7 or more is safer: a short code is easy to guess). Leave it empty for a random code.'; return; } }
+  const attempt = ++hostAttempt;
+  banned.clear(); teamMode = 'host'; teamLock = false; isHost = true; myColor = 'w'; hostPref = null; mseats = null; bots = {}; bots2p = null; lobbyBots = []; specChatOn = false; $('specChatChk').checked = false; newGame($('modeSel').value, readSettings($('modeSel').value), { gs: readGS() });
+  const typed = cleanRoomCode($('fixedCodeIn').value), code = typed || Math.random().toString(36).slice(2, 7);
+  if (typed) saveFixedCode(typed);
+  let tries = 0, opened = false;
+  const openPeer = () => {
   peer = new Peer(PREFIX + code);
   peer.on('open', () => {
-    const url = location.origin + location.pathname + '?join=' + code;
+    opened = true; const url = location.origin + location.pathname + '?join=' + code;
     roomCode = code; $('copyRow').classList.remove('hidden'); $('lobby').classList.add('hosting');
     lobbyBase = '<div class="rcode"><span class="rl">Room code</span><b>' + code + '</b></div>' +
       '<div class="rlink">Friends join with: <span id="link">' + url + '</span></div>' +
@@ -212,8 +223,16 @@ function host() {
     if (MODES[mode].multi) { $('lobbyCtl').classList.remove('hidden'); $('botAdd').classList.toggle('hidden', !!MODES[mode].bug); renderRoster(); }
   });
   peer.on('connection', acceptConn);
-  peer.on('error', e => $('lobbyMsg').textContent = 'Error: ' + e.type);
+  peer.on('error', e => {
+    if (e.type === 'unavailable-id' && typed && tries < 8) {      // a code you chose may still be held by the last room you closed: wait a little and try again
+      tries++; $('lobbyMsg').textContent = 'The code “' + code + '” is still busy (maybe your last room is closing). Trying again (' + tries + '/8)…';
+      try { peer.destroy(); } catch (x) { /* gone */ } setTimeout(() => { if (isHost && !opened && attempt === hostAttempt) openPeer(); }, HOST_RETRY_MS); return;
+    }
+    $('lobbyMsg').textContent = e.type === 'unavailable-id' && typed ? 'The code “' + code + '” is taken by another room. Pick a different code (or leave it empty for a random one) and press Create game again.' : 'Error: ' + e.type;
+  });
   peer.on('disconnected', () => setTimeout(() => { try { if (peer && peer.disconnected && !peer.destroyed) peer.reconnect(); } catch (e) { /* ignore */ } }, 1500));      // the signalling server dropped us: new friends could not join until we reconnect
+  };
+  openPeer();
 }
 
 function join(code, asSpec) {

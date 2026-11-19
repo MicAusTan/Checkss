@@ -456,6 +456,15 @@ const Engine = (() => {
     // Team traits (multiplayer team games only). `team: true` keeps them out of the normal random draft: they are meant to be chosen by a whole team together.
     inheritance:   { name: 'Inheritance', multi: true, team: true, desc: 'If you are checkmated, your pieces pass to your partner instead of turning gray.' },
     openRanks:     { name: 'Open Ranks', multi: true, team: true, desc: 'Your sliding pieces can pass through your partner\'s pieces (but cannot stop on them).' },
+    mutualDefence: { name: 'Mutual Defence', multi: true, team: true, desc: 'A pawn of your team that a knight or bishop of your team guards cannot be captured at all. Capture the guard first. Queens and rooks neither guard nor are guarded, and knights and bishops are not protected by this.' },
+    avengerPact:   { name: 'Avenger Pact', multi: true, team: true, desc: 'If a rook or a queen of your team is captured (by anything but a king), the capturing piece is destroyed too.' },
+    switcheroo:    { name: 'Switcheroo', multi: true, team: true, desc: 'Instead of a normal move, one of your pieces can swap places with a partner\'s piece that it could reach with a normal move (never kings). Neither king may end up in check. After using it, you must wait 2 of your own turns before you can use it again.' },
+    bodyDouble:    { name: 'Body Double', multi: true, team: true, desc: 'Once for each king on your team: when your king would be checkmated, it swaps places with one of your own pieces (not a king) as your move, as long as that gets it out of check.' },
+    anchor:        { name: 'Anchor', multi: true, team: true, desc: 'Instead of a normal move, a piece (not a king or pawn) can jump to a free square on the near side of a partner\'s piece (the 3 squares that face it), as long as that square is within 3 squares of it. Jumps over anything. After using it, wait 2 of your own turns.' },
+    tribute:       { name: 'Tribute', multi: true, team: true, desc: 'Instead of a move, sacrifice one of your pieces (not the king). Your next teammate gets an extra move that turn. A pawn buys a pawn, knight or bishop move; a knight or bishop buys a rook or king move; a rook buys a queen move (anything higher buys the lower ones too). On that turn the king may end its first move in check if the second move gets it out.' },
+    crownLink:     { name: 'Crown Link', multi: true, team: true, desc: 'Long castle: once, an unmoved king that is not in check swaps places with an unmoved rook of your team on its rank or file, however far away and whatever stands between. Tether: when your king steps closer to your partner\'s king, you may also pull the partner king one step closer (then wait 3 turns).' },
+    sharedBank:    { name: 'Shared Bank', multi: true, team: true, needDrops: true, desc: 'Captured pieces go into one reserve that both partners can drop from. A pawn that stays in it for 6 team turns becomes a knight; a knight or bishop that stays 8 more team turns becomes a rook. Drop modes only.' },
+    relayPawns:    { name: 'Relay Pawns', multi: true, team: true, desc: 'Partner pawns standing side by side cannot be captured by enemy pawns. A pawn blocked head-on by a partner pawn may step diagonally forward onto an empty square.' },
     backstabbers:  { name: 'Backstabbers', desc: 'Your pawns can also capture diagonally backward.', pawn: { backcap: true } },
     slingers:      { name: 'Slingers', desc: 'Your pawns can also capture 2 squares straight ahead, jumping the square in front.', pawn: { sling: true } },
     shieldWall:    { name: 'Shield Wall', desc: 'Your pawns cannot be captured by knights.' },
@@ -604,6 +613,13 @@ const Engine = (() => {
     }, EXTRA_PIECES, v.austang ? GRAND_PIECES : {});
     const TR = {}; Object.keys(v.traits || {}).forEach(c => { const t = TRAITS[v.traits[c]]; if (!(t && t.only2p)) TR[c] = v.traits[c]; });      // (2-player-only traits are ignored here)
     const traitOf = c => TRAITS[TR[c]] || null, rev = new Set(), dcache = {}, trapUsed = new Set(), swapUsed = new Set();
+    // Team traits: one shared trait per team (v.tteam = { seat: traitId }), separate from the personal traits above. The old way (a team trait set as a personal one) still works.
+    const TT = {}; if (v.teams && v.tteam) Object.keys(v.tteam).forEach(c => { const t = TRAITS[v.tteam[c]]; if (t && t.team && seats.includes(c)) TT[c] = v.tteam[c]; });
+    const hasT = (c, id) => TR[c] === id || TT[c] === id;
+    // Team trait actions: cooldowns (own turns), Body Double / long castle uses, Tribute's extra move, and the Shared Bank clocks.
+    const TT_CD = { switcheroo: 2, anchor: 2, crownLink: 3 };
+    const TIER = { p: 1, n: 2, b: 2, a: 3, l: 3, r: 3, q: 4 }, NEED = { p: 1, n: 1, b: 1, a: 2, l: 2, r: 2, q: 3, k: 2 };      // sacrifice value of a piece / the least sacrifice that buys that piece a move
+    const bdUsed = new Set(), lcUsed = new Set();
     const D = (c, nt) => {
       if (nt) return baseDefs;
       if (dcache[c]) return dcache[c];
@@ -635,7 +651,8 @@ const Engine = (() => {
       }
       return false;
     };
-    const pflags = (c, nt) => (nt || c === 'n' ? {} : CPm(c) && CPm(c).pawn ? Object.assign({}, traitOf(c) ? traitOf(c).pawn : null, CPm(c).pawn) : (traitOf(c) ? traitOf(c).pawn || {} : {}));
+    const pflags0 = (c, nt) => (nt || c === 'n' ? {} : CPm(c) && CPm(c).pawn ? Object.assign({}, traitOf(c) ? traitOf(c).pawn : null, CPm(c).pawn) : (traitOf(c) ? traitOf(c).pawn || {} : {}));
+    const pflags = (c, nt) => (!nt && TT[c] === 'relayPawns' ? Object.assign({}, pflags0(c, nt), { relay: true }) : pflags0(c, nt));
     const NEU = !!v.neutral || !!v.boss || Object.values(TR).includes('lastStand');
     const b = new Array(SZ).fill(null), alive = {}, events = [], hist = [], hands = {};
     ORDER.forEach(c => {
@@ -653,6 +670,17 @@ const Engine = (() => {
         if (LY.pawns[k] !== '.') b[idx(px, py)] = LY.pawns[k] === 'h' ? { t: 'p', champ: true, c, dead: !alive[c] } : { t: LY.pawns[k], c, dead: !alive[c] };
       }
     });
+    // Shared Bank: both partners hold one and the same reserve (the object is shared), so a capture by either one feeds it and either one can drop from it.
+    const BANK = !!v.drops && seats.some(c => TT[c] === 'sharedBank');
+    if (BANK) { const sh = {}; seats.forEach(c => { if (TT[c] === 'sharedBank') { const t = teamOf(c); hands[c] = sh[t] || (sh[t] = {}); } }); }
+    function ageBank(team) {                                    // one more team turn passed: pawns that waited 6 become knights, minors that waited 8 become rooks
+      const h = hands[seats.find(c => teamOf(c) === team && TT[c] === 'sharedBank')]; if (!h) return;
+      const L = S.bank[team] || (S.bank[team] = { p: [], n: [], b: [] });
+      ['p', 'n', 'b'].forEach(t => { const n = h[t] || 0; while (L[t].length < n) L[t].push(0); while (L[t].length > n) L[t].shift(); });      // (self-healing: the lists always match the counts)
+      ['p', 'n', 'b'].forEach(t => { L[t] = L[t].map(a => a + 1); });
+      while (L.p.length && L.p[0] >= 6) { L.p.shift(); h.p--; h.n = (h.n || 0) + 1; L.n.push(0); }
+      ['n', 'b'].forEach(t => { while (L[t].length && L[t][0] >= 8) { L[t].shift(); h[t]--; h.r = (h.r || 0) + 1; } });
+    }
     // Neutral pieces (colour 'n') belong to nobody. They move by themselves after every full round of turns.
     let nid = 0;
     if (NEU) alive.n = true;
@@ -676,7 +704,7 @@ const Engine = (() => {
       if (seen.size) nest = seen;
     }
     (v.place || []).forEach(e => { b[idx(e.x, e.y)] = e.p ? Object.assign({ m: true }, e.p, e.p.c === 'n' && !e.p.id ? { id: ++nid } : {}) : null; });      // scenario pieces (tests, puzzles): [{ x, y, p: { t, c, ... } }]
-    const S = { turn: (v.first && seats.includes(v.first)) ? v.first : seats[0], round: 0, bcd: {}, left: v.firstSingle ? 1 : per(), drawn: false, moved: new Set(), nmoved: new Set(), pending: false, needSettle: false, fr: null, fn: 0 };
+    const S = { cd: {}, tb: {}, tbA: 0, bank: {}, turn: (v.first && seats.includes(v.first)) ? v.first : seats[0], round: 0, bcd: {}, left: v.firstSingle ? 1 : per(), drawn: false, moved: new Set(), nmoved: new Set(), pending: false, needSettle: false, fr: null, fn: 0 };
     // ---- Austang pieces (v.austang): captured-piece lists (Sacrificer / Reviver), Herald aura and free steps. Same rules as the 2-player engine, with every seat's own "forward".
     const yard = {}; ORDER.forEach(c => { yard[c] = []; });
     const PAWNLIKE = t => t === 'p' || t === '\u03c1', HERALD = !!v.austang, promoList = v.promoteTo || STANDARD.promoteTo;
@@ -779,7 +807,10 @@ const Engine = (() => {
     const pass = c => {
       S.fr = null; S.fn = 0;
       for (const k in S.bcd) if (S.bcd[k].c === c && --S.bcd[k].n <= 0) delete S.bcd[k];
+      if (S.cd[c] > 0) S.cd[c]--;
+      if (BANK && TT[c] === 'sharedBank') ageBank(teamOf(c));
       S.turn = nextActive(c); S.left = per();
+      S.tbA = 0; if (S.tb[S.turn]) { S.tbA = S.tb[S.turn]; delete S.tb[S.turn]; S.left += 1; }      // Tribute: the sacrifice buys this teammate one more move this turn
       if (NEU) {
         S.moved.add(c);
         if (seats.every(x => !alive[x] || S.moved.has(x))) { S.moved.clear(); S.nmoved.clear(); S.pending = true; }
@@ -793,6 +824,17 @@ const Engine = (() => {
       const p = B[idx(x, y)];
       if (!p || !PAWNLIKE(p.t) || !hushedAt(B, x, y, p.c)) return r;      // Herald: quieted pawns can neither capture nor attack
       return atk ? [] : r.filter(m => !B[idx(m.tx, m.ty)]);
+    }
+    // Mutual Defence: is this pawn guarded by a live knight or bishop of its own team? (plain geometry, so no recursion into move generation)
+    const GUARD_D = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+    function guardedPawn(B, t, tx, ty) {
+      const mine = d => d && !d.dead && d.c !== 'n' && teamOf(d.c) === teamOf(t.c), wrap = x => (cyl ? ((x % BW) + BW) % BW : x);
+      for (const [lx, ly] of STANDARD.pieces.n.leap) { const x = wrap(tx + lx), y = ty + ly; if (valid(x, y)) { const d = B[idx(x, y)]; if (mine(d) && d.t === 'n') return true; } }
+      for (const [ax, ay] of GUARD_D) {
+        let x = tx + ax, y = ty + ay;
+        for (let n = 0; n < BW + SZ / BW; n++, x += ax, y += ay) { const xx = wrap(x); if (!valid(xx, y)) break; const d = B[idx(xx, y)]; if (d) { if (mine(d) && d.t === 'b') return true; break; } }
+      }
+      return false;
     }
     function pseudoRaw(B, x, y, atk, nt) {
       // Kings never give check beyond their normal 3x3 (so extended-reach kings can't check or box in other kings).
@@ -812,6 +854,13 @@ const Engine = (() => {
         if (p.t === 'b' && t.t === 'p' && TR[t.c] === 'phalanx') { const ff = FWD[t.c], ps = ff && ff[0] === 0 ? [1, 0] : [0, 1]; for (const sx of [-1, 1]) { const nx = tx + ps[0] * sx, ny = ty + ps[1] * sx; if (valid(nx, ny)) { const q = B[idx(nx, ny)]; if (q && q.t === 'p' && q.c === t.c && !q.dead) return true; } } }      // Phalanx
         if (p.t === 'p' && t.t !== 'k' && TR[t.c] === 'bodyguard') {
           for (let i = 0; i < SZ; i++) { const k = B[i]; if (k && k.t === 'k' && k.c === t.c && !k.dead) { return dX(i % BW, tx) <= 1 && Math.abs(Math.floor(i / BW) - ty) <= 1; } }
+        }
+        if (t.t === 'p' && t.c !== 'n') {
+          if (TT[t.c] === 'mutualDefence' && guardedPawn(B, t, tx, ty)) return true;      // Mutual Defence: a pawn guarded by a team knight/bishop cannot be taken
+          if (p.t === 'p' && TT[t.c] === 'relayPawns') {                                    // Relay Pawns: a partner pawn right beside it shields it from enemy pawns
+            const ff = FWD[t.c], ps = ff && ff[0] === 0 ? [1, 0] : [0, 1];
+            for (const sx of [-1, 1]) { const nx = tx + ps[0] * sx, ny = ty + ps[1] * sx; if (valid(nx, ny)) { const q = B[idx(nx, ny)]; if (q && q.t === 'p' && !q.dead && q.c !== 'n' && q.c !== t.c && teamOf(q.c) === teamOf(t.c)) return true; } }
+          }
         }
         return false;
       };
@@ -883,6 +932,7 @@ const Engine = (() => {
           if (atk || (t && can(t, tx, ty))) push(tx, ty);
         }
         if (!atk && F.storm) for (const s of [-1, 1]) { const tx = fx + pp[0] * s, ty = fy + pp[1] * s; if (valid(tx, ty) && !B[idx(tx, ty)]) push(tx, ty); }      // Pawn Storm: a quiet diagonal step
+        if (!atk && F.relay && valid(fx, fy)) { const a = B[idx(fx, fy)]; if (a && a.t === 'p' && !a.dead && a.c !== 'n' && a.c !== p.c && teamOf(a.c) === teamOf(p.c)) for (const s of [-1, 1]) { const tx = fx + pp[0] * s, ty = fy + pp[1] * s; if (valid(tx, ty) && !B[idx(tx, ty)]) push(tx, ty); } }      // Relay Pawns: blocked head-on by a partner pawn, sidestep diagonally
         return out;
       }
       for (const [lx, ly] of def.leap || []) {
@@ -924,7 +974,7 @@ const Engine = (() => {
         while (valid(tx, ty) && (!mx || n <= mx) && (!cyl || n < BW)) {
           const t = B[idx(tx, ty)];
           if (!t) add(tx, ty);
-          else if (TR[p.c] === 'openRanks' && t.c !== p.c && t.c !== 'n' && !t.dead && !t.wall && teamOf(t.c) === teamOf(p.c)) { /* Open Ranks: slide on through a partner's piece */ }
+          else if (hasT(p.c, 'openRanks') && t.c !== p.c && t.c !== 'n' && !t.dead && !t.wall && teamOf(t.c) === teamOf(p.c)) { /* Open Ranks: slide on through a partner's piece */ }
           else { if (can(t, tx, ty)) add(tx, ty); if (!(p.fx && p.fx.jmp)) break; }
           tx += sx; ty += sy; n++;
         }
@@ -1041,8 +1091,94 @@ const Engine = (() => {
       for (let i = 0; i < SZ; i++) { const p = B[i]; if (p && p.t === 'k' && p.c === c && !p.dead) return sqAttacked(B, i % BW, Math.floor(i / BW), c); }
       return false;
     }
+    // ---- team trait actions (Switcheroo, Body Double, Anchor, Crown Link; Tribute lives in move()) ----
+    const tAlly = (c, q) => !!q && !q.dead && q.c !== 'n' && q.c !== c && teamOf(q.c) === teamOf(c) && !!alive[q.c];
+    const cdOf = c => S.cd[c] || 0;
+    const cheb = (ax, ay, bx, by) => Math.max(Math.abs(ax - bx), Math.abs(ay - by));
+    function ttBoard(B0, m, p) {                                // the board after an action move (used both to test legality and to play it)
+      const B = B0.slice(), F = idx(m.fx, m.fy), T2 = idx(m.tx, m.ty), mk = q => Object.assign({}, q, { m: true });
+      if (m.tt === 'switch') { const Q = B[T2]; B[T2] = m.promo ? { t: m.promo, c: p.c, m: true, pr: true, pt: p.t, rc: p.rc, fx: p.fx } : mk(p); B[F] = mk(Q); }
+      else if (m.tt === 'double' || m.tt === 'lcastle') { const Q = B[T2]; B[T2] = mk(p); B[F] = mk(Q); }
+      else if (m.tt === 'anchor') { B[T2] = mk(p); B[F] = null; }
+      else if (m.tt === 'tether') { B[T2] = mk(p); B[F] = null; const K2 = B[idx(m.qx, m.qy)]; B[idx(m.px, m.py)] = mk(K2); B[idx(m.qx, m.qy)] = null; }
+      return B;
+    }
+    function hasNormalMove(c) {                                 // any ordinary move or drop (no team trait actions): Body Double only works when this is false
+      for (let i = 0; i < SZ; i++) { const q = b[i]; if (q && q.c === c && !q.dead && legalAt(i % BW, Math.floor(i / BW), false, true).length) return true; }
+      return dropCands(c).some(m => !kingAttacked(sim(m), c));
+    }
+    function ttMoves(x, y, p, normal) {
+      const c = p.c, id = TT[c], out = [];
+      if (!id || c !== S.turn || p.dead || !alive[c] || S.rew) return out;
+      const B = b, ok = (m, partner) => { const B2 = ttBoard(B, m, p); return !kingAttacked(B2, c) && !(partner && alive[partner] && kingAttacked(B2, partner)); };
+      const wrapX = tx => (cyl ? ((tx % BW) + BW) % BW : tx);
+      if (id === 'switcheroo' && !cdOf(c) && p.t !== 'k') {
+        for (let i = 0; i < SZ; i++) {
+          const Q = B[i]; if (!tAlly(c, Q) || Q.t === 'k' || Q.t === T.boss || Q.auto) continue;
+          const tx = i % BW, ty = Math.floor(i / BW), B2 = B.slice(), seen = new Set(); B2[i] = null;
+          pseudo(B2, x, y).forEach(m => {
+            if (m.tx !== tx || m.ty !== ty || m.rev || m.free || m.boss || m.castle || m.shot || m.inplace || seen.has(m.promo || '')) return;
+            seen.add(m.promo || ''); const cand = { fx: x, fy: y, tx, ty, tt: 'switch' }; if (m.promo) cand.promo = m.promo;
+            if (ok(cand, Q.c)) out.push(cand);
+          });
+        }
+      }
+      if (id === 'bodyDouble' && p.t === 'k' && !bdUsed.has(c) && kingAttacked(B, c) && !hasNormalMove(c)) {
+        for (let i = 0; i < SZ; i++) {
+          const Q = B[i]; if (!Q || Q.c !== c || Q.dead || Q.t === 'k' || Q.t === T.boss || Q.auto) continue;
+          const cand = { fx: x, fy: y, tx: i % BW, ty: Math.floor(i / BW), tt: 'double' }; if (ok(cand, null)) out.push(cand);
+        }
+      }
+      if (id === 'anchor' && !cdOf(c) && p.t !== 'k' && p.t !== 'p' && p.t !== '\u03c1') {
+        const seen = new Set();
+        for (let i = 0; i < SZ; i++) {
+          const Q = B[i]; if (!tAlly(c, Q)) continue;
+          const qx = i % BW, qy = Math.floor(i / BW), dx = qx - x, dy = qy - y, sx = Math.sign(dx), sy = Math.sign(dy), ax = Math.abs(dx), ay = Math.abs(dy);
+          const sq = ax > ay ? [-1, 0, 1].map(k => [qx - sx, qy + k]) : ay > ax ? [-1, 0, 1].map(k => [qx + k, qy - sy]) : [[qx - sx, qy - sy], [qx - sx, qy], [qx, qy - sy]];      // the squares of Q's 3x3 that face the mover
+          sq.forEach(([tx0, ty]) => {
+            const tx = wrapX(tx0), key = tx + ',' + ty;
+            if (seen.has(key) || !valid(tx, ty) || B[idx(tx, ty)] || (tx === x && ty === y) || cheb(tx, ty, x, y) > 3) return;
+            seen.add(key); const cand = { fx: x, fy: y, tx, ty, tt: 'anchor' }; if (ok(cand, null)) out.push(cand);
+          });
+        }
+      }
+      if (id === 'crownLink' && p.t === 'k') {
+        if (!p.m && !lcUsed.has(c) && !kingAttacked(B, c)) {            // long castle: swap with an unmoved team rook on the same rank or file
+          for (let i = 0; i < SZ; i++) {
+            const R = B[i]; if (!R || R.t !== 'r' || R.m || R.dead || R.c === 'n' || !alive[R.c] || teamOf(R.c) !== teamOf(c)) continue;
+            const tx = i % BW, ty = Math.floor(i / BW); if (!(tx === x || ty === y) || (tx === x && ty === y)) continue;
+            const cand = { fx: x, fy: y, tx, ty, tt: 'lcastle' }; if (ok(cand, R.c !== c ? R.c : null)) out.push(cand);
+          }
+        }
+        if (!cdOf(c)) {                                                 // tether: a quiet king step toward the partner king may pull that king one step closer
+          const kings = []; for (let i = 0; i < SZ; i++) { const K2 = B[i]; if (tAlly(c, K2) && K2.t === 'k') kings.push([i % BW, Math.floor(i / BW), K2]); }
+          (normal || []).forEach(m => {
+            if (m.castle || m.c960 || m.promo || m.rev || m.free || m.shot || m.claim !== undefined || B[idx(m.tx, m.ty)]) return;
+            kings.forEach(([kx, ky, K2]) => {
+              const d0 = cheb(x, y, kx, ky), d1 = cheb(m.tx, m.ty, kx, ky); if (d1 >= d0 || d1 <= 1) return;
+              for (let ddx = -1; ddx <= 1; ddx++) for (let ddy = -1; ddy <= 1; ddy++) {
+                if (!ddx && !ddy) continue; const px = wrapX(kx + ddx), py = ky + ddy;
+                if (!valid(px, py) || B[idx(px, py)] || (px === m.tx && py === m.ty) || cheb(px, py, m.tx, m.ty) >= d1) continue;
+                const cand = { fx: x, fy: y, tx: m.tx, ty: m.ty, tt: 'tether', qx: kx, qy: ky, px, py }; if (ok(cand, K2.c)) out.push(cand);
+              }
+            });
+          });
+        }
+      }
+      return out;
+    }
+    // Tribute: who gets the extra move, and which pieces may be sacrificed
+    function mateAfter(c) { let s = nextActive(c), n = 0; while (s !== c && n++ < seats.length) { if (teamOf(s) === teamOf(c) && alive[s]) return s; s = nextActive(s); } return null; }
+    function tributeOk(c, x, y) {
+      if (TT[c] !== 'tribute' || c !== S.turn || !alive[c] || S.rew || !mateAfter(c) || !valid(x, y)) return false;
+      const q = b[idx(x, y)]; if (!q || q.c !== c || q.dead || q.t === 'k' || q.t === T.boss || q.auto) return false;
+      const B2 = b.slice(); B2[idx(x, y)] = null; return !kingAttacked(B2, c);
+    }
+    // during a Tribute turn the king may end its first move in check when a king move afterwards gets it out
+    const tribKing = (p, m, B2) => !!S.tbA && S.left === per() + 1 && p.t === 'k' && NEED.k <= S.tbA && pseudo(B2, m.tx, m.ty).some(m2 => !kingAttacked(sim(m2, B2[idx(m.tx, m.ty)], B2), p.c));
     function sim(m, p, base) {
       if (m.boss) return bossBoard(m).B2;
+      if (m.tt) return ttBoard(base || b, m, p);
       const B = (base || b).slice();
       if (m.drop) { B[idx(m.tx, m.ty)] = { t: m.drop, c: m.c, m: true }; return B; }
       if (m.c960) {
@@ -1070,13 +1206,15 @@ const Engine = (() => {
       }
       return out;
     }
-    function legalAt(x, y, withFree) {
+    function legalAt(x, y, withFree, noTT) {
       const p = b[idx(x, y)];
       if (!p || p.dead || !alive[p.c]) return [];
       if (p.t === T.boss) return p.c === S.turn ? bossMoves(idx(x, y)).filter(m => !kingAttacked(bossBoard(m).B2, p.c)) : [];
+      if (S.tbA && S.left === 1 && p.c === S.turn && (NEED[p.t] || 2) > S.tbA) return [];      // Tribute's extra move: only pieces the sacrifice pays for
       const ms = pseudo(b, x, y);       // (an extended-reach king in check may use its full reach: the 'must not end attacked' test below is enough)
-      let out = ms.filter(m => !kingAttacked(sim(m, p), p.c));
+      let out = ms.filter(m => { const B2 = sim(m, p); return !kingAttacked(B2, p.c) || tribKing(p, m, B2); });
       if (v.boss) out = out.reduce((a, m) => { const q = !m.rev && !m.drop && b[idx(m.tx, m.ty)]; if (q && q.t === T.boss && bossCells(q.bid).length === 1) { a.push(Object.assign({}, m, { claim: false })); a.push(Object.assign({}, m, { claim: true })); } else a.push(m); return a; }, []);
+      if (!noTT && TT[p.c] && p.c === S.turn) out = out.concat(ttMoves(x, y, p, out));
       return withFree ? out.concat(freeSteps(x, y)) : out;      // (free Herald steps never count as "having a move")
     }
     // Crazyhouse-style drops. dropZone 'own' = your own arm + the centre (cross) / your own half (wide).
@@ -1132,7 +1270,7 @@ const Engine = (() => {
     function eliminate(c, reason, takers) {
       alive[c] = false;
       const taker = reason === 'checkmate' ? (takers || []).find(t => t !== 'n' && TR[t] === 'conqueror' && alive[t]) : null;
-      const heir = !taker && reason === 'checkmate' && TR[c] === 'inheritance' && v.teams ? seats.find(t => t !== c && alive[t] && teamOf(t) === teamOf(c)) || null : null;      // Inheritance: the first living partner
+      const heir = !taker && reason === 'checkmate' && hasT(c, 'inheritance') && v.teams ? seats.find(t => t !== c && alive[t] && teamOf(t) === teamOf(c)) || null : null;      // Inheritance: the first living partner
       const fallen = !taker && !heir && NEU && (!!v.fallen || TR[c] === 'lastStand');
       for (let i = 0; i < SZ; i++) if (b[i] && b[i].c === c) {
         if (b[i].auto || (b[i].t === T.boss && !fallen)) { b[i] = null; continue; }
@@ -1266,12 +1404,12 @@ const Engine = (() => {
       evalMoves(c) {
         if (over() || c !== S.turn || (NEU && S.pending && nextNeutral() !== null)) return [];
         const cands = [], out = [], cx = (BW - 1) / 2, cy = (BH - 1) / 2;
-        for (let i = 0; i < SZ; i++) { const p = b[i]; if (p && p.c === c && !p.dead) legalAt(i % BW, Math.floor(i / BW)).forEach(m => cands.push(m)); }
+        for (let i = 0; i < SZ; i++) { const p = b[i]; if (p && p.c === c && !p.dead) legalAt(i % BW, Math.floor(i / BW)).forEach(m => { if (m.tt && m.tt !== 'double') return; if (S.tbA && !m.tt && kingAttacked(sim(m, p), c)) return; cands.push(m); }); }      // (bots skip the optional team actions, and never leave their king in check on a Tribute turn)
         legalDrops(c).forEach(m => cands.push(m));
         const enemyOf = s2 => teamOf(s2) !== teamOf(c), dummySeat = seats.find(s2 => alive[s2] && enemyOf(s2)) || 'n';
         for (const m of cands) {
           const p = m.drop ? null : b[idx(m.fx, m.fy)], B2 = sim(m, p);
-          const vic = m.drop || m.c960 ? null : b[idx(m.tx, m.ty)];
+          const vic = m.drop || m.c960 || m.tt ? null : b[idx(m.tx, m.ty)];
           let threat = 0;
           for (let i = 0; i < SZ; i++) {
             const q = B2[i];
@@ -1306,7 +1444,7 @@ const Engine = (() => {
         const genMoves = (B, c) => { const out = []; for (let i = 0; i < SZ; i++) { const p = B[i]; if (!p || p.c !== c || p.dead || p.auto || p.t === T.boss) continue; for (const m of pseudo(B, i % BW, Math.floor(i / BW))) if (!m.rev && !m.free && !m.boss) out.push(m); } return out; };
         const ev0 = this && this.evalMoves ? this.evalMoves(me) : null, thr = new Map();      // the Normal bot's 'what can they take back next' number is added as a safety net (the tree cannot see every seat that moves later)
         const root = ev0 ? ev0.map(x => { thr.set(x.m, x.threat || 0); return x.m; }) : [];
-        if (!ev0) { for (let i = 0; i < SZ; i++) { const p = b[i]; if (p && p.c === me && !p.dead) legalAt(i % BW, Math.floor(i / BW)).forEach(m => root.push(m)); } legalDrops(me).forEach(m => root.push(m)); }
+        if (!ev0) { for (let i = 0; i < SZ; i++) { const p = b[i]; if (p && p.c === me && !p.dead) legalAt(i % BW, Math.floor(i / BW)).forEach(m => { if (!m.tt || m.tt === 'double') root.push(m); }); } legalDrops(me).forEach(m => root.push(m)); }
         if (!root.length) return null;
         const saveB = b.slice(), foes = ring.filter(c => teamOf(c) !== teamOf(me)), mateBonus = new Map();
         const mated = B2 => { let n = 0; for (const f of foes) { if (!kingAttacked(B2, f)) continue; for (let i = 0; i < SZ; i++) b[i] = B2[i]; try { if (!hasMove(f)) n++; } finally { for (let i = 0; i < SZ; i++) b[i] = saveB[i]; } } return n; };
@@ -1328,6 +1466,9 @@ const Engine = (() => {
         return seatSearch(env, o || {});
       },
       canSwap: c => TR[c] === 'swap' && !!alive[c] && !swapUsed.has(c),
+      canTribute: c => TT[c] === 'tribute' && c === S.turn && !S.rew && !over() && b.some((q, i) => !!q && q.c === c && tributeOk(c, i % BW, Math.floor(i / BW))),
+      tributeOk: (c, x, y) => tributeOk(c, x, y),
+      ttInfo: c => ({ id: TT[c] || null, cd: S.cd[c] || 0, bd: TT[c] === 'bodyDouble' ? !bdUsed.has(c) : null, lc: TT[c] === 'crownLink' ? !lcUsed.has(c) : null, bonus: S.turn === c && S.tbA ? { tier: S.tbA, left: S.left } : null }),
       winner: () => (!S.drawn && liveTeams() === 1 ? seats.find(c => alive[c]) : null),
       get drawn() { return S.drawn; },
       inCheck: c => !!alive[c] && kingAttacked(b, c),
@@ -1387,6 +1528,11 @@ const Engine = (() => {
           b[idx(m.fx, m.fy)] = NB[idx(m.fx, m.fy)]; b[idx(m.tx, m.ty)] = NB[idx(m.tx, m.ty)];
           swapUsed.add(c); rev.add(c); events.push({ e: 'trait', c, id: 'swap' });
           hist.push({ c, swap: true, fx: m.fx, fy: m.fy, tx: m.tx, ty: m.ty, cap: null });
+        } else if (m.tt === 'tribute') {                  // Tribute: the sacrifice is the move; the next teammate gets an extra move
+          if (!tributeOk(c, m.fx, m.fy)) return false;
+          const q = b[idx(m.fx, m.fy)], mate = mateAfter(c); b[idx(m.fx, m.fy)] = null; S.tb[mate] = TIER[q.t] || 2;
+          rev.add(c); events.push({ e: 'trait', c, id: 'tribute' });
+          hist.push({ c, tt: 'tribute', fx: m.fx, fy: m.fy, tx: m.fx, ty: m.fy, cap: null });
         } else if (m.drop) {
           if (!v.drops || !(hands[c][m.drop] > 0)) return false;
           const ok = legalDrops(c).find(l => l.drop === m.drop && l.tx === m.tx && l.ty === m.ty);
@@ -1397,7 +1543,7 @@ const Engine = (() => {
           if (!valid(m.fx, m.fy)) return false;
           const p = b[idx(m.fx, m.fy)];
           if (!p || p.c !== c) return false;
-          const ok = legalAt(m.fx, m.fy, true).find(l => l.tx === m.tx && l.ty === m.ty && (l.promo || null) === (m.promo || null) && (l.rev || null) === (m.rev || null) && !!l.free === !!m.free && !!l.claim === !!m.claim && (l.ret || null) === (m.ret || null));
+          const ok = legalAt(m.fx, m.fy, true).find(l => l.tx === m.tx && l.ty === m.ty && (l.promo || null) === (m.promo || null) && (l.rev || null) === (m.rev || null) && !!l.free === !!m.free && !!l.claim === !!m.claim && (l.ret || null) === (m.ret || null) && (l.tt || null) === (m.tt || null) && (l.px == null ? null : l.px) === (m.px == null ? null : m.px) && (l.py == null ? null : l.py) === (m.py == null ? null : m.py));
           if (!ok) return false;
           if (ok.free) {                                // Herald free step: the turn does not pass
             const from = idx(ok.fx, ok.fy), to = idx(ok.tx, ok.ty);
@@ -1408,6 +1554,13 @@ const Engine = (() => {
           }
           if (ok.boss) {
             applyBoss(ok, c);
+          } else if (ok.tt) {                                   // a team trait action: Switcheroo, Body Double, Anchor, long castle, tether
+            const NB = sim(ok, p); for (let i = 0; i < SZ; i++) b[i] = NB[i];
+            if (ok.tt === 'switch' || ok.tt === 'anchor') S.cd[c] = TT_CD[TT[c]] + 1;      // (+1: this very turn's end counts down once)
+            else if (ok.tt === 'tether') S.cd[c] = TT_CD.crownLink + 1;
+            else if (ok.tt === 'double') bdUsed.add(c); else if (ok.tt === 'lcastle') lcUsed.add(c);
+            rev.add(c); events.push({ e: 'trait', c, id: TT[c] });
+            hist.push({ c, fx: ok.fx, fy: ok.fy, tx: ok.tx, ty: ok.ty, tt: ok.tt, promo: ok.promo || null, px: ok.px, py: ok.py, qx: ok.qx, qy: ok.qy, cap: null });
           } else if (ok.rev) {                                 // Sacrificer (target = own square) / Reviver (empty neighbouring square, then it recharges)
             const yl = yard[c], k = yl.indexOf(ok.rev); if (k >= 0) yl.splice(k, 1);
             const self = ok.fx === ok.tx && ok.fy === ok.ty;
@@ -1437,6 +1590,9 @@ const Engine = (() => {
           else { b[idx(ok.tx, ok.ty)] = { t: ok.promo || p.t, c, m: true, pr: !!ok.promo || undefined, pt: ok.promo ? p.t : p.pt, rc: p.rc, champ: ok.promo ? undefined : p.champ, fx: p.fx }; if (!ok.inplace) b[idx(ok.fx, ok.fy)] = null; }
           if (vic && vic.t === 'q' && !vic.dead && TR[vic.c] === 'martyr' && p.t !== 'k') {
             b[idx(ok.tx, ok.ty)] = null; rev.add(vic.c); events.push({ e: 'trait', c: vic.c, id: 'martyr' });
+          }
+          if (vic && (vic.t === 'q' || vic.t === 'r') && !vic.dead && vic.c !== 'n' && TT[vic.c] === 'avengerPact' && p.t !== 'k' && b[idx(ok.tx, ok.ty)]) {      // Avenger Pact: a captured rook/queen of the team takes its killer with it
+            b[idx(ok.tx, ok.ty)] = null; rev.add(vic.c); events.push({ e: 'trait', c: vic.c, id: 'avengerPact' });
           }
           if (p.t === T.burrower && !ok.shot && (ok.tx !== ok.fx || ok.ty !== ok.fy) && octShape(ok.fx, ok.fy)) dyn.set(ok.fy * 24 + ok.fx, 4);
           if (ok.castle && !ok.c960) { b[idx(ok.rx, ok.ry)] = null; b[idx(ok.rtx, ok.rty)] = { t: 'r', c, m: true }; }

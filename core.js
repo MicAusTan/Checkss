@@ -15,16 +15,16 @@ const MODES = {
   alice:    { name: 'Alice Chess (two boards)', opts: ['traits'], v: Engine.ALICE },
   infinite: { name: 'Infinite Chess (32×32 board)', opts: ['fog', 'traits'], v: Engine.INFINITE },
   // multi:true modes are hosted as a hub; `all` = every seat on that board, 2..n players may start.
-  fourplayer:  { name: '4-Player Chess (cross board)', multi: true, opts: ['fog', 'teams', 'traits', 'classes', 'c960'], all: ['r', 'b', 'y', 'g'], v: Engine.FOUR },
-  fourmars:    { name: '4-Player Marseillais (2 moves per turn)', multi: true, opts: ['fog', 'teams', 'traits', 'classes', 'c960'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { movesPerTurn: 2, firstSingle: true }) },
-  fourcrazy:   { name: '4-Player Crazyhouse', multi: true, opts: ['drop', 'fog', 'teams', 'traits', 'classes', 'c960'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { drops: true }) },
-  fourcyl:     { name: '4-Player Cylinder Chess (wide board wraps around)', multi: true, cyl: true, opts: ['fog', 'teams', 'traits', 'c960'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { board: 'wide' }) },
+  fourplayer:  { name: '4-Player Chess (cross board)', multi: true, opts: ['fog', 'teams', 'teamtrait', 'traits', 'classes', 'c960'], all: ['r', 'b', 'y', 'g'], v: Engine.FOUR },
+  fourmars:    { name: '4-Player Marseillais (2 moves per turn)', multi: true, opts: ['fog', 'teams', 'teamtrait', 'traits', 'classes', 'c960'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { movesPerTurn: 2, firstSingle: true }) },
+  fourcrazy:   { name: '4-Player Crazyhouse', multi: true, opts: ['drop', 'fog', 'teams', 'teamtrait', 'traits', 'classes', 'c960'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { drops: true }) },
+  fourcyl:     { name: '4-Player Cylinder Chess (wide board wraps around)', multi: true, cyl: true, opts: ['fog', 'teams', 'teamtrait', 'traits', 'c960'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { board: 'wide' }) },
   fourkrieg:   { name: '4-Player Kriegspiel (hidden pieces)', multi: true, opts: ['teams', 'traits', 'c960'], all: ['r', 'b', 'y', 'g'], v: Object.assign({}, Engine.FOUR, { hidden: true }) },
-  fourneutral: { name: '4-Player Neutral Pieces (centre monsters)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['fog', 'teams', 'neutral', 'traits', 'c960'], v: Object.assign({}, Engine.FOUR, { neutral: true, drops: true }) },
+  fourneutral: { name: '4-Player Neutral Pieces (centre monsters)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['fog', 'teams', 'teamtrait', 'neutral', 'traits', 'c960'], v: Object.assign({}, Engine.FOUR, { neutral: true, drops: true }) },
   bughouse:    { name: 'Bughouse (2v2, two boards, partner passes pieces)', multi: true, bug: true, all: ['r', 'b', 'y', 'g'], opts: ['traits'], v: Engine.BUGHOUSE },
   fouralice:   { name: '4-Player Alice Chess (two cross boards)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['teams', 'traits'], v: Object.assign({}, Engine.FOUR, { alice: true, castling: false }) },
   fourinfinite: { name: '4-Player Infinite Chess (open 32×32 board)', multi: true, all: ['r', 'b', 'y', 'g'], opts: ['fog', 'teams', 'traits', 'c960'], v: Object.assign({}, Engine.FOUR, { board: 'infinite' }) },
-  eight: { name: '8-Player Chess (24×24, two armies per side)', multi: true, oct: true, all: Engine.OCT_ORDER, opts: ['oct', 'neutral', 'traits'], v: Engine.OCTO },
+  eight: { name: '8-Player Chess (24×24, two armies per side)', multi: true, oct: true, all: Engine.OCT_ORDER, opts: ['oct', 'neutral', 'traits', 'teamtrait'], v: Engine.OCTO },
   threeplayer: { name: '3-Player Chess (hexagonal board)', multi: true, opts: ['fog'], all: ['r', 'b', 'y'], v: Engine.THREE },
   imperial: { name: 'Imperial Chess (17×16, destroy the army)', imperial: true, opts: [], v: { imperial: true } },
   promotion: { name: 'Promotion Chess (every piece can promote)', promotion: true, opts: [], v: { promotion: true } },
@@ -32,7 +32,13 @@ const MODES = {
 };
 
 const GS_DEFAULTS = { teams8: 'ffa', holes8: 'four', wild8: false, boss8: false, burrow: false, dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false, neutralDrop: false, impRoam: false, traits: false, offers: 4, c960: false, back960: null, cyl: false,
-  foeMoves: true, seed: 1, classes: false, clStart: 2, clGain: 1, clCap: 8, clPer: 0, clSum: 4, clUlt: false, clHide: false, clFree: false, clHideFx: false, tcMin: 0, tcInc: 0 };
+  foeMoves: true, seed: 1, classes: false, clStart: 2, clGain: 1, clCap: 8, clPer: 0, clSum: 4, clUlt: false, clHide: false, clFree: false, clHideFx: false, tcMin: 0, tcInc: 0, teamTrait: false, tteam: null };
+// The team traits a game uses: { seat: traitId }, only real team traits, only for seats in the game (anything else is dropped).
+function cleanTeamTraits(tt, seats) {
+  const out = {}; if (!tt || typeof tt !== 'object') return null;
+  Object.keys(tt).forEach(c => { const t = Engine.TRAITS[tt[c]]; if (seats.includes(c) && t && t.team) out[c] = tt[c]; });
+  return Object.keys(out).length ? out : null;
+}
 // Builds an engine for a mode from plain settings, without touching any globals (also used to rebuild games for replay).
 function makeEngine(m, seatsIn, gsIn, traits, classes, a4) {
   const g2 = Object.assign({}, GS_DEFAULTS, gsIn || {}), op = MODES[m].opts || [];
@@ -42,6 +48,7 @@ function makeEngine(m, seatsIn, gsIn, traits, classes, a4) {
   if (MODES[m].imperial && !MODES[m].multi) return { game: Imperial.create(), gs: g2, seats: null };
   if (MODES[m].promotion) return { game: Promotion.create(), gs: g2, seats: null };
   g2.cyl = !!MODES[m].cyl;                      // Cylinder is a mode, not an option
+  if (!MODES[m].multi) { g2.teamTrait = false; g2.tteam = null; }
   g2.classes = !!g2.classes && op.includes('classes');
   const cl = g2.classes && classes ? classes : null, cpass = cl ? Engine.classPass(cl) : undefined;
   const ccfg = { seed: +g2.seed || 1, start: +g2.clStart, gain: +g2.clGain, cap: +g2.clCap, perTurn: +g2.clPer, ultRepeat: !!g2.clUlt, summonCap: +g2.clSum };
@@ -56,13 +63,15 @@ function makeEngine(m, seatsIn, gsIn, traits, classes, a4) {
       const sOct = (seatsIn || all).filter(c => all.includes(c)), seats8 = sOct.length < 2 ? all.slice() : sOct;
       const tm = Engine.OCT_TEAMS[g2.teams8] || null;
       const teams8 = tm && new Set(seats8.map(c => tm[c])).size >= 2 ? tm : null; g2.teams = !!teams8;
+      g2.teamTrait = !!g2.teamTrait && !!teams8 && op.includes('teamtrait'); g2.tteam = g2.teamTrait ? cleanTeamTraits(g2.tteam, seats8) : null;
       const hp = g2.holes8 || 'four', seed = +g2.seed || 1, neu = !!g2.wild8 || !!g2.boss8;
       return { game: Engine.create(Object.assign({}, Engine.OCTO, { seats: seats8, dead: [], teams: teams8, seed, holes: { preset: hp === 'random' ? 'scatter' : hp, seed, balanced: hp !== 'random' },
-        neutral: !!g2.wild8, neutralSet: g2.wild8 ? 'wild' : 'none', boss: !!g2.boss8, fallen: !!g2.fallen, drops: neu && !!g2.neutralDrop, burrowPromote: !!g2.burrow, traits })), gs: g2, seats: seats8 };
+        neutral: !!g2.wild8, neutralSet: g2.wild8 ? 'wild' : 'none', boss: !!g2.boss8, fallen: !!g2.fallen, drops: neu && !!g2.neutralDrop, burrowPromote: !!g2.burrow, traits, tteam: g2.tteam || undefined })), gs: g2, seats: seats8 };
     }
     let teams = g2.teams && op.includes('teams') ? { r: 0, y: 0, b: 1, g: 1 } : null;
     if (teams && new Set(seats.map(c => teams[c])).size < 2) teams = null;
     g2.teams = !!teams;
+    g2.teamTrait = !!g2.teamTrait && !!teams && op.includes('teamtrait'); g2.tteam = g2.teamTrait ? cleanTeamTraits(g2.tteam, seats) : null;
     if (MODES[m].match4) {                         // Austang 4-player: 20x20 cross (or the 20x14 wide team board); the armies come from the match layer
       const base = teams && g2.board === 'wide' ? Engine.AUSTANG4_WIDE : Engine.AUSTANG4;
       return { game: Engine.create(Object.assign({}, base, { seats, dead: all.filter(c => !seats.includes(c)), teams, armies: a4 ? a4.armies : undefined, first: a4 ? a4.first : undefined })), gs: g2, seats };
@@ -71,7 +80,7 @@ function makeEngine(m, seatsIn, gsIn, traits, classes, a4) {
     const dead = all.filter(c => !seats.includes(c)), neu = !!MODES[m].v.neutral;
     const game = Engine.create(Object.assign({}, MODES[m].v, { seats, dead, dropZone: neu ? 'arm' : g2.dropZone, teams,
       board: MODES[m].v.board || (teams && g2.board === 'wide' && !neu && !MODES[m].v.alice ? 'wide' : undefined), height: +g2.height || 10,
-      neutralSet: g2.neutralSet, fallen: !!g2.fallen, impRoam: !!g2.impRoam, drops: neu ? !!g2.neutralDrop : MODES[m].v.drops, traits, back960: g2.back960 || undefined, cylinder: g2.cyl, cpass }));
+      neutralSet: g2.neutralSet, fallen: !!g2.fallen, impRoam: !!g2.impRoam, drops: neu ? !!g2.neutralDrop : MODES[m].v.drops, traits, back960: g2.back960 || undefined, cylinder: g2.cyl, cpass, tteam: g2.tteam || undefined }));
     return { game: wrap(game), gs: g2, seats };
   }
   return { game: wrap(Engine.create(Object.assign({}, MODES[m].v, { dropZone: g2.dropZone, traits, back960: g2.back960 || undefined, cyl: g2.cyl, cpass }))), gs: g2, seats: null };

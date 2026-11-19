@@ -365,7 +365,7 @@ AUST_CFG.austang4 = Object.assign({}, AUST_CFG.austangGrand, { w: 10, h: 5 });  
 const LET = 'abcdefghijklmnopqrstuvwxyz';
 const sqName = (x, y) => (x < 26 ? LET[x] : LET[Math.floor(x / 26) - 1] + LET[x % 26]) + (y + 1);
 let mySeat = 'r', conns = [], mstarted = false, lobbyBase = '', mseats = null, gs = { dropZone: 'any', fog: false, teams: false, board: 'cross', height: 10, neutralSet: 'commoner', fallen: false };
-let nBusy = false, gtraits = null, draft = null, revealedAll = false;
+let nBusy = false, gtraits = null, draft = null, revealedAll = false, revealedTeam = false;
 let rewardPick = null, rewSet = null, rngSet = null, rngF = false, foeSel = null, foeSet = null, rmarkSet = null, metSet = null, meteorSeen = 0, clipMap = null, selIdx = 0, glitchSeen = 0, mirageSeen = 0, mineSet = null, gclasses = null, abFrom = null, chargeSq = null, abMode = null, abSet = null, revealedCl = false, pendTraits = null, abSeenG = null, abSeen = 0;
 let myToken = null, roomCode = null, spectateMode = false, spectating = false, specs = [], everJoined = false, peerToken = null;
 let resignLog = [], replay = null, retryTimer = null, retries = 0;
