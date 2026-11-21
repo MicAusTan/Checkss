@@ -474,6 +474,7 @@ function renderMulti() {
     if (metSet && metSet.has(x + ',' + y)) d.classList.add('met');
     markClip(d, x, y, !fogged);
     if (promoHint && game.inPromo(x, y, meId())) d.classList.add('promoz');
+    if (lastHint && game.inLast(x, y, meId())) d.classList.add('lastz');
     if ((abFrom && abFrom.x === x && abFrom.y === y) || (chargeSq && chargeSq.x === x && chargeSq.y === y) || (foeSel && foeSel.x === x && foeSel.y === y)) d.classList.add('sel');
     if (shown) {
       const sp = document.createElement('span');

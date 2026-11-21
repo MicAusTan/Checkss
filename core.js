@@ -11,7 +11,6 @@ const MODES = {
   // The real game is built each round from both players' setups; v here only supplies flags.
   austang: { name: 'Austang (build your army)', match: true, opts: ['fog'], v: Object.assign({}, Engine.STANDARD, { castling: true }) },
   austangGrand: { name: 'Austang Grand (10×10 fairy army)', match: true, grand: true, opts: ['fog'], v: Engine.AUSTANG_GRAND },
-  austang4: { name: 'Austang 4-Player (build your army, 20×20)', multi: true, match4: true, grand: true, all: ['r', 'b', 'y', 'g'], opts: ['teams'], v: Object.assign({}, Engine.AUSTANG4, { board: undefined }) },
   alice:    { name: 'Alice Chess (two boards)', opts: ['traits'], v: Engine.ALICE },
   infinite: { name: 'Infinite Chess (32×32 board)', opts: ['fog', 'traits'], v: Engine.INFINITE },
   // multi:true modes are hosted as a hub; `all` = every seat on that board, 2..n players may start.
@@ -28,6 +27,7 @@ const MODES = {
   threeplayer: { name: '3-Player Chess (hexagonal board)', multi: true, opts: ['fog'], all: ['r', 'b', 'y'], v: Engine.THREE },
   imperial: { name: 'Imperial Chess (17×16, destroy the army)', imperial: true, opts: [], v: { imperial: true } },
   promotion: { name: 'Promotion Chess (every piece can promote)', promotion: true, opts: [], v: { promotion: true } },
+  austang4: { name: 'Austang 4-Player (build your army, 20×20)', multi: true, match4: true, grand: true, all: ['r', 'b', 'y', 'g'], opts: ['teams'], v: Object.assign({}, Engine.AUSTANG4, { board: undefined }) },
   imperial4: { name: 'Imperial Chess: 4-Player (29×29; free-for-all or 2v2)', imperial: true, multi: true, all: ['r', 'b', 'y', 'g'], opts: ['teams'], v: { imperial: true } },
 };
 

@@ -142,7 +142,7 @@ function announceTraitStart() {
 // ---- class abilities: points bar, targeting, announcements ----
 const fxSeen = by => !gs.clHideFx || spectating || replay || ended() || by === meId() || isMate(by);      // protection glows can be hidden from opponents (host option)
 const maskSeen = p => !(p.fx && p.fx.msk) || p.c === meId() || isMate(p.c) || ended();      // Missing Textures: only the owner's team (or everyone after the game) sees the real piece
-const shownType = p => (p.fx && p.fx.msk && !maskSeen(p) ? p.fx.msk : (p.t === 'k' && gtraits && gtraits[p.c] === 'royalQueen' ? 'q' : p.t));      // (Royal Queen: the royal piece is drawn as a queen)
+const shownType = p => (p.wall && p.gw ? '#g' : p.fx && p.fx.msk && !maskSeen(p) ? p.fx.msk : (p.t === 'k' && gtraits && gtraits[p.c] === 'royalQueen' ? 'q' : p.t));      // (Royal Queen: the royal piece is drawn as a queen)
 function foeClick(x, y) {                      // clicking an enemy piece (with nothing selected) previews where it can move
   if (!gs.foeMoves || !game || !game.reach || sel) { if (foeSel) { foeSel = null; render(); } return false; }
   const p = game.at(x, y);
@@ -212,10 +212,11 @@ function specStatus() {
   if (game.bug) return 'Spectating: both boards are in play';
   return 'Spectating: ' + (game.multi ? CN[game.turn] : game.turn === 'w' ? 'White' : 'Black') + ' to move';
 }
-let promoHint = false;                           // Imperial: an original Rook/Bishop/Knight is selected -> tint the zone where it would become a Grand piece
+let promoHint = false, lastHint = false;                           // Imperial: an original Rook/Bishop/Knight is selected -> tint the zone where it would become a Grand piece
 function render() {
   teamLook(game ? game.teams : (A4 && A4.teams));
-  promoHint = !!(game && game.imperial && game.inPromo && sel && !sel.drop && !replay && !spectating && (p => p && !p.dead && (p.o || 'pvm'.includes(p.t)) && 'rbnpvm'.includes(p.t) && p.c === meId())(game.at(sel.x, sel.y)));
+  promoHint = !!(game && game.imperial && game.inPromo && sel && !sel.drop && !replay && !spectating && (p => p && !p.dead && (p.o || 'pvm'.includes(p.t)) && 'rbnpvmghustfqk'.includes(p.t) && p.c === meId())(game.at(sel.x, sel.y)));
+  lastHint = !!(game && game.imperial && game.inLast && sel && !sel.drop && !replay && !spectating && (p => p && !p.dead && 'pvmjdyz'.includes(p.t) && p.c === meId())(game.at(sel.x, sel.y)));
   animBefore();
   renderCore();
   syncChrome();
@@ -335,6 +336,7 @@ function renderCore() {
     if (metSet && metSet.has(x + ',' + y)) d.classList.add('met');
     markClip(d, x, y, !fogged);
     if (promoHint && game.inPromo(x, y, meId())) d.classList.add('promoz');
+    if (lastHint && game.inLast(x, y, meId())) d.classList.add('lastz');
     if ((abFrom && abFrom.x === x && abFrom.y === y) || (chargeSq && chargeSq.x === x && chargeSq.y === y) || (foeSel && foeSel.x === x && foeSel.y === y)) d.classList.add('sel');
     if (p) {
       const s = document.createElement('span');

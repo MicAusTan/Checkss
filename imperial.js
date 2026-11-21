@@ -1,18 +1,21 @@
 /* Imperial Chess engine (2-player 17x16 and 4-player 29x29 free-for-all). Same API shape as Engine.create() so index.html can drive it.
    Piece codes: p pawn, v pikeman, m skirmisher | r b n q k | R B N = Grand Rook/Bishop/Knight
-   E emperor, X empress, H heir | g guard, h chariot, u archer, s sapper, t catapult, f jester | y prince, z princess
+   E emperor, X empress, H heir | g guard, h chariot, u archer, s sapper, t catapult, f jester | y prince, z princess | j lancer, d raider
+   Second forms (Hebrew letters, so they can never collide with Latin / Greek / Cyrillic / Armenian codes used by other modes):
+   \u05d0 Grand Guard, \u05d1 Grand Chariot, \u05d2 Grand Archer, \u05d3 Grand Sapper, \u05d4 Grand Catapult, \u05d5 Grand Jester, \u05d6 High Queen, \u05d7 High King,
+   \u05d8 Champion, \u05d9 Marauder, \u05db Archduke, \u05dc Archduchess
    x = 0..16 (files), y = 0..15. White starts at y=0 (back) and moves +y; Black mirrors. */
 const Imperial = (() => {
   const SR = typeof Search !== 'undefined' ? Search : (typeof require !== 'undefined' ? require('./engine.js').Search : null);      // (Search lives at the top of engine.js)
   const PF = 'pvm', IMP = 'EXH';
   // Geometry. rot(c,a,b): a = to the seat's right, b = forward, returned as a board offset. rank/promo decide promotion.
   const G2 = { w: 17, h: 16, valid: (x, y) => x >= 0 && y >= 0 && x < 17 && y < 16 && !((y < 3 || y > 12) && (x < 2 || x > 14)),
-    place: (c, u, r) => [u + 2, c === 'w' ? r : 15 - r], rot: (c, a, b) => (c === 'w' ? [a, b] : [a, -b]), rank: (c, x, y) => (c === 'w' ? y : 15 - y), promo: 12 };
+    place: (c, u, r) => [u + 2, c === 'w' ? r : 15 - r], rot: (c, a, b) => (c === 'w' ? [a, b] : [a, -b]), rank: (c, x, y) => (c === 'w' ? y : 15 - y), promo: 12, last: 15 };
   const arm = (x, y) => (y < 4 || y > 24) ? x >= 8 && x <= 20 : (x < 4 || x > 24) ? y >= 8 && y <= 20 : true;   // 4-player cross: 21x21 centre + four 13x4 arms
   const G4 = { w: 29, h: 29, valid: (x, y) => x >= 0 && y >= 0 && x < 29 && y < 29 && arm(x, y) && !((x < 4 || x > 24) && (y < 4 || y > 24)),
     place: (c, u, r) => c === 'r' ? [8 + u, r] : c === 'b' ? [r, 20 - u] : c === 'y' ? [20 - u, 28 - r] : [28 - r, 8 + u],
     rot: (c, a, b) => c === 'r' ? [a, b] : c === 'b' ? [b, -a] : c === 'y' ? [-a, -b] : [-b, a],
-    rank: (c, x, y) => c === 'r' ? y : c === 'b' ? x : c === 'y' ? 28 - y : 28 - x, promo: 24 };
+    rank: (c, x, y) => c === 'r' ? y : c === 'b' ? x : c === 'y' ? 28 - y : 28 - x, promo: 20, last: 28 };      // (was 24: too far for slow pieces to ever get there)
   const OR = [[1, 0], [-1, 0], [0, 1], [0, -1]], DG = [[1, 1], [1, -1], [-1, 1], [-1, -1]], K8 = OR.concat(DG);
   const sym = a => { const o = [], seen = new Set(); for (const [x, y] of a) for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { const k = [x * sx, y * sy], s = k + ''; if (!seen.has(s)) { seen.add(s); o.push(k); } } return o; };
   const DIAG2 = [[2, 2], [2, -2], [-2, 2], [-2, -2]], KN = sym([[1, 2], [2, 1]]), CAM = sym([[1, 3], [3, 1]]), EXT = sym([[2, 4], [4, 2]]);
@@ -23,19 +26,40 @@ const Imperial = (() => {
   const PR_MOV = [[2, 2], [2, -2], [-2, 2], [-2, -2], [3, 0], [-3, 0], [0, 3], [0, -3]];
   const PRS_CAP = RING.concat([[3, 0], [-3, 0], [0, 3], [0, -3]]);
   const NEAR = K8.concat([[2, 0], [-2, 0], [0, 2], [0, -2]]).concat([[0, 0]]);
-  const CAT = [[3, 2], [-3, 2], [2, 3], [-2, 3], [-1, 4], [0, 4], [1, 4]];
+  const CAT = [[3, 2], [-3, 2], [2, 3], [-2, 3], [-1, 4], [0, 4], [1, 4]], CAT_G = CAT.concat([[2, 4], [-2, 4], [3, 3], [-3, 3]]);      // Grand Catapult: 11 target squares
+  const FULL5 = SQ5.slice();                                                                           // Archduke: the whole 5x5 (corners too)
+  const AD_STR = [[3, 0], [-3, 0], [0, 3], [0, -3]], AD_MOV = [[4, 0], [-4, 0], [0, 4], [0, -4]];       // ... arms: 3 straight move+capture, 4 straight move only
+  const AZ_JUMP = DIAG2, AZ_EXTRA = sym([[3, 2], [2, 3]]);                                              // Archduchess: (2,2) jumps; extra unblockable shots (3,2)-type
+  const GS_EVERY_TURN = true;   // Grand Sapper may place walls every turn (the plain Sapper: once per WCD). TUNE ME
+  const AZ_DIAG = 4;                                                                                   // Archduchess diagonal arm reaches this far (3 = old plan, 4 = with the (4,4) squares). TUNE ME
+  const GARCH = ARCH.concat(DIAG2, [[3, 0], [-3, 0], [0, 3], [0, -3], [4, 0], [-4, 0], [0, 4], [0, -4]]);   // Grand Archer: 12 + 4 + 8 = 24 shot squares
+  const CHAR_HOP_MOVES = true;            // Grand Chariot: may it LAND on empty squares beyond the piece it hops? (yes; the Raider is capture-only beyond a hop). TUNE ME
   const FRONT = 'hmpmpvvvpmpmh', R2 = 'sugnbqfkbngus', BACK = 'rnbtrXHErtbnr';
-  const GRAND = { r: 'R', b: 'B', n: 'N' }, MINOR = ['r', 'b', 'n', 'g', 'h', 'u', 's', 't', 'f'];   // (what a pawn can promote to; f = Jester)
+  const GG = '\u05d0', GH = '\u05d1', GU = '\u05d2', GS = '\u05d3', GT = '\u05d4', GF = '\u05d5', HQ = '\u05d6', HK = '\u05d7', CH = '\u05d8', MA = '\u05d9', AD = '\u05db', AZ = '\u05dc';
+  const GRAND = { r: 'R', b: 'B', n: 'N', g: GG, h: GH, u: GU, s: GS, t: GT, f: GF, q: HQ, k: HK };      // zone promotion of ORIGINAL pieces (automatic)
+  const SECOND = { j: CH, d: MA, y: AD, z: AZ };                                                     // last-rank promotion of pawn-born pieces (automatic)
+  const KING_PROT = 'guhstf' + GG + GH + GU + GS + GT + GF, QUEEN_PROT = 'rbnRBNjd' + CH + MA;       // aura swap: King shields the slow support pieces + Jester, Queen the fighters
+  const PRINCEL = 'y' + AD, PRINCESSL = 'z' + AZ, ROYALPAIR = PRINCEL + PRINCESSL, IMMUNE_TO_PAWNS = ROYALPAIR + HQ + HK;
+  const MINOR = ['r', 'b', 'n', 'g', 'h', 'u', 's', 't', 'f'];   // (what a pawn can promote to; f = Jester)
+  const JESTER_IMP_R = 5;   // reach of an Imperial move a Jester borrows, measured from the Imperial. TUNE ME
+  const PAIR_R = 2;          // Prince/Princess cover each other within this distance. TUNE ME
+  const PRINCE_SAFE_R = 3;   // with the Princess near, the Prince can't be taken from further away than this. TUNE ME
   const AURA_R = 3;     // king aura radius (7x7). TUNE ME
+  const AURA_HK = 4;    // High King aura radius (9x9). TUNE ME
+  const AURA_HQ = 3;    // High Queen aura radius (7x7; the Queen's is 5x5). TUNE ME
+  const RETINUE_R = 3, HEIR_R = 2;   // Emperor -> Rooks, Empress -> Bishops within RETINUE_R act as Grands; Heir -> Knights within HEIR_R. TUNE ME
+  const RETINUE_LOW = 1, HEIR_HIGH = 3;   // ...the radius when the Imperial's partner is dead (Heir: when both are dead). TUNE ME
+  const RALLY_HK = 3;   // High King rally radius (friend within this, destination one further). TUNE ME
+  const PAIR_AR = 3;    // Archduke/Archduchess pair cover radius. TUNE ME
   const RALLY_R = 2;    // the King may step next to any friend within this distance. TUNE ME
   const RALLY_CAP = true;   // ...and may capture there too (false = move only, like the Guard's special squares). TUNE ME
   const CMAX = 6;   // castle: max landing distance. TUNE ME (cooldown = 3 own turns, see CCDp)
-  const VAL = { f: 4, p: 1, v: 1.4, m: 1.3, r: 5, b: 3.3, n: 3, q: 9, k: 3, R: 7, B: 5, N: 5, E: 7, X: 7, H: 6, g: 3, h: 4, u: 3.2, s: 2, t: 4, y: 5, z: 5, j: 4.5, d: 4, '#': 0.2 };
+  const VAL = { [GG]: 4, [GH]: 6, [GU]: 5, [GS]: 3, [GT]: 5.5, [GF]: 5, [HQ]: 12, [HK]: 5, [CH]: 7, [MA]: 6, [AD]: 7, [AZ]: 7, f: 4, p: 1, v: 1.4, m: 1.3, r: 5, b: 3.3, n: 3, q: 9, k: 3, R: 7, B: 5, N: 5, E: 7, X: 7, H: 6, g: 3, h: 4, u: 3.2, s: 2, t: 4, y: 5, z: 5, j: 5.2, d: 4.5, '#': 0.2 };
 
   // 2v2 "wide" board: each team's two armies sit side by side (26 files), the middle ranks are 30 wide (2 extra files each side, like the 2-player board)
   const wideGeom = H => ({ w: 30, h: H, valid: (x, y) => x >= 0 && y >= 0 && x < 30 && y < H && ((y < 3 || y > H - 4) ? x >= 2 && x <= 27 : true),
     place: (c, u, r) => c === 'r' ? [2 + u, r] : c === 'y' ? [15 + u, r] : c === 'g' ? [14 - u, H - 1 - r] : [27 - u, H - 1 - r],
-    rot: (c, a, b) => (c === 'r' || c === 'y' ? [a, b] : [-a, -b]), rank: (c, x, y) => (c === 'r' || c === 'y' ? y : H - 1 - y), promo: H - 4 });
+    rot: (c, a, b) => (c === 'r' || c === 'y' ? [a, b] : [-a, -b]), rank: (c, x, y) => (c === 'r' || c === 'y' ? y : H - 1 - y), promo: H - 4, last: H - 1 });
   function create(o) {
     o = o || {};
     const G = o.four ? (o.wide ? wideGeom(Math.max(16, o.height | 0)) : G4) : G2, W = G.w, H = G.h, MULTI = !!o.four, rot = G.rot, cut = (x, y) => !G.valid(x, y);
@@ -54,12 +78,13 @@ const Imperial = (() => {
     const empty = (B, x, y) => !cut(x, y) && !B[y * W + x];
     function info(B) {                                   // alive Imperials / Prince / Princess per seat (gray pieces and walls don't count)
       const o = {}; SEATS.forEach(c => { o[c] = { E: 0, X: 0, H: 0, y: 0, z: 0, n: 0 }; });
-      for (const p of B) if (p && !p.wall && !p.dead) { const q = o[p.c]; if (q[p.t] !== undefined) q[p.t]++; if (!IMP.includes(p.t)) q.n++; }
+      for (const p of B) if (p && !p.wall && !p.dead) { const q = o[p.c]; const k = p.t === AD ? 'y' : p.t === AZ ? 'z' : p.t; if (q[k] !== undefined) q[k]++; if (!IMP.includes(p.t)) q.n++; }
       return o;
     }
     const nImp = q => q.E + q.X + q.H;
     const near = (B, x, y, c, ts, r) => { for (let a = -r; a <= r; a++) for (let b = -r; b <= r; b++) { const p = at(B, x + a, y + b); if (p && !p.dead && p.c === c && ts.includes(p.t)) return true; } return false; };
-    const kingAura = (B, x, y, c) => near(B, x, y, c, 'k', AURA_R), queenAura = (B, x, y, c) => near(B, x, y, c, 'q', 2);
+    const kingAura = (B, x, y, c) => near(B, x, y, c, 'k', AURA_R) || near(B, x, y, c, HK, AURA_HK), queenAura = (B, x, y, c) => near(B, x, y, c, 'q', 2) || near(B, x, y, c, HQ, AURA_HQ);
+    const auraLvl = (B, x, y, c) => near(B, x, y, c, HK, AURA_HK) ? 2 : near(B, x, y, c, 'k', AURA_R) ? 1 : 0;      // 2 = High King (his pawn memory lasts 2 turns)
 
     function pathClear(B, x, y, dx, dy) {                // Prince: some shortest king-step path is empty
       const m = Math.max(Math.abs(dx), Math.abs(dy)), sx = Math.sign(dx), sy = Math.sign(dy);
@@ -90,28 +115,48 @@ const Imperial = (() => {
       }
       return true;
     }
-    function protectedFrom(B, p, t, tx, ty, inf) {       // aura / guard / princess protections
+    function protectedFrom(B, p, t, tx, ty, inf, ox, oy, ranged) {       // (ox, oy) = where the attack comes from, ranged = a shot (Archer, Catapult, Lancer thrust, Princess)       // aura / guard / princess protections
       if (t.dead) return false;
       if (PF.includes(p.t)) {
-        if ('rbnRBN'.includes(t.t) && kingAura(B, tx, ty, t.c)) return true;
-        if ('guhst'.includes(t.t) && queenAura(B, tx, ty, t.c)) return true;
+        if (QUEEN_PROT.includes(t.t) && queenAura(B, tx, ty, t.c)) return true;        // aura swap: the QUEEN's aura shields Rooks, Bishops, Knights, Grands, Lancers, Raiders ...
+        if (KING_PROT.includes(t.t) && kingAura(B, tx, ty, t.c)) return true;          // ... the KING's aura the slow support pieces and the Jester
+        if (IMMUNE_TO_PAWNS.includes(t.t)) return true;                                // Prince, Princess, Archduke, Archduchess, High Queen, High King: pawn-family pieces can never take them
       }
-      if (p.t === 'u') { if (t.t === 'g' || near(B, tx, ty, t.c, 'g', 1)) return true; }
-      if (t.t === 'z' && near(B, tx, ty, t.c, 'y', 1)) return true;
+      if (p.t === 'u' || p.t === GU) { if (t.t === 'g' || near(B, tx, ty, t.c, 'g', 1)) return true; }
+      if (ranged && (t.t === GG || near(B, tx, ty, t.c, GG, 1))) return true;                // Grand Guard: no ranged piece can hit it or its neighbours
+      if (PRINCESSL.includes(t.t) && !ranged && near(B, tx, ty, t.c, PRINCEL, t.t === AZ ? PAIR_AR : PAIR_R)) return true;     // the Prince / Archduke covers the Princess / Archduchess against ordinary captures (she can still be shot)
+      if (PRINCEL.includes(t.t) && near(B, tx, ty, t.c, PRINCESSL, t.t === AD ? PAIR_AR : PAIR_R)) {                          // the Princess / Archduchess covers the Prince / Archduke against shots and against captures from far away
+        if (ranged) return true;
+        if (ox !== undefined && Math.max(Math.abs(ox - tx), Math.abs(oy - ty)) > PRINCE_SAFE_R) return true;
+      }
       return false;
     }
 
     // raw reach of a piece: [{tx,ty,mv,cap,shoot}] (occupancy / immunity resolved later)
     function gen(B, x, y, inf) {
       const p = B[y * W + x], c = p.c, me = inf[c], out = [], R = (a, b) => rot(c, a, b);
-      const add = (dx, dy, o) => out.push(Object.assign({ tx: x + dx, ty: y + dy, mv: true, cap: true }, o));
+      const wallG = (xx, yy) => { const q = at(B, xx, yy); return !!(q && q.wall && q.gw); };
+      const sealed = (cx, cy, dx, dy) => wallG(cx + dx, cy) && wallG(cx, cy + dy);      // Grand Wall: two Grand walls touching diagonally seal the gap between them against diagonal steps and slides
+      const add = (dx, dy, o) => { if (Math.abs(dx) === 1 && Math.abs(dy) === 1 && sealed(x, y, dx, dy)) return; out.push(Object.assign({ tx: x + dx, ty: y + dy, mv: true, cap: true }, o)); };
       const addR = (a, b, o) => { const [d, e] = R(a, b); add(d, e, o); };
       const emptyR = (a, b) => { const [d, e] = R(a, b); return empty(B, x + d, y + e); };
       const leap = (l, o) => l.forEach(([a, b]) => add(a, b, o));
       const slide = (dirs, max, o) => {
         for (const [a, b] of dirs) for (let i = 1; i <= max; i++) {
           const tx = x + a * i, ty = y + b * i; if (cut(tx, ty)) break;
+          if (a && b && sealed(x + a * (i - 1), y + b * (i - 1), a, b)) break;
           out.push(Object.assign({ tx, ty, mv: true, cap: true }, o)); if (B[ty * W + tx]) break;
+        }
+      };
+      const hopSlide = (dirs, max, hops, land) => {      // slide that may jump over up to `hops` pieces (any colour); beyond a hopped piece it can only CAPTURE (never land on an empty square) unless land
+        for (const [a, b] of dirs) { let used = 0;
+          for (let i = 1; i <= max; i++) {
+            const tx = x + a * i, ty = y + b * i; if (cut(tx, ty)) break;
+            if (a && b && sealed(x + a * (i - 1), y + b * (i - 1), a, b)) break;
+            const q = B[ty * W + tx];
+            out.push({ tx, ty, mv: used === 0 || !!land, cap: true });
+            if (q) { if (used >= hops) break; used++; }
+          }
         }
       };
       const castle = (dirs, ts) => {
@@ -125,19 +170,27 @@ const Imperial = (() => {
       const imperial = (dirs, bandOf, R) => {
         for (const [a, b] of dirs) for (let i = 1; i <= R; i++) {
           const lx = x + a * i, ly = y + b * i; if (cut(lx, ly)) break;
+          if (a && b && sealed(x + a * (i - 1), y + b * (i - 1), a, b)) break;
           const q = B[ly * W + lx], pass = q && q.c === c && IMP.includes(q.t);
           out.push({ tx: lx, ty: ly, mv: true, cap: true });
           if (q && !pass) break;
           for (const [bx, by] of bandOf(a, b)) out.push({ tx: lx + bx, ty: ly + by, mv: true, cap: true });
         }
       };
-      switch (p.t) {
+      let et = p.t;                                       // retinue: a Rook / Bishop / Knight near its Imperial moves as the Grand form (radius shrinks when the partner is dead; the Heir's grows when both are dead)
+      if (et === 'r' && near(B, x, y, c, 'E', me.X ? RETINUE_R : RETINUE_LOW)) et = 'R';
+      else if (et === 'b' && near(B, x, y, c, 'X', me.E ? RETINUE_R : RETINUE_LOW)) et = 'B';
+      else if (et === 'n' && near(B, x, y, c, 'H', me.E || me.X ? HEIR_R : HEIR_HIGH)) et = 'N';
+      switch (et) {
         case 'p': case 'v': case 'm': {
           if (emptyR(0, 1)) {
             addR(0, 1, { cap: false });
-            const base = (MULTI && !o.wide) ? 2 : 1, glow = p.ag !== undefined && S.ply - p.ag <= NS;      // glow: left the king's aura on its last move: still counts for this one turn
+            const base = (MULTI && !o.wide) ? 2 : 1, glow = p.ag !== undefined && S.ply - p.ag <= NS * (p.agm || 1);      // glow: left the king's aura on its last move: still counts for this one turn
             const n = !p.m ? 3 : (kingAura(B, x, y, c) || glow) ? base + 1 : base;
             for (let i = 2; i <= n; i++) { if (!emptyR(0, i) || !emptyR(0, i - 1)) break; addR(0, i, { cap: false }); }
+          } else {                                       // blocked head-on by a TEAMMATE's piece (2v2 cross board): step one square sideways
+            const [d0, e0] = R(0, 1), q0 = at(B, x + d0, y + e0);
+            if (q0 && !q0.wall && !q0.dead && q0.c !== c && team(q0.c) === team(c)) { addR(1, 0, { cap: false }); addR(-1, 0, { cap: false }); }
           }
           addR(1, 1, { mv: false }); addR(-1, 1, { mv: false });
           if (p.t === 'v' || (p.t === 'p' && queenAura(B, x, y, c))) addR(0, 1, { mv: false });
@@ -145,15 +198,17 @@ const Imperial = (() => {
           if (S.ep && S.ep.c !== c) for (const dx of [1, -1]) { const [d, e] = R(dx, 1); if (S.ep.passed.some(q => q.x === x + d && q.y === y + e)) add(d, e, { cap: false, ep: true }); }
           break;
         }
-        case 'k': {                                       // King: one step, or onto any square beside a friend within RALLY_R (capturing only inside its own 5x5, moving only beyond it)
+        case 'k': case HK: {                              // (High King: rally radius RALLY_HK) King: one step, or onto any square beside a friend within RALLY_R (capturing only inside its own 5x5, moving only beyond it)
           leap(K8);
-          for (let a = -RALLY_R; a <= RALLY_R; a++) for (let b = -RALLY_R; b <= RALLY_R; b++) {
+          const RR = p.t === HK ? RALLY_HK : RALLY_R;
+          for (let a = -RR; a <= RR; a++) for (let b = -RR; b <= RR; b++) {
             if (!a && !b) continue; const q = at(B, x + a, y + b);
-            if (q && !q.wall && !q.dead && q.c === c) for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) add(a + i, b + j, { cap: RALLY_CAP && Math.max(Math.abs(a + i), Math.abs(b + j)) <= RALLY_R });      // beside a friend: may capture only if that square is inside the King's own 5x5; further out it can only move there
+            if (q && !q.wall && !q.dead && q.c === c) for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) add(a + i, b + j, { cap: RALLY_CAP && Math.max(Math.abs(a + i), Math.abs(b + j)) <= RR });      // beside a friend: may capture only if that square is inside the King's own 5x5; further out it can only move there
           }
           break;
         }
         case 'q': slide(K8, 16); break;
+        case HQ: hopSlide(K8, 16, 1); leap(KN); break;                 // High Queen: Queen + knight moves (move and capture); slides may hop one piece (capture only beyond it)
         case 'r': slide(OR, 16); break;
         case 'b': slide(DG, 16); break;
         case 'n': leap(KN); break;
@@ -168,6 +223,19 @@ const Imperial = (() => {
           for (const [a, b] of NEAR) { const q = at(B, x + a, y + b); if (q && q.c === c && (a || b)) for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) add(a + i, b + j, { cap: false }); }
           break;
         }
+        case GG: {                                        // Grand Guard: like the Guard, rally squares around any friend within 3
+          leap(K8); leap([[2, 0], [-2, 0], [0, 2], [0, -2]], { cap: false });
+          for (let a = -3; a <= 3; a++) for (let b = -3; b <= 3; b++) { const q = at(B, x + a, y + b); if (q && q.c === c && (a || b)) for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) add(a + i, b + j, { cap: false }); }
+          break;
+        }
+        case GH: {                                        // Grand Chariot: straight 1-3 (may hop one piece), knight squares at 2 and (3,+-1) at 3; a long leg may hold one piece
+          for (const [a, b] of OR) {
+            let used = 0;
+            for (let i = 1; i <= 3; i++) { const tx = x + a * i, ty = y + b * i; if (cut(tx, ty)) break; const q = B[ty * W + tx]; out.push({ tx, ty, mv: used === 0 || CHAR_HOP_MOVES, cap: true }); if (q) { if (used >= 1) break; used++; } }
+            for (const L of [2, 3]) { let blk = 0; for (let i = 1; i <= L; i++) if (!empty(B, x + a * i, y + b * i)) blk++; if (blk <= 1) { add(L * a + b, L * b + a); add(L * a - b, L * b - a); } }
+          }
+          break;
+        }
         case 'h': {
           for (const [a, b] of OR) {
             if (!empty(B, x + a, y + b)) { add(a, b); continue; }
@@ -177,52 +245,82 @@ const Imperial = (() => {
           break;
         }
         case 'u': slide(OR, 2, { cap: false }); ARCH.forEach(([a, b]) => add(a, b, { mv: false, shoot: true })); break;
-        case 's': leap(DG.concat([[2, 0], [-2, 0], [0, 2], [0, -2]]), { cap: false }); break;
-        case 't': {      // after firing: locked completely for the first turn that follows, then it may walk again, and may fire again only after 2 full turns
+        case GU: slide(OR, 2, { cap: false }); leap(K8, { cap: false }); GARCH.forEach(([a, b]) => add(a, b, { mv: false, shoot: true })); break;      // Grand Archer: 3x3 steps (move only) + 24 shot squares
+        case 's': case GS: {                              // Sapper: leaps (1,1) / (2,0), never captures; if the landing is occupied it hops on to the next one along the line (Grand: also (2,2))
+          for (const [a, b] of DG.concat([[2, 0], [-2, 0], [0, 2], [0, -2]])) { add(a, b, { cap: false }); if (at(B, x + a, y + b)) add(2 * a, 2 * b, { cap: false }); }
+          if (p.t === GS) leap(DIAG2, { cap: false });
+          break;
+        }
+        case 't': case GT: {      // (Grand Catapult: 11 target squares, plus-shaped splash) after firing: locked completely for the first turn that follows, then it may walk again, and may fire again only after 2 full turns
           const since = p.fired === undefined ? Infinity : S.ply - p.fired;
           if (since <= NS) break;
           slide(OR, 3, { cap: false }); leap(DG, { cap: false });
-          if (since > 2 * NS) { const f = p.face || rot(c, 0, 1); CAT.forEach(([a, b]) => add(a * f[1] + b * f[0], -a * f[0] + b * f[1], { mv: false, shoot: true })); }      // aimed along its facing: it turns by walking (see apply)
+          if (since > 2 * NS) { const f = p.face || rot(c, 0, 1); (p.t === GT ? CAT_G : CAT).forEach(([a, b]) => add(a * f[1] + b * f[0], -a * f[0] + b * f[1], { mv: false, shoot: true })); }      // aimed along its facing: it turns by walking (see apply)
           break;
         }
-        case 'j': {                                       // Lancer
-          for (const dx of [-1, 1]) for (const d of [1, 2]) addR(dx, d, { mv: true, cap: true });
-          for (let d = 1; d <= 3; d++) { let ok = true; for (let i = 1; i < d; i++) if (!emptyR(0, i)) ok = false; if (ok) addR(0, d, { mv: false, shoot: true }); }
-          for (const d of [4, 5]) { let ok = true; for (let i = 1; i < d; i++) if (!emptyR(0, i)) ok = false; if (ok) addR(0, d, { cap: true, mv: false }); }
-          for (const d of [1, 2]) { if (!emptyR(0, -(d - 1)) && d === 2) break; addR(0, -d, { mv: false }); }
-          for (const sx of [1, -1]) for (const d of [1, 2]) { if (d === 2 && !empty(B, x + sx, y)) break; add(sx * d, 0, { cap: false }); }
-          break;
-        }
-        case 'd': {                                       // Raider
-          for (const sx of [1, -1]) for (let i = 1; i <= 5; i++) {
-            const tx = x + sx * i; if (cut(tx, y)) break;
-            out.push({ tx, ty: y, mv: true, cap: i <= 3 }); if (B[y * W + tx]) break;
+        case 'j': case CH: {                              // Lancer / Champion: aimed along its facing (starts forward; stepping sideways turns it, see apply)
+          const C = p.t === CH, f = p.face || R(0, 1), RF = (a, b) => [a * f[1] + b * f[0], -a * f[0] + b * f[1]];
+          const addF = (a, b, o) => { const [d, e] = RF(a, b); add(d, e, o); }, emptyF = (a, b) => { const [d, e] = RF(a, b); return empty(B, x + d, y + e); };
+          const foeF = (a, b) => { const [d, e] = RF(a, b); const q = at(B, x + d, y + e); return !!(q && !q.wall); };
+          for (const dx of [-1, 1]) {
+            for (const d of (C ? [1, 2] : [1])) { if (foeF(dx, d)) addF(dx, d, { mv: false, shoot: true }); else addF(dx, d, { cap: false }); }      // thrust if something stands there, plain step if empty
+            if (!C) addF(dx, 2, { mv: true, cap: true });
+            addF(dx, 3, { mv: true, cap: true }); if (C) addF(dx, 4, { mv: true, cap: true });                                                    // forward jumps (move or capture)
           }
-          slide([[0, 1], [0, -1]], 2);
-          for (const sx of [1, -1]) for (const sy of [1, -1]) add(3 * sx, sy);
+          for (let d = 1; d <= (C ? 5 : 4); d++) addF(0, d, { mv: false, shoot: true });                                                       // thrust: hits any square ahead without moving, nothing can block it (the Champion's hit also impales, see apply)
+          for (let d = 1; d <= (C ? 4 : 3); d++) { if (!emptyF(0, d)) break; addF(0, d, { cap: false }); }                                      // walks straight ahead (a capture there is the thrust, so no click is ambiguous)
+          for (const d of (C ? [6, 7] : [5, 6])) { let ok = true; for (let i = 1; i < d; i++) if (!emptyF(0, i)) ok = false; if (ok) addF(0, d, { cap: true, mv: false }); }      // lunge: capture AND move, path must be clear
+          for (let d = 1; d <= (C ? 3 : 2); d++) { addF(0, -d); if (!emptyF(0, -d)) break; }                                                    // retreats (or captures) straight back
+          for (const sx of [1, -1]) for (let d = 1; d <= (C ? 3 : 2); d++) { if (!emptyF(sx * d, 0)) break; addF(sx * d, 0, { cap: false }); }      // sideways: moves only (like the Lancer; the Champion goes 3)
           break;
         }
-        case 'f': {                                       // Jester: never captures by itself; hops to the opposite-colour squares of its 5x5; borrows the moves of any FRIENDLY (own side) non-Imperial piece in its 3x3 (never ranged ones)
+        case 'd': case MA: {                              // Raider / Marauder: its long axis is across the seat's board (rotated per seat); it can hop over pieces (capture only beyond the first)
+          const M = p.t === MA, [ux, uy] = R(1, 0);
+          hopSlide([[ux, uy], [-ux, -uy]], M ? 7 : 5, M ? 2 : 1);
+          slide([R(0, 1), R(0, -1)], M ? 4 : 3);
+          for (const sx of [1, -1]) for (const sy of [1, -1]) { const [d, e] = R(3 * sx, sy); add(d, e); if (M) { const [d2, e2] = R(4 * sx, sy); add(d2, e2); } }
+          break;
+        }
+        case 'f': case GF: {                              // Jester: never captures by itself; hops to the opposite-colour squares of its 5x5; borrows the moves of any FRIENDLY non-Imperial piece in its 3x3 (never ranged ones). GRAND Jester: also borrows from friends on the opposite-colour squares of its 5x5, and from an ADJACENT friendly Imperial (played from the Imperial's square, onto opposite-colour squares only)
+          const GJ = p.t === GF;
           for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) if ((a + b) & 1) add(a, b, { cap: false });
           const seenT = new Set();
-          for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
-            if (!a && !b) continue; const q = at(B, x + a, y + b);
-            if (!q || q.wall || q.dead || team(q.c) !== team(c) || q.t === 'f' || IMP.includes(q.t) || seenT.has(q.t)) continue; seenT.add(q.t);
+          for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) {
+            if (!a && !b) continue; const adj = Math.abs(a) <= 1 && Math.abs(b) <= 1; if (!adj && !(GJ && ((a + b) & 1))) continue;
+            const q = at(B, x + a, y + b);
+            if (!q || q.wall || q.dead || team(q.c) !== team(c) || q.t === 'f' || q.t === GF) continue;
+            if (IMP.includes(q.t)) {
+              if (!GJ || !adj) continue;
+              const qx = x + a, qy = y + b, B3 = B.slice(); B3[y * W + x] = null;
+              for (const r of gen(B3, qx, qy, inf)) if (!r.shoot && !r.castle && !r.swap && !r.ep && ((r.tx + r.ty) & 1) !== ((x + y) & 1) && Math.max(Math.abs(r.tx - qx), Math.abs(r.ty - qy)) <= JESTER_IMP_R) out.push(Object.assign({}, r, { via: q.t }));
+              continue;
+            }
+            if (seenT.has(q.t)) continue; seenT.add(q.t);
             const B2 = B.slice(); B2[y * W + x] = { t: q.t, c, m: p.m, o: false };
             for (const r of gen(B2, x, y, inf)) if (!r.shoot && !r.castle && !r.swap && !r.ep) out.push(Object.assign({}, r, { via: q.t }));
           }
           break;
         }
-        case 'y':
+        case 'y': case AD:
+          if (p.t === AD) {                               // Archduke: the whole 5x5 + (3,1)-type squares + 3 straight (move and capture) + 4 straight (move only); all blockable
+            FULL5.concat(CAM, AD_STR).forEach(([a, b]) => pathClear(B, x, y, a, b) && add(a, b));
+            AD_MOV.forEach(([a, b]) => pathClear(B, x, y, a, b) && add(a, b, { cap: false }));
+            break;
+          }
           PR_CAP.forEach(([a, b]) => pathClear(B, x, y, a, b) && add(a, b));
           PR_MOV.forEach(([a, b]) => pathClear(B, x, y, a, b) && add(a, b, { cap: false }));
           break;
-        case 'z': {
+        case 'z': case AZ: {
           K8.forEach(([a, b]) => add(a, b, { cap: false }));
+          if (p.t === AZ) AZ_JUMP.forEach(([a, b]) => add(a, b, { cap: false }));
           for (const [a, b] of PRS_CAP) {
             const straight = !a || !b, d = Math.max(Math.abs(a), Math.abs(b));
             if (straight) { const sx = Math.sign(a), sy = Math.sign(b); let ok = true; for (let i = 1; i < d; i++) if (!empty(B, x + sx * i, y + sy * i)) ok = false; if (!ok) continue; }
             add(a, b, { mv: false, shoot: true });
+          }
+          if (p.t === AZ) {                               // Archduchess: + diagonal arm (3,3) [and (4,4)] through a clear line, + the 8 (3,2)-type squares (unblockable)
+            for (const [sx, sy] of DG) for (let d = 3; d <= AZ_DIAG; d++) { let ok = true; for (let i = 1; i < d; i++) if (!empty(B, x + sx * i, y + sy * i)) ok = false; if (!ok) break; add(sx * d, sy * d, { mv: false, shoot: true }); }
+            AZ_EXTRA.forEach(([a, b]) => add(a, b, { mv: false, shoot: true }));
           }
           break;
         }
@@ -241,16 +339,18 @@ const Imperial = (() => {
         if (r.swap) { if (t && t.c === p.c && 'nN'.includes(t.t)) { seen.add(key); out.push({ fx: x, fy: y, tx: r.tx, ty: r.ty, swap: true }); } continue; }
         if (t && t.wall) { if (!r.shoot && team(t.c) !== team(p.c)) { seen.add(key); out.push({ fx: x, fy: y, tx: r.tx, ty: r.ty }); } continue; }      // only the enemy can break a wall
         const ap = r.via ? Object.assign({}, p, { t: r.via }) : p;       // a Jester's borrowed move counts as made by the piece it borrowed from
-        if (t ? !(r.cap && canTake(B, ap, t, inf) && !protectedFrom(B, ap, t, r.tx, r.ty, inf)) : !r.mv) continue;
+        if (t ? !(r.cap && canTake(B, ap, t, inf) && !protectedFrom(B, ap, t, r.tx, r.ty, inf, x, y, !!r.shoot)) : !r.mv) continue;
         seen.add(key);
         const m = { fx: x, fy: y, tx: r.tx, ty: r.ty }; if (r.shoot) m.shoot = true; if (r.ep) m.ep = true; if (r.castle) m.castle = true;
         if (!r.shoot && inZone(r.tx, r.ty)) {
+          const last = G.rank(p.c, r.tx, r.ty) >= G.last, lock = !!(St.lock && St.lock[p.c]);      // on the LAST rank a pawn-born first form is upgraded to its second form in the same move
           if (PF.includes(p.t)) {
-            for (const q of MINOR.concat(p.t === 'v' ? ['j'] : p.t === 'm' ? ['d'] : [])) out.push(Object.assign({ promo: q }, m));
-            for (const q of ['y', 'z']) if (!inf[p.c][q]) out.push(Object.assign({ promo: q }, m));
+            for (const q of MINOR.concat(p.t === 'v' ? ['j'] : p.t === 'm' ? ['d'] : [])) out.push(Object.assign({ promo: last && SECOND[q] ? SECOND[q] : q }, m));
+            if (!lock) for (const q of ['y', 'z']) if (!inf[p.c][q]) out.push(Object.assign({ promo: last ? SECOND[q] : q }, m));      // (a seat that ever earned an Archduke / Archduchess may never make a new Prince / Princess)
             continue;
           }
-          if (p.o && GRAND[p.t]) { m.promo = GRAND[p.t]; }
+          if (p.o && GRAND[p.t]) m.promo = GRAND[p.t];
+          else if (last && SECOND[p.t]) m.promo = SECOND[p.t];
         }
         out.push(m);
       }
@@ -258,28 +358,36 @@ const Imperial = (() => {
     }
 
     function fin(B, St, cap, extra) {                    // end of a turn (or a pending wall step)
-      if (extra && extra.pend) return { B, turn: St.turn, ply: St.ply, pend: extra.pend, cap, alive: St.alive };
+      const lock = (extra && extra.lock) || St.lock;
+      if (extra && extra.pend) return { B, turn: St.turn, ply: St.ply, pend: extra.pend, cap, alive: St.alive, lock };
       const ply = St.ply + 1;
-      for (let i = 0; i < B.length; i++) if (B[i] && B[i].wall && B[i].wp + WLIFE <= ply) B[i] = null;   // walls: gone at the start of the 4th enemy turn (2 seats)
-      return { B, turn: nextSeat(St.turn, St.alive), ply, cap, ep: extra && extra.ep, alive: St.alive };
+      for (let i = 0; i < B.length; i++) if (B[i] && B[i].wall && B[i].wp + (B[i].wl || WLIFE) <= ply) B[i] = null;   // walls: gone at the start of the 4th enemy turn (2 seats); Grand walls last one round longer
+      return { B, turn: nextSeat(St.turn, St.alive), ply, cap, ep: extra && extra.ep, alive: St.alive, lock };
     }
     function apply(St, m) {
       const B = St.B.slice(), p = B[m.fy * W + m.fx], inf = info(St.B), [Fx, Fy] = rot(p.c, 0, 1);
       if (m.skip || m.wall) {
-        if (m.wall) { B[m.ty * W + m.tx] = { t: '#', c: p.c, wall: true, wp: St.ply }; B[m.fy * W + m.fx] = Object.assign({}, p, { wp: St.ply }); }
+        if (m.wall) {
+          const GW = p.t === GS;
+          B[m.ty * W + m.tx] = Object.assign({ t: '#', c: p.c, wall: true, wp: St.ply }, GW ? { gw: true, wl: WLIFE + NS } : {}); B[m.fy * W + m.fx] = Object.assign({}, p, { wp: St.ply });
+          if (GW && !(St.pend && St.pend.second)) { let free = false; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) if ((a || b) && empty(B, m.fx + a, m.fy + b)) free = true; if (free) return fin(B, St, null, { pend: { x: m.fx, y: m.fy, second: true } }); }      // the Grand Sapper may place a second wall
+        }
         return fin(B, St, null);
       }
       const dead = B[m.ty * W + m.tx];
       if (m.swap) { const q = B[m.ty * W + m.tx]; B[m.ty * W + m.tx] = Object.assign({}, p, { m: true }); B[m.fy * W + m.fx] = Object.assign({}, q, { m: true }); return fin(B, St, null); }
       if (m.shoot) {
         const hits = [{ x: m.tx, y: m.ty, t: dead.t }];
-        if (p.t === 't') {
+        const splashAt = (sx, sy) => { const q = at(St.B, sx, sy); if (q && !q.wall && canTake(St.B, p, q, inf) && !IMP.includes(q.t) && !protectedFrom(St.B, p, q, sx, sy, inf, m.fx, m.fy, true)) { B[sy * W + sx] = null; hits.push({ x: sx, y: sy, t: q.t }); } };
+        if (p.t === 't' || p.t === GT) {
           B[m.fy * W + m.fx] = Object.assign({}, p, { fired: St.ply });
           const fc = p.face || [Fx, Fy];
-          if (m.tx - m.fx === 4 * fc[0] && m.ty - m.fy === 4 * fc[1]) for (const s of [-1, 1]) {
-            const sdx = s * fc[1], sdy = -s * fc[0], sx = m.tx + sdx, sy = m.ty + sdy, q = at(St.B, sx, sy);
-            if (q && !q.wall && canTake(St.B, p, q, inf) && !IMP.includes(q.t) && !protectedFrom(St.B, p, q, sx, sy, inf)) { B[sy * W + sx] = null; hits.push({ x: sx, y: sy, t: q.t }); }
-          }
+          if (p.t === GT) { for (const [sdx, sdy] of OR) { const sx = m.tx + sdx, sy = m.ty + sdy, dx = sx - m.fx, dy = sy - m.fy, a = dx * fc[1] - dy * fc[0], b = dx * fc[0] + dy * fc[1]; if (CAT_G.some(c => c[0] === a && c[1] === b)) splashAt(sx, sy); } }      // Grand Catapult: EVERY shot splashes the orthogonal neighbours of the target, but only those squares it could itself reach
+          else if (m.tx - m.fx === 4 * fc[0] && m.ty - m.fy === 4 * fc[1]) for (const s of [-1, 1]) splashAt(m.tx + s * fc[1], m.ty - s * fc[0]);
+        }
+        if (p.t === CH) {                                 // Champion: the thrust impales -- it also hits the enemy directly BEHIND the target, one step further along its facing
+          const f = p.face || [Fx, Fy];
+          splashAt(m.tx + f[0], m.ty + f[1]);
         }
         B[m.ty * W + m.tx] = null;
         const r = fin(B, St, dead); r.hits = hits; return r;
@@ -288,19 +396,20 @@ const Imperial = (() => {
       let cap = dead;
       if (m.ep && St.ep) { cap = B[St.ep.ly * W + St.ep.lx]; B[St.ep.ly * W + St.ep.lx] = null; }
       let face = p.face;
-      if (p.t === 't') { const ddx = m.tx - m.fx, ddy = m.ty - m.fy; if ((ddx === 0) !== (ddy === 0)) face = [Math.sign(ddx), Math.sign(ddy)]; }
+      if (p.t === 't' || p.t === GT) { const ddx = m.tx - m.fx, ddy = m.ty - m.fy; if ((ddx === 0) !== (ddy === 0)) face = [Math.sign(ddx), Math.sign(ddy)]; }
+      if ((p.t === 'j' || p.t === CH) && !m.shoot) { const f = p.face || rot(p.c, 0, 1), ddx = m.tx - m.fx, ddy = m.ty - m.fy; if ((ddx || ddy) && ddx * f[0] + ddy * f[1] === 0) face = [Math.sign(ddx), Math.sign(ddy)]; }   // a Lancer turns to face the way it steps sideways
       B[m.ty * W + m.tx] = Object.assign({}, p, { t: m.promo || p.t, m: true, o: m.promo && !GRAND[p.t] ? false : p.o, cd: m.castle ? St.ply : p.cd }, face !== p.face ? { face } : {});
       if (PF.includes(p.t)) {                           // aura memory: leaving the king's aura by this move grants one more turn of it (not renewable by using it)
-        const q = B[m.ty * W + m.tx], was = kingAura(St.B, m.fx, m.fy, p.c), now = kingAura(B, m.tx, m.ty, p.c);
-        if (was && !now) q.ag = St.ply; else delete q.ag;
+        const q = B[m.ty * W + m.tx], was = auraLvl(St.B, m.fx, m.fy, p.c), now = kingAura(B, m.tx, m.ty, p.c);
+        if (was && !now) { q.ag = St.ply; q.agm = was; } else { delete q.ag; delete q.agm; }      // (the High King's aura is remembered for 2 turns)
       }
-      if (p.t === 's' && (p.wp === undefined || St.ply - p.wp >= WCD)) {
+      if ((p.t === 's' || p.t === GS) && ((p.t === GS && GS_EVERY_TURN) || p.wp === undefined || St.ply - p.wp >= WCD)) {
         let free = false; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) if ((a || b) && empty(B, m.tx + a, m.ty + b)) free = true;
         if (free) return fin(B, St, cap, { pend: { x: m.tx, y: m.ty } });
       }
       let ep; const dx = m.tx - m.fx, dyy = m.ty - m.fy, dd = dx * Fx + dyy * Fy;
       if (PF.includes(p.t) && !dead && dd >= 2 && dx === dd * Fx && dyy === dd * Fy) { ep = { c: p.c, lx: m.tx, ly: m.ty, passed: [] }; for (let k = 1; k < dd; k++) ep.passed.push({ x: m.fx + Fx * k, y: m.fy + Fy * k }); }
-      return fin(B, St, cap, { ep });
+      return fin(B, St, cap, { ep, lock: m.promo === AD || m.promo === AZ ? Object.assign({}, St.lock || {}, { [p.c]: true }) : undefined });
     }
 
     // Who attacks seat c's lone Imperial? [{x, y, imp}] (imp = the attacker is itself an Imperial).
@@ -312,7 +421,7 @@ const Imperial = (() => {
       const St = { B, turn: c, ply: ply === undefined ? S.ply : ply, ep: null };
       const hits = (i, q, tgt, gx, gy) => {                       // can piece q (on square i) take tgt on (gx, gy)?
         const saveS = S; S = St; let list; try { list = gen(B, i % W, (i / W) | 0, inf); } finally { S = saveS; }
-        return list.some(r => { const aq = r.via ? Object.assign({}, q, { t: r.via }) : q; return r.cap && r.tx === gx && r.ty === gy && canTake(B, aq, tgt, inf) && !protectedFrom(B, aq, tgt, gx, gy, inf); });
+        return list.some(r => { const aq = r.via ? Object.assign({}, q, { t: r.via }) : q; return r.cap && r.tx === gx && r.ty === gy && canTake(B, aq, tgt, inf) && !protectedFrom(B, aq, tgt, gx, gy, inf, i % W, (i / W) | 0, !!r.shoot); });
       };
       for (let i = 0; i < B.length; i++) {
         const q = B[i]; if (!q || team(q.c) === team(c) || q.wall || q.dead) continue;
@@ -393,14 +502,15 @@ const Imperial = (() => {
       get drawn() { return !!S.drawn; },
       alive: c => !!S.alive[c],
       winner: () => (MULTI && !S.drawn && liveTeams(S) === 1 ? SEATS.find(c => S.alive[c]) : null),
+      inLast: (x, y, c) => !cut(x, y) && G.rank(c, x, y) >= G.last,       // last rank: pawn-born Lancer / Raider / Prince / Princess become their second form there
       inPromo: (x, y, c) => !cut(x, y) && G.rank(c, x, y) >= G.promo,       // is (x, y) in c's promotion zone? (for the board tint)
-      wallLife: (x, y) => { const p = at(S.B, x, y); return p && p.wall ? Math.max(1, Math.ceil((p.wp + WLIFE - S.ply) / NS)) : 0; },   // rounds of play the wall still stands
+      wallLife: (x, y) => { const p = at(S.B, x, y); return p && p.wall ? Math.max(1, Math.ceil((p.wp + (p.wl || WLIFE) - S.ply) / NS)) : 0; },   // rounds of play the wall still stands
       valid: (x, y) => !cut(x, y), kingPos: lonePos,
       at: (x, y) => at(S.B, x, y), cut,
       moves: (x, y) => legal(S, x, y),
       allMoves: () => all(S),
-      reach(x, y) { const p = at(S.B, x, y); return !p || p.wall || p.dead ? [] : pseudo({ B: S.B, turn: p.c, ply: S.ply, ep: S.ep }, x, y); },
-      facings() { const out = []; for (let i = 0; i < S.B.length; i++) { const p = S.B[i]; if (p && p.t === 't' && !p.wall) { const f = p.face || rot(p.c, 0, 1); out.push({ x: i % W, y: (i / W) | 0, fx: f[0], fy: f[1] }); } } return out; },      // where each Catapult is aimed (board directions)
+      reach(x, y) { const p = at(S.B, x, y); return !p || p.wall || p.dead ? [] : pseudo({ B: S.B, turn: p.c, ply: S.ply, ep: S.ep, lock: S.lock }, x, y); },
+      facings() { const out = []; for (let i = 0; i < S.B.length; i++) { const p = S.B[i]; if (p && (p.t === 't' || p.t === 'j' || p.t === GT || p.t === CH) && !p.wall) { const f = p.face || rot(p.c, 0, 1); out.push({ x: i % W, y: (i / W) | 0, fx: f[0], fy: f[1] }); } } return out; },      // where each Catapult is aimed (board directions)
       range(x, y) {                                                 // every square this piece could shoot if a target stood there
         const p = at(S.B, x, y); if (!p || p.wall || p.dead) return [];
         const B = S.B, inf = info(B), saveS = S; let list; S = { B, turn: p.c, ply: S.ply, ep: S.ep };
@@ -417,13 +527,13 @@ const Imperial = (() => {
         if (!ok) return false;
         const ns = apply(S, ok);
         hist.push({ c: S.turn, fx: ok.fx, fy: ok.fy, tx: ok.tx, ty: ok.ty, promo: ok.promo || null, shoot: !!ok.shoot, ep: !!ok.ep, castle: !!ok.castle, swap: !!ok.swap, wall: !!ok.wall, skip: !!ok.skip, cap: ns.cap ? ns.cap.t : null, capc: ns.cap ? ns.cap.c : null, hits: ns.hits || null, by: S.B[ok.fy * W + ok.fx].t });
-        S = { B: ns.B, turn: ns.turn, ply: ns.ply, pend: ns.pend, ep: ns.ep, alive: ns.alive };
+        S = { B: ns.B, turn: ns.turn, ply: ns.ply, pend: ns.pend, ep: ns.ep, alive: ns.alive, lock: ns.lock };
         if (MULTI) settle(S);
         return true;
       },
       resign(c) {
         if (!MULTI || !S.alive[c] || over()) return;
-        const N = { B: S.B.slice(), turn: S.turn, ply: S.ply, pend: S.pend, ep: S.ep, alive: S.alive };
+        const N = { B: S.B.slice(), turn: S.turn, ply: S.ply, pend: S.pend, ep: S.ep, alive: S.alive, lock: S.lock };
         kill(N, c, 'resigned'); if (N.turn === c) N.turn = nextSeat(c, N.alive);
         S = N; settle(S);
       },
@@ -452,7 +562,7 @@ const Imperial = (() => {
           }
           events.length = n0; return N;
         };
-        const PROMOS = ['r', 'y', 'h'];
+        const PROMOS = ['r', 'y', 'h', CH, MA, AD, AZ];
         const quick = N => {            // pseudo-legal moves (no check test: far cheaper than all()); promotions are cut down to the few that matter
           if (N === S || N.pend) return all(N);
           const o = [];
@@ -505,6 +615,6 @@ const Imperial = (() => {
     for (const e of ev) { const sc = e.gain - 0.9 * e.loss + e.bonus + Math.random() * 0.4; if (sc > bs) { bs = sc; best = e; } }
     return best.m;
   }
-  return { create, AURA: { k: AURA_R, q: 2, y: 1, g: 1 }, cut: (x, y) => !G2.valid(x, y), botChoose, G2, G4 };
+  return { create, AURA: { k: AURA_R, q: 2, y: 1, g: 1, hk: AURA_HK, hq: AURA_HQ }, CODES: { GG, GH, GU, GS, GT, GF, HQ, HK, CH, MA, AD, AZ }, cut: (x, y) => !G2.valid(x, y), botChoose, G2, G4 };
 })();
 if (typeof module !== 'undefined') module.exports = Imperial;
