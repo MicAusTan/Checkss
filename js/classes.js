@@ -341,7 +341,7 @@ function renderCore() {
     if (p) {
       const s = document.createElement('span');
       setGlyph(s, shownType(p), p.c); if (p.wall && g.wallLife) addWallNum(s, g.wallLife(x, y)); if (p.rc > 0) addWallNum(s, p.rc);      // (Reviver recharge countdown)
-      s.className = (p.c === 'w' ? 'w-piece' : '') + (isFairy(p.t) ? ' fairy' : '') + (p.champ && p.c === myColor ? ' champ' : '') + fxClass(p);
+      s.className = (p.c === 'w' ? 'w-piece' : '') + (isFairy(p.t) ? ' fairy' : '') + (p.champ && p.c === myColor ? ' champ' : '') + (p.wd !== undefined ? ' warded' : '') + fxClass(p);
       s.dataset.pc = '1'; d.appendChild(s);
     }
     d.onclick = () => clickSq(x, y);

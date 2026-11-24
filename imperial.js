@@ -30,6 +30,8 @@ const Imperial = (() => {
   const FULL5 = SQ5.slice();                                                                           // Archduke: the whole 5x5 (corners too)
   const AD_STR = [[3, 0], [-3, 0], [0, 3], [0, -3]], AD_MOV = [[4, 0], [-4, 0], [0, 4], [0, -4]];       // ... arms: 3 straight move+capture, 4 straight move only
   const AZ_JUMP = DIAG2, AZ_EXTRA = sym([[3, 2], [2, 3]]);                                              // Archduchess: (2,2) jumps; extra unblockable shots (3,2)-type
+  const WARD_ON = true;         // the Grand Sapper may WARD a friendly piece in its 3x3 (or itself) instead of raising a wall. TUNE ME
+  const LEAPERS = 'nNH';        // moves of these never 'slide' (a bump against a ward leaves them where they were)
   const GS_EVERY_TURN = true;   // Grand Sapper may place walls every turn (the plain Sapper: once per WCD). TUNE ME
   const AZ_DIAG = 4;                                                                                   // Archduchess diagonal arm reaches this far (3 = old plan, 4 = with the (4,4) squares). TUNE ME
   const GARCH = ARCH.concat(DIAG2, [[3, 0], [-3, 0], [0, 3], [0, -3], [4, 0], [-4, 0], [0, 4], [0, -4]]);   // Grand Archer: 12 + 4 + 8 = 24 shot squares
@@ -212,8 +214,8 @@ const Imperial = (() => {
         case 'r': slide(OR, 16); break;
         case 'b': slide(DG, 16); break;
         case 'n': leap(KN); break;
-        case 'R': slide(OR, 16); leap(KN, { cap: false }); break;
-        case 'B': slide(DG, 16); slide(OR, 2); break;
+        case 'R': slide(OR, 16); leap(KN, { cap: p.t === 'R' }); break;       // a PROMOTED Grand Rook also captures with its knight jumps; a retinue Rook (p.t 'r') only moves with them
+        case 'B': slide(DG, 16); slide(OR, p.t === 'B' ? 3 : 2); break;     // a promoted Grand Bishop slides 3 straight, a retinue Bishop 2
         case 'N': leap(RING); break;
         case 'E': imperial(OR, (a, b) => [[b, a], [-b, -a]], me.X ? 16 : 3); castle(OR, 'rR'); break;
         case 'X': imperial(DG, (a, b) => [[1, 0], [-1, 0], [0, 1], [0, -1]], me.E ? 16 : 3); castle(DG, 'bB'); break;
@@ -248,7 +250,7 @@ const Imperial = (() => {
         case GU: slide(OR, 2, { cap: false }); leap(K8, { cap: false }); GARCH.forEach(([a, b]) => add(a, b, { mv: false, shoot: true })); break;      // Grand Archer: 3x3 steps (move only) + 24 shot squares
         case 's': case GS: {                              // Sapper: leaps (1,1) / (2,0), never captures; if the landing is occupied it hops on to the next one along the line (Grand: also (2,2))
           for (const [a, b] of DG.concat([[2, 0], [-2, 0], [0, 2], [0, -2]])) { add(a, b, { cap: false }); if (at(B, x + a, y + b)) add(2 * a, 2 * b, { cap: false }); }
-          if (p.t === GS) leap(DIAG2, { cap: false });
+          if (p.t === GS) { leap(DIAG2, { cap: false }); leap(OR, { cap: false }); }      // Grand: + (2,2) leaps and the four single orthogonal steps
           break;
         }
         case 't': case GT: {      // (Grand Catapult: 11 target squares, plus-shaped splash) after firing: locked completely for the first turn that follows, then it may walk again, and may fire again only after 2 full turns
@@ -362,23 +364,31 @@ const Imperial = (() => {
       if (extra && extra.pend) return { B, turn: St.turn, ply: St.ply, pend: extra.pend, cap, alive: St.alive, lock };
       const ply = St.ply + 1;
       for (let i = 0; i < B.length; i++) if (B[i] && B[i].wall && B[i].wp + (B[i].wl || WLIFE) <= ply) B[i] = null;   // walls: gone at the start of the 4th enemy turn (2 seats); Grand walls last one round longer
+      for (let i = 0; i < B.length; i++) if (B[i] && B[i].wd !== undefined && B[i].wd + NS <= ply) { B[i] = Object.assign({}, B[i]); delete B[i].wd; }      // a ward lasts until its owner's next turn begins
       return { B, turn: nextSeat(St.turn, St.alive), ply, cap, ep: extra && extra.ep, alive: St.alive, lock };
     }
     function apply(St, m) {
       const B = St.B.slice(), p = B[m.fy * W + m.fx], inf = info(St.B), [Fx, Fy] = rot(p.c, 0, 1);
+      if (m.ward) {                                     // Grand Sapper: the warded piece's NEXT capture attempt on it fails (see below) until its owner's next turn
+        const q = B[m.ty * W + m.tx]; B[m.ty * W + m.tx] = Object.assign({}, q, { wd: St.ply }); B[m.fy * W + m.fx] = Object.assign({}, B[m.fy * W + m.fx], { wp: St.ply });
+        if (!(St.pend && St.pend.second)) return fin(B, St, null, { pend: { x: m.fx, y: m.fy, second: true, grand: true } });
+        return fin(B, St, null);
+      }
       if (m.skip || m.wall) {
         if (m.wall) {
           const GW = p.t === GS;
           B[m.ty * W + m.tx] = Object.assign({ t: '#', c: p.c, wall: true, wp: St.ply }, GW ? { gw: true, wl: WLIFE + NS } : {}); B[m.fy * W + m.fx] = Object.assign({}, p, { wp: St.ply });
-          if (GW && !(St.pend && St.pend.second)) { let free = false; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) if ((a || b) && empty(B, m.fx + a, m.fy + b)) free = true; if (free) return fin(B, St, null, { pend: { x: m.fx, y: m.fy, second: true } }); }      // the Grand Sapper may place a second wall
+          if (GW && !(St.pend && St.pend.second)) { let free = false; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) if ((a || b) && empty(B, m.fx + a, m.fy + b)) free = true; if (free || WARD_ON) return fin(B, St, null, { pend: { x: m.fx, y: m.fy, second: true, grand: true } }); }      // the Grand Sapper may do a second action (wall or ward)
         }
         return fin(B, St, null);
       }
       const dead = B[m.ty * W + m.tx];
       if (m.swap) { const q = B[m.ty * W + m.tx]; B[m.ty * W + m.tx] = Object.assign({}, p, { m: true }); B[m.fy * W + m.fx] = Object.assign({}, q, { m: true }); return fin(B, St, null); }
+      let bumped = false;
       if (m.shoot) {
-        const hits = [{ x: m.tx, y: m.ty, t: dead.t }];
-        const splashAt = (sx, sy) => { const q = at(St.B, sx, sy); if (q && !q.wall && canTake(St.B, p, q, inf) && !IMP.includes(q.t) && !protectedFrom(St.B, p, q, sx, sy, inf, m.fx, m.fy, true)) { B[sy * W + sx] = null; hits.push({ x: sx, y: sy, t: q.t }); } };
+        const hits = [{ x: m.tx, y: m.ty, t: dead.t }], unward = (sx, sy) => { B[sy * W + sx] = Object.assign({}, B[sy * W + sx]); delete B[sy * W + sx].wd; };
+        const warded = dead.wd !== undefined;             // the shot is wasted on a warded piece (the Catapult still reloads)
+        const splashAt = (sx, sy) => { const q0 = at(St.B, sx, sy); if (warded) return; if (q0 && !q0.wall && q0.wd !== undefined && canTake(St.B, p, q0, inf) && !IMP.includes(q0.t) && !protectedFrom(St.B, p, q0, sx, sy, inf, m.fx, m.fy, true)) { unward(sx, sy); bumped = true; return; } const q = q0; if (q && !q.wall && canTake(St.B, p, q, inf) && !IMP.includes(q.t) && !protectedFrom(St.B, p, q, sx, sy, inf, m.fx, m.fy, true)) { B[sy * W + sx] = null; hits.push({ x: sx, y: sy, t: q.t }); } };
         if (p.t === 't' || p.t === GT) {
           B[m.fy * W + m.fx] = Object.assign({}, p, { fired: St.ply });
           const fc = p.face || [Fx, Fy];
@@ -389,9 +399,18 @@ const Imperial = (() => {
           const f = p.face || [Fx, Fy];
           splashAt(m.tx + f[0], m.ty + f[1]);
         }
+        let r;
+        if (warded) { unward(m.tx, m.ty); r = fin(B, St, null); r.hits = []; r.bump = true; return r; }
         B[m.ty * W + m.tx] = null;
-        const r = fin(B, St, dead); r.hits = hits; return r;
+        r = fin(B, St, dead); r.hits = hits; if (bumped) r.bump = true; return r;
       }
+      if (dead && !dead.wall && dead.wd !== undefined && !m.castle) {      // a WARDED piece cannot be taken: the ward is used up and the attacker 'bumps' (slides stop short of it, steps and leaps stay put)
+        const ddx = m.tx - m.fx, ddy = m.ty - m.fy, dist = Math.max(Math.abs(ddx), Math.abs(ddy)), line = !ddx || !ddy || Math.abs(ddx) === Math.abs(ddy);
+        B[m.ty * W + m.tx] = Object.assign({}, dead); delete B[m.ty * W + m.tx].wd;
+        if (line && dist >= 2 && !LEAPERS.includes(p.t)) { const sx = m.fx + Math.sign(ddx) * (dist - 1), sy = m.fy + Math.sign(ddy) * (dist - 1); if (empty(B, sx, sy)) { B[m.fy * W + m.fx] = null; B[sy * W + sx] = Object.assign({}, p, { m: true }); } }
+        const rb = fin(B, St, null); rb.bump = true; return rb;
+      }
+      if (m.ep && St.ep) { const v = B[St.ep.ly * W + St.ep.lx]; if (v && v.wd !== undefined) { B[St.ep.ly * W + St.ep.lx] = Object.assign({}, v); delete B[St.ep.ly * W + St.ep.lx].wd; const rb = fin(B, St, null); rb.bump = true; return rb; } }
       B[m.fy * W + m.fx] = null;
       let cap = dead;
       if (m.ep && St.ep) { cap = B[St.ep.ly * W + St.ep.lx]; B[St.ep.ly * W + St.ep.lx] = null; }
@@ -404,8 +423,8 @@ const Imperial = (() => {
         if (was && !now) { q.ag = St.ply; q.agm = was; } else { delete q.ag; delete q.agm; }      // (the High King's aura is remembered for 2 turns)
       }
       if ((p.t === 's' || p.t === GS) && ((p.t === GS && GS_EVERY_TURN) || p.wp === undefined || St.ply - p.wp >= WCD)) {
-        let free = false; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) if ((a || b) && empty(B, m.tx + a, m.ty + b)) free = true;
-        if (free) return fin(B, St, cap, { pend: { x: m.tx, y: m.ty } });
+        let free = p.t === GS && WARD_ON; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) if ((a || b) && empty(B, m.tx + a, m.ty + b)) free = true;
+        if (free) return fin(B, St, cap, { pend: p.t === GS ? { x: m.tx, y: m.ty, grand: true } : { x: m.tx, y: m.ty } });
       }
       let ep; const dx = m.tx - m.fx, dyy = m.ty - m.fy, dd = dx * Fx + dyy * Fy;
       if (PF.includes(p.t) && !dead && dd >= 2 && dx === dd * Fx && dyy === dd * Fy) { ep = { c: p.c, lx: m.tx, ly: m.ty, passed: [] }; for (let k = 1; k < dd; k++) ep.passed.push({ x: m.fx + Fx * k, y: m.fy + Fy * k }); }
@@ -439,6 +458,7 @@ const Imperial = (() => {
         if (x !== St.pend.x || y !== St.pend.y) return [];
         const o = [{ fx: x, fy: y, tx: x, ty: y, skip: true }];
         for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) if ((a || b) && empty(St.B, x + a, y + b)) o.push({ fx: x, fy: y, tx: x + a, ty: y + b, wall: true });
+        if (WARD_ON && p.t === GS) for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const q = at(St.B, x + a, y + b); if (q && !q.wall && !q.dead && team(q.c) === team(p.c) && !IMP.includes(q.t) && q.wd === undefined) o.push({ fx: x, fy: y, tx: x + a, ty: y + b, ward: true }); }      // ward a friendly piece in the 3x3 (or the Sapper itself)
         return o;
       }
       const att = attackers(St.B, p.c, St.ply, false), pre = att.length > 0, byImp = att.filter(a => a.imp);
@@ -522,11 +542,11 @@ const Imperial = (() => {
       move(m) {
         if (!m || over() || (!MULTI && ['bare', 'checkmate', 'stalemate', 'draw'].includes(status().r))) return false;
         const same = l => l.tx === m.tx && l.ty === m.ty && (l.promo || null) === (m.promo || null);
-        const ok = legal(S, m.fx, m.fy).find(l => same(l) && !!l.shoot === !!m.shoot && !!l.ep === !!m.ep && !!l.castle === !!m.castle && !!l.swap === !!m.swap && !!l.wall === !!m.wall && !!l.skip === !!m.skip)
+        const ok = legal(S, m.fx, m.fy).find(l => same(l) && !!l.shoot === !!m.shoot && !!l.ep === !!m.ep && !!l.castle === !!m.castle && !!l.swap === !!m.swap && !!l.wall === !!m.wall && !!l.ward === !!m.ward && !!l.skip === !!m.skip)
                 || legal(S, m.fx, m.fy).find(l => same(l));
         if (!ok) return false;
         const ns = apply(S, ok);
-        hist.push({ c: S.turn, fx: ok.fx, fy: ok.fy, tx: ok.tx, ty: ok.ty, promo: ok.promo || null, shoot: !!ok.shoot, ep: !!ok.ep, castle: !!ok.castle, swap: !!ok.swap, wall: !!ok.wall, skip: !!ok.skip, cap: ns.cap ? ns.cap.t : null, capc: ns.cap ? ns.cap.c : null, hits: ns.hits || null, by: S.B[ok.fy * W + ok.fx].t });
+        hist.push({ c: S.turn, fx: ok.fx, fy: ok.fy, tx: ok.tx, ty: ok.ty, promo: ok.promo || null, shoot: !!ok.shoot, ep: !!ok.ep, castle: !!ok.castle, swap: !!ok.swap, wall: !!ok.wall, ward: !!ok.ward, bump: !!ns.bump, skip: !!ok.skip, cap: ns.cap ? ns.cap.t : null, capc: ns.cap ? ns.cap.c : null, hits: ns.hits || null, by: S.B[ok.fy * W + ok.fx].t });
         S = { B: ns.B, turn: ns.turn, ply: ns.ply, pend: ns.pend, ep: ns.ep, alive: ns.alive, lock: ns.lock };
         if (MULTI) settle(S);
         return true;
@@ -571,7 +591,7 @@ const Imperial = (() => {
           return o;
         };
         const step = (N, m) => { const n = apply(N, m); if (!MULTI) return n; if (n.alive === N.alive) n.alive = Object.assign({}, N.alive); return settleQuiet(n); };
-        const hit = (N, m) => { if (m.skip || m.wall || m.swap) return null; const t = N.B[m.ty * W + m.tx]; return t && !t.wall && team(t.c) !== team(N.turn) ? t : (m.ep ? { t: 'p', c: '?' } : null); };
+        const hit = (N, m) => { if (m.skip || m.wall || m.ward || m.swap) return null; const t = N.B[m.ty * W + m.tx]; return t && !t.wall && team(t.c) !== team(N.turn) ? t : (m.ep ? { t: 'p', c: '?' } : null); };
         const rootEv = S.pend ? null : this.evalMoves(), rootMap = new Map(); if (rootEv) rootEv.forEach(e => rootMap.set(e.m, e));      // (the Normal bot's 'what can they take back next' number is the root safety net: the tree is pseudo-legal and cannot see every seat that moves later)
         const ad = {
           state: S, moves: N => (N === S && rootEv ? rootEv.map(e => e.m) : quick(N)), apply: step, max: N => team(N.turn) === mt, eval: ev,
@@ -592,7 +612,7 @@ const Imperial = (() => {
         return ms.map(m => {
           const n = apply(S, m), hits = n.hits || (n.cap ? [{ t: n.cap.t, dead: n.cap.dead }] : []);
           let gain = hits.reduce((a, h) => a + (VAL[h.t] || 0) * (h.dead ? 0.35 : 1), 0), loss = 0, bonus = 0;
-          if (m.wall) bonus = 0.25;
+          if (m.wall) bonus = 0.25; if (m.ward) bonus = 0.2;
           if (m.promo) bonus += GRAND[S.B[m.fy * W + m.fx].t] === m.promo ? 2 : 3;
           const p = S.B[m.fy * W + m.fx]; if (p && PF.includes(p.t)) bonus += 0.06 * G.rank(me, m.tx, m.ty) * 12 / G.promo;
           if (!n.pend && !m.skip) {

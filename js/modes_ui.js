@@ -478,7 +478,7 @@ function renderMulti() {
     if ((abFrom && abFrom.x === x && abFrom.y === y) || (chargeSq && chargeSq.x === x && chargeSq.y === y) || (foeSel && foeSel.x === x && foeSel.y === y)) d.classList.add('sel');
     if (shown) {
       const sp = document.createElement('span');
-      setGlyph(sp, shownType(p), p.c); if (p.wall && g.wallLife) addWallNum(sp, g.wallLife(x, y)); if (p.rc > 0) addWallNum(sp, p.rc); sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (isFairy(p.t) ? ' fairy' : '') + (p.champ && sameSide(p.c, mySeat) ? ' champ' : '') + fxClass(p);
+      setGlyph(sp, shownType(p), p.c); if (p.wall && g.wallLife) addWallNum(sp, g.wallLife(x, y)); if (p.rc > 0) addWallNum(sp, p.rc); sp.className = (p.dead ? 'pc-dead' : 'pc-' + p.c) + (isFairy(p.t) ? ' fairy' : '') + (p.champ && sameSide(p.c, mySeat) ? ' champ' : '') + (p.wd !== undefined ? ' warded' : '') + fxClass(p);
       if (p.c === 'n') d.classList.add('neu');
       if (p.t === Engine.NEUTRAL_T.boss) {
         d.classList.add('bossc');

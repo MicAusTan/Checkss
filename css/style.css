@@ -249,6 +249,8 @@
   #skinEd .skbig { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:360px; cursor:move; touch-action:none; } #skinEd .skbig svg { width:1em; height:1em; } #skinEd .skbig .skn.bc { width:100%; height:100%; }
   #skinEd .sksel { position:absolute; border:2px dashed #2e7d32; outline:1px dashed #fff; pointer-events:none; display:none; box-sizing:border-box; }
   #skinEd .sksm { display:flex; gap:8px; align-items:center; justify-content:center; margin-top:6px; } #skinEd .sksm > div { width:64px; height:64px; font-size:64px; display:flex; align-items:center; justify-content:center; border-radius:6px; --det:#000; --dets:#000; } #skinEd .sksm > div:nth-child(3) { width:40px; height:40px; font-size:40px; } #skinEd .sksm svg { width:1em; height:1em; }
+  #skinEd .skcols { display:flex; flex-wrap:wrap; gap:5px; align-items:center; justify-content:center; margin-top:6px; } #skinEd .skcb { width:22px; height:22px; border-radius:50%; border:2px solid #666; padding:0; cursor:pointer; } #skinEd .skcb.sel { border-color:#fff; box-shadow:0 0 0 2px #e0a800; }
+  #skinEd .skc-d { text-shadow:0 0 2px #000,0 0 2px #000,0 0 2px #000; } #skinEd .skc-d svg { filter:drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000); } #skinEd .skc-l svg { filter:drop-shadow(0 0 1px rgba(255,255,255,.6)); }
   #skinEd .skly { display:flex; align-items:center; gap:6px; padding:3px 4px; border:2px solid transparent; border-radius:8px; background:#3a3935; margin:3px 0; cursor:pointer; } #skinEd .skly.sel { border-color:#8fc15a; } #skinEd .skly .th { width:34px; height:34px; border-radius:5px; background:#888 center/contain no-repeat; flex:none; } #skinEd .skly .nm { flex:1; font-size:.85rem; } #skinEd .skly button { padding:2px 7px; font-size:.8rem; }
   #skinEd .skadd { display:flex; flex-direction:column; gap:2px; margin:6px 0; } #skinEd .btnlike { display:inline-block; padding:7px 10px; border-radius:6px; background:#5f8f3a; text-align:center; } #skinEd .skbt { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:4px 0; }
   #skinEd .skp .ic .b4 svg, #skinEd .sksm .b4 svg, #skinEd .skbig .b4 svg { width:100%; height:100%; }
@@ -326,6 +328,7 @@
   @keyframes metPulse { 50% { filter:brightness(1.35); } }
   .sq.rmark { box-shadow:inset 0 0 0 3px rgba(0,190,230,.9); }
   .sq.promoz { background-image:linear-gradient(rgba(255,205,40,.20),rgba(255,205,40,.20)); }      /* Imperial: your promotion zone */
+  .sq span.warded { position:relative; } .sq span.warded::after { content:''; position:absolute; left:50%; top:50%; width:1.04em; height:1.04em; transform:translate(-50%,-50%); border-radius:50%; border:max(2px,.07em) solid #62b8ff; box-shadow:0 0 .22em .06em rgba(98,184,255,.85), inset 0 0 .2em rgba(98,184,255,.6); pointer-events:none; }      /* Grand Sapper ward */
   .sq.lastz { background-image:linear-gradient(rgba(255,120,20,.34),rgba(255,120,20,.34)); }      /* Imperial: last rank (second promotion) */
   .sq.clip { outline:3px dashed rgba(160,90,230,.95); outline-offset:-3px; }
   .sq .stk { position:absolute; left:2px; top:1px; font-size:.34em; line-height:1; padding:.15em .3em; border-radius:3px; background:#6a2fb0e6; color:#fff; font-family:sans-serif; font-weight:bold; pointer-events:none; }

@@ -41,16 +41,16 @@ $('pfpClear').onclick = () => { profile.pfp = ''; saveProfile(); announceProfile
 /* ---- the skin editor ---- */
 function modeTypes() {                                          // the piece types this game can show (only their pictures are sent)
   const s = new Set(['p', 'n', 'b', 'r', 'q', 'k']); if (!game) return s;
-  if (game.imperial) PIECE_GUIDE.forEach(e => s.add(e[0])); else if (game.promotion) Object.values(Promotion.CODE).forEach(c => s.add(c)); else if (game.oct) { OCT_GUIDE.forEach(e => s.add(e[0])); 'ciwoal'.split('').forEach(c => s.add(c)); } else if (MODES[mode] && MODES[mode].grand) GRAND_GUIDE.forEach(e => s.add(e[0]));
+  if (game.imperial) PIECE_GUIDE.forEach(e => s.add(e[0])); else if (game.promotion) Object.values(Promotion.CODE).forEach(c => s.add(c)); else if (game.oct || game.neutral) { OCT_GUIDE.forEach(e => s.add(e[0])); 'ciwoal'.split('').forEach(c => s.add(c)); } else if (MODES[mode] && MODES[mode].grand) GRAND_GUIDE.forEach(e => s.add(e[0]));
   return s;
 }
 function skinGroups() {
-  const seen = new Set(), out = [], add = (name, list) => { const l = list.filter(([t]) => !seen.has(t) && String(t).length <= 3 && t !== '#' && t !== '__proto__'); l.forEach(([t]) => seen.add(t)); if (l.length) out.push({ name, list: l }); };
+  const seen = new Set(), out = [], add = (name, list) => { const l = list.filter(([t]) => !seen.has(t) && String(t).length <= 3 && t !== '__proto__'); l.forEach(([t]) => seen.add(t)); if (l.length) out.push({ name, list: l }); };
   add('Classic', [['p', 'Pawn'], ['n', 'Knight'], ['b', 'Bishop'], ['r', 'Rook'], ['q', 'Queen'], ['k', 'King']]);
   add('Imperial Chess', PIECE_GUIDE.map(e => [e[0], e[1]]));
   add('Austang Grand', GRAND_GUIDE.map(e => [e[0], e[1]]));
   add('Promotion Chess', Object.values(Promotion.CODE).map(c => [c, Promotion.NAME[c]]));
-  add('8-player (neutral pieces you own)', OCT_GUIDE.filter(e => e[0] !== Engine.NEUTRAL_T.boss).map(e => [e[0], e[1]]).concat([[Engine.NEUTRAL_T.boss, 'Boss (2×2)'],['c', 'Shield'], ['i', 'Imp'], ['w', 'Wraith'], ['o', 'Ox'], ['a', 'Acolyte'], ['l', 'Legion']]));
+  add('Neutral pieces (4-player Neutral Pieces and 8-player, when you own them)', OCT_GUIDE.filter(e => e[0] !== Engine.NEUTRAL_T.boss).map(e => [e[0], e[1]]).concat([[Engine.NEUTRAL_T.boss, 'Boss (2×2)'],['c', 'Shield'], ['i', 'Imp'], ['w', 'Wraith'], ['o', 'Ox'], ['a', 'Acolyte'], ['l', 'Legion']]));
   return out;
 }
 function skinImport(file, done) {                                  // any picture -> a square WebP (transparent where the picture does not reach), as sharp as the size limit allows (up to 768 px). The whole picture is kept: crop / zoom happens in the editor.

@@ -25,7 +25,7 @@ function renderStackPick() {
 }
 function friendlyPending(x, y, cand) {            // returns true while waiting for the confirming second click
   const tg = game.at(x, y), lc = !!(cand.length && cand[0].tt === 'lcastle');      // a long castle (Crown Link) is once per game: it asks for a second click on the rook, whoever owns it
-  if (!sel || !cand.length || !tg || (!lc && (tg.c !== meId() || cand[0].castle || cand[0].swap || cand[0].join || cand[0].rev || cand[0].tt))) return false;      // (a Sacrificer's own square is not a friendly-fire target)
+  if (!sel || !cand.length || !tg || (!lc && (tg.c !== meId() || cand[0].castle || cand[0].swap || cand[0].ward || cand[0].join || cand[0].rev || cand[0].tt))) return false;      // (a Sacrificer's own square is not a friendly-fire target)
   const from = sel.x + ',' + sel.y;
   if (pendingFriendly && pendingFriendly.x === x && pendingFriendly.y === y && pendingFriendly.from === from) { pendingFriendly = null; return false; }
   pendingFriendly = { x, y, from, lc }; render(); return true;
@@ -76,8 +76,8 @@ const PIECE_GUIDE = [
   ['y', 'Prince', 'Captures on the 5×5 around it (no corners); also steps to the 4 corners and 3 squares straight. Blockable. Pawns, Pikemen and Skirmishers can never take it. While the Princess/Archduchess is within 2 squares it also can’t be shot, nor captured from more than 3 squares away. One at a time, promotion only. On the last rank it becomes the Archduke.'],
   ['z', 'Princess', 'Steps 1 any direction; shoots the outer ring of the 5×5 and 3 straight without moving. Pawns, Pikemen and Skirmishers can never take her. While the Prince/Archduke is within 2 squares she can’t be captured by ordinary moves (she can still be shot). One at a time, promotion only. On the last rank she becomes the Archduchess.'],
   ['r', 'Rook', 'Slides along ranks and files.'], ['b', 'Bishop', 'Slides diagonally.'], ['n', 'Knight', 'Leaps in an L.'],
-  ['R', 'Grand Rook', 'Rook plus knight moves (moves only, can’t capture or check with them).'],
-  ['B', 'Grand Bishop', 'Bishop plus 1–2 squares straight.'],
+  ['R', 'Grand Rook', 'Rook plus knight jumps that move AND capture (a Rook near your Emperor gets the jumps as moves only). Promoted from an original Rook at the zone.'],
+  ['B', 'Grand Bishop', 'Bishop plus 1–3 squares straight (a Bishop near your Empress gets 1–2).'],
   ['N', 'Grand Knight', 'Leaps to any square on the outer ring of the 5×5.'],
   ['g', 'Guard', 'King moves and captures; also steps 2 straight or onto empty squares around a nearby friend. Archers can’t hit it or its neighbours. An original Guard in the promotion zone becomes a Grand Guard.'],
   ['h', 'Chariot', 'Slides 2 straight plus the knight squares beside each lane (a blocker cuts them off). An original Chariot in the promotion zone becomes a Grand Chariot.'],
@@ -93,7 +93,7 @@ const PIECE_GUIDE = [
   ['א', 'Grand Guard', 'Like the Guard, but rallies onto squares around any friend within 3. No ranged piece can hit it or the pieces beside it.'],
   ['ב', 'Grand Chariot', 'Slides 1–3 straight and may hop over one piece (it may land on any empty square beyond, or capture); knight squares at distance 2 and the (3,±1) squares at distance 3; a blocked long leg may hold one piece.'],
   ['ג', 'Grand Archer', 'Steps to its 3×3 (move only) and 1–2 straight. Shoots 24 squares without moving, can’t be blocked: the 12 of the Archer, the 4 (2,2) corners and the straight lines at 3 and 4.'],
-  ['ד', 'Grand Sapper', 'Like the Sapper, plus (2,2) leaps. Can place up to TWO walls after EVERY move (no cooldown); its walls look different and last one round longer. Two Grand walls touching diagonally seal the gap: no diagonal step or slide passes through it (leapers do).'],
+  ['ד', 'Grand Sapper', 'Like the Sapper, plus (2,2) leaps and single steps in the four straight directions (still never captures). After EVERY move it gets up to TWO actions (no cooldown), each a wall on an empty neighbouring square OR a WARD on a friendly piece in its 3×3 (or itself; never an Imperial). A warded piece (blue ring) cannot be taken: the first capture attempt on it before its owner’s next turn fails and is used up. Sliders stop on the square before it, steps and leaps stay put, a shot is wasted (a Catapult still reloads). Its walls look different and last one round longer. Two Grand walls touching diagonally seal the gap: no diagonal step or slide passes through it (leapers do).'],
   ['ה', 'Grand Catapult', 'Like the Catapult but fires on 11 squares ahead, and EVERY shot splashes the squares orthogonally next to the target, but only those it could itself reach (never friends or Imperials).'],
   ['ו', 'Grand Jester', 'Like the Jester, but also copies friends on the opposite-colour squares of its 5×5, and an adjacent friendly Imperial (from the Imperial’s square, opposite-colour squares only).'],
   ['ז', 'High Queen', 'Queen plus knight moves (move and capture); slides may hop over one piece (captures only beyond it). Aura 7×7. Pawns can never take her.'],
@@ -102,7 +102,8 @@ const PIECE_GUIDE = [
   ['י', 'Marauder', 'Raider’s second form. Slides 7 sideways hopping up to TWO pieces (captures only beyond the first), 4 forward or back, leaps (±3,±1) and (±4,±1).'],
   ['כ', 'Archduke', 'Prince’s second form. Moves and captures on the full 5×5, the (3,1)-type squares and 3 straight; 4 straight is move only. Blockable. Pawns can never take him. While a Princess/Archduchess is within 3 he can’t be shot, nor captured from more than 3 away.'],
   ['ל', 'Archduchess', 'Princess’s second form. Steps 1 and jumps (2,2) (move only). Shoots everything the Princess does plus the diagonal arm out to (4,4) (line of sight) and the (3,2)-type squares: 36 squares. Pawns can never take her. While a Prince/Archduke is within 3 she can’t be captured by ordinary moves.'],
-  ['#', 'Wall', 'Blocks movement and lines. Belongs to the Sapper’s player (shown in their colour): only enemies can capture it, by moving onto it. Ranged shots pass over it.']
+  ['#', 'Wall', 'Blocks movement and lines. Belongs to the Sapper’s player (shown in their colour): only enemies can capture it, by moving onto it. Ranged shots pass over it.'],
+  ['#g', 'Grand wall', 'Raised by a Grand Sapper (up to two per move, no cooldown). Lasts one round longer than a normal wall. Two Grand walls touching diagonally seal the gap between them: no diagonal step or slide passes through it (leapers do). Otherwise it behaves like a wall.']
 ];
 const GRAND_GUIDE = [
   ['k', 'King', 'Steps 1 in any direction. Castles with a rook that hasn’t moved.'],
@@ -207,14 +208,16 @@ const guideRow = (t, n, d, icon, diag) => '<div class="pg" data-t="' + t.replace
 let pgDone = false;
 function fillPieceGuide() {
   if (pgDone) return; pgDone = true;
-  $('pieceGuide').innerHTML = PIECE_GUIDE.map(([t, n, d]) => guideRow(t, n, d, IMP_KQ[t] || glyphHTML(t), t !== '#')).join('');
+  $('pieceGuide').innerHTML = PIECE_GUIDE.map(([t, n, d]) => guideRow(t, n, d, IMP_KQ[t] || glyphHTML(t), t[0] !== '#')).join('');
   wireGuide($('pieceGuide'), 'imp');
 }
-const IMP_NAMES = { p:'Pawn', v:'Pikeman', m:'Skirmisher', r:'Rook', b:'Bishop', n:'Knight', q:'Queen', k:'King', R:'Grand Rook', B:'Grand Bishop', N:'Grand Knight', E:'Emperor', X:'Empress', H:'Heir', g:'Guard', h:'Chariot', u:'Archer', f:'Jester', s:'Sapper', t:'Catapult', y:'Prince', z:'Princess', j:'Lancer', d:'Raider', '#':'wall', 'א':'Grand Guard', 'ב':'Grand Chariot', 'ג':'Grand Archer', 'ד':'Grand Sapper', 'ה':'Grand Catapult', 'ו':'Grand Jester', 'ז':'High Queen', 'ח':'High King', 'ט':'Champion', 'י':'Marauder', 'כ':'Archduke', 'ל':'Archduchess' };
+const IMP_NAMES = { p:'Pawn', v:'Pikeman', m:'Skirmisher', r:'Rook', b:'Bishop', n:'Knight', q:'Queen', k:'King', R:'Grand Rook', B:'Grand Bishop', N:'Grand Knight', E:'Emperor', X:'Empress', H:'Heir', g:'Guard', h:'Chariot', u:'Archer', f:'Jester', s:'Sapper', t:'Catapult', y:'Prince', z:'Princess', j:'Lancer', d:'Raider', '#':'wall', '#g':'Grand wall', 'א':'Grand Guard', 'ב':'Grand Chariot', 'ג':'Grand Archer', 'ד':'Grand Sapper', 'ה':'Grand Catapult', 'ו':'Grand Jester', 'ז':'High Queen', 'ח':'High King', 'ט':'Champion', 'י':'Marauder', 'כ':'Archduke', 'ל':'Archduchess' };
 function impText(g, e) {
   const A = sqName(e.fx, e.fy), Z = sqName(e.tx, e.ty), P = GLYPH[e.by] || '';
-  if (e.skip) return P + A + ' no wall';
+  if (e.skip) return P + A + ' done';
   if (e.wall) return P + ' wall ' + Z;
+  if (e.ward) return P + ' ward ' + (e.tx === e.fx && e.ty === e.fy ? 'self' : Z);
+  if (e.bump) return P + A + '⊘' + Z + ' (warded)';
   if (e.swap) return 'swap ' + A + '⇄' + Z;
   if (e.castle) return P + A + ' hops→' + Z;
   if (e.shoot) return P + A + '⌖' + Z + (e.hits && e.hits.length > 1 ? ' (+' + (e.hits.length - 1) + ')' : '');

@@ -55,7 +55,7 @@ function showPromo(cands, onPick) {
     const b = document.createElement('button');
     const big = t => art(t) || '<span style="font-size:2.1rem;line-height:1">' + GLYPH[t] + '</span>';
     b.innerHTML = game.promotion ? (m.promo ? big(m.promo) + '<span>' + (PNAMES[m.promo] || '') + (m.px != null ? ' → ' + sqName(m.px, m.py) : '') + '</span>' : (game.at(m.fx, m.fy) ? big(game.at(m.fx, m.fy).t) : '') + '<span>' + (m.shot ? 'Shoot (stay put)' : m.swap ? 'Swap' : m.exit ? 'Leave the board' : m.bump ? 'Bump (it holds)' : m.push ? 'Push it' : m.squish ? 'Squish it' : m.vx != null ? 'via ' + sqName(m.vx, m.vy) : cands.some(x => x.promo) ? 'Stay' : 'Move') + '</span>')
-      : m.tt === 'tether' ? '🔗 Step + pull partner king to ' + sqName(m.px, m.py) : m.tt ? 'Move' : m.claim ? '⚔ Claim the Boss' : m.claim === false ? '☠ Kill it (then bring a fallen piece back)' : m.promo ? glyphHTML(m.promo, game.multi ? mySeat : myColor) : m.rev ? '↺ ' + glyphHTML(m.rev) : m.free ? 'Free step' : 'Move';
+      : m.tt === 'tether' ? '🔗 Step + pull partner king to ' + sqName(m.px, m.py) : m.tt ? 'Move' : m.claim ? '⚔ Claim the Boss' : m.claim === false ? '☠ Kill it (then bring a fallen piece back)' : m.promo ? glyphHTML(m.promo, game.multi ? mySeat : myColor) : m.rev ? '↺ ' + glyphHTML(m.rev) : m.ward ? '🛡 Ward this piece' : m.skip ? 'Finish (no more)' : m.free ? 'Free step' : 'Move';
     b.title = m.promo && game.promotion ? 'Promote to ' + (PNAMES[m.promo] || '') + (m.px != null ? ', placed on ' + sqName(m.px, m.py) : '') : !m.promo && game.promotion ? (m.shot ? 'Capture it without moving' : m.swap ? 'Swap places' : m.exit ? 'Leave the board here: nothing can touch it while it is outside' : m.bump ? 'The Juggernaut survives the first capture attempt: you stop next to it and your turn is over' : m.push ? 'Push it one square' : m.squish ? 'Squish it (it has nowhere to go)' : m.vx != null ? 'First leg on ' + sqName(m.vx, m.vy) + ', then one more step' : cands.some(x => x.promo) ? 'Stay as it is (no promotion)' : 'Move there') : m.promo ? 'Promote' : m.rev ? 'Revive ' + PNAMES[m.rev] : m.free ? 'Herald: free step (your turn goes on)' : 'Normal move';
     b.onclick = () => { p.classList.add('hidden'); if (onPick) onPick(m); else play(m); };
     p.appendChild(b);
@@ -137,7 +137,7 @@ function multiStatus() {
   if (w) return 'Game over: ' + teamNames(w) + (sameSide(w, mySeat) ? ' (you) win!' : game.teams ? ' win.' : ' wins.');
   if (!game.alive(mySeat)) return 'You are eliminated and spectating. ' + CN[game.turn] + "'s turn.";
   const hidK = MODES[mode].v.hidden;
-  if (game.pend) return game.turn === mySeat ? 'Sapper: click it, then a highlighted square for a wall (or click the Sapper itself to skip).' : CN[game.turn] + ' is placing a wall…';
+  if (game.pend) return game.turn === mySeat ? (game.pend.grand ? 'Grand Sapper: click a highlighted empty square for a wall, or a highlighted friendly piece to ward it (click the Sapper itself to ward it or to finish).' : 'Sapper: click it, then a highlighted square for a wall (or click the Sapper itself to skip).') : CN[game.turn] + ' is placing a wall…';
   if (game.neutralPending) return 'Neutral pieces are moving…';
   return (game.turn === mySeat ? 'Your turn' : CN[game.turn] + "'s turn") + ' (you are ' + CN[mySeat] + (game.teams ? ', partner: ' + (game.seats.filter(c => c !== mySeat && game.teams[c] === game.teams[mySeat]).map(c => CN[c]).join('') || 'none') : '') + ')' +
          (MODES[mode].v.movesPerTurn > 1 ? ' · ' + game.left + ' move' + (game.left > 1 ? 's' : '') + ' left' : '') +
@@ -271,7 +271,7 @@ function statusText() {
   if (over) return over;
   const s = game.status();
   if (s === 'checkmate') return 'Checkmate! ' + (game.turn === 'w' ? 'Black' : 'White') + ' wins.';
-  if (game.pend) return game.turn === myColor ? 'Sapper: click it, then a highlighted square for a wall (or click the Sapper itself to skip).' : 'Opponent is placing a wall…';
+  if (game.pend) return game.turn === myColor ? (game.pend.grand ? 'Grand Sapper: click a highlighted empty square for a wall, or a highlighted friendly piece to ward it (click the Sapper itself to ward it or to finish).' : 'Sapper: click it, then a highlighted square for a wall (or click the Sapper itself to skip).') : 'Opponent is placing a wall…';
   if (s === 'bare') return 'Only Imperials left: ' + (game.loser === 'w' ? 'Black' : 'White') + ' wins.';
   if (s === 'stalemate') return 'Stalemate: draw.';
   if (s === 'draw') return 'Draw: not enough material to checkmate.';
