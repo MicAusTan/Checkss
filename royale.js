@@ -12,7 +12,8 @@ const Royale = (() => {
   const K0 = {
     W: 11, H: 19, RIVER_Y: 9, BRIDGE_X: [2, 3, 7, 8],
     TICK_MS: 250, REGULAR: 720, OVERTIME: 240, DOUBLE_FROM: 480,            // 3:00 + 1:00 overtime; double Material from 2:00
-    MAT_START: 5, MAT_MAX: 10, MAT_PTS: 22, REGEN: 2, REGEN2: 4,           // 22 points = 1 Material; +2/tick = 1 per 2.75 s, doubled = 1 per 1.375 s
+    MAT_START: 5, MAT_MAX: 10, MAT_PTS: 22, REGEN: 2, REGEN2: 4,           // 22 points = 1 Material; +2/tick = 1 per 2.75 s
+    MAT_RATE: [[0, 2], [240, 3], [480, 4], [720, 6]],                       // [from tick, points per tick]: x1 until 1:00, x1.5 until 2:00, x2 in the last minute, x3 in overtime (like Clash)
     HAND: 4, FORTRESS_HP: 24, BASTION_HP: 12,                                // bot matches at 12/6 lasted ~65 s median, at 24/12 ~120 s (regulation is 180 s)
     PAWN_MOVE_MODE: 'slow',                                                 // only 'slow' exists so far
     PAWN_FRONT_BLOCKS_ATTACK: 'enemy',                                      // 'enemy' | 'any'
@@ -163,12 +164,25 @@ const Royale = (() => {
       }
       v.hp -= dmg; return v.hp <= 0;
     }
-    function hitUnit(u, v) {
+    // A slider (bishop, rook, queen) that attacks from a distance first slides to the square next to its target (like the Juggernaut in Promotion Chess), then strikes.
+    // Leapers (knight, camel) and pawns strike from where they stand. 'hold' pieces never leave their half to do it.
+    const isSlider = u => !!(MOVES[u.t] && MOVES[u.t].slide);
+    function approach(u, tx, ty, hold) {
+      if (!isSlider(u)) return true; const dx = tx - u.x, dy = ty - u.y, dist = Math.max(Math.abs(dx), Math.abs(dy));
+      if (dist <= 1 || !(dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy))) return true;
+      const sx = Math.sign(dx), sy = Math.sign(dy), nx = u.x + sx * (dist - 1), ny = u.y + sy * (dist - 1);
+      if (hold && !inZone(u.side, ny)) return false; if (!canStand(nx, ny)) return true;
+      moveTo(u, nx, ny); return true;
+    }
+    function hitUnit(u, v, hold) {
+      if (!approach(u, v.x, v.y, hold)) return false;
       const dead = dealDamage(v, u.dmg); ev({ e: 'hit', id: u.id, target: v.id, dmg: u.dmg, left: Math.max(0, v.hp) });
-      if (dead) { v.dead = true; st.units = st.units.filter(w => w !== v); ev({ e: 'kill', id: u.id, target: v.id }); if (!st.over) moveTo(u, v.x, v.y); }   // a killing blow is a normal capture: the attacker moves onto the square
+      if (dead) { v.dead = true; st.units = st.units.filter(w => w !== v); ev({ e: 'kill', id: u.id, target: v.id, dmg: u.dmg }); if (!st.over) moveTo(u, v.x, v.y); }   // a killing blow is a normal capture: the attacker moves onto the square
       return true;
     }
-    function hitTower(u, t) {
+    function hitTower(u, t, hold) {
+      const line = reach(u).filter(s => s.tower === t).sort((a, b) => cheb(u, a) - cheb(u, b))[0];
+      if (line && !approach(u, line.x, line.y, hold)) return false;
       t.hp -= u.dmg; ev({ e: 'towerHit', id: u.id, tower: t.id, dmg: u.dmg, left: Math.max(0, t.hp) });
       if (t.hp <= 0) { ev({ e: 'towerDown', tower: t.id }); if (t.kind === 'fortress') end(u.side, 'fortress destroyed'); }
       if (st.sudden && !st.over) end(u.side, 'sudden death');
@@ -195,8 +209,8 @@ const Royale = (() => {
     }
     function holdAct(u) {                                                // Hold stance: guard, never advance
       if (u.t === 'p') { const a = unitAt(u.x, u.y + fwd(u.side)); if (a && a.side !== u.side) return false; }
-      const L = reach(u), us = unitsOf(L).sort((a, b) => a.hp - b.hp || a.id - b.id); if (us.length) return hitUnit(u, us[0]);
-      const ts = towersOf(L); return ts.length ? hitTower(u, ts[0]) : false;
+      const L = reach(u), us = unitsOf(L).sort((a, b) => a.hp - b.hp || a.id - b.id); if (us.length) return hitUnit(u, us[0], true);
+      const ts = towersOf(L); return ts.length ? hitTower(u, ts[0], true) : false;
     }
     function actKing(u) {                                                // the King out of his Fortress: adjacent fights, otherwise walks to the square he was sent to
       const L = reach(u), us = unitsOf(L).sort((a, b) => a.hp - b.hp || a.id - b.id); if (us.length) return hitUnit(u, us[0]);
@@ -269,7 +283,7 @@ const Royale = (() => {
       const gap = v => Math.max(Math.max(t.x0 - v.x, 0, v.x - (t.x0 + t.w - 1)), Math.max(t.y0 - v.y, 0, v.y - (t.y0 + t.h - 1)));
       const c = st.units.filter(v => v.side !== t.side && gap(v) <= K.TOWER_RANGE).sort((a, b) => a.hp - b.hp || gap(a) - gap(b) || a.id - b.id); if (!c.length) return;
       const v = c[0], dmg = t.kind === 'fortress' ? K.FORTRESS_DMG : K.BASTION_DMG, dead = dealDamage(v, dmg); ev({ e: 'towerFire', tower: t.id, target: v.id, dmg, left: Math.max(0, v.hp) });
-      if (dead) { v.dead = true; st.units = st.units.filter(w => w !== v); ev({ e: 'kill', tower: t.id, target: v.id }); }
+      if (dead) { v.dead = true; st.units = st.units.filter(w => w !== v); ev({ e: 'kill', tower: t.id, target: v.id, dmg }); }
       t.ready = st.tick + (t.kind === 'fortress' ? K.FORTRESS_CD : K.BASTION_CD);
     }
     const BEHAVIOUR = { p: actPawn, n: actKnight, b: actBishop, r: actRook, q: actQueen, [CAMEL]: actCamel, k: actKing };
@@ -284,13 +298,18 @@ const Royale = (() => {
       if (towerAt(x, y)) return 'tower square'; if (barrAt(x, y)) return 'blocked'; if (unitAt(x, y)) return 'square taken';
       return '';
     }
+    // The Phalanx is 3 pawns side by side. If the square you pick would put one of them out of bounds or on a bad square, the formation slides one square over so all three fit.
+    function phalanxX(side, x, y) {
+      for (const sh of [0, -1, 1]) { const cx = x + sh; if (cx < 1 || cx > K.W - 2) continue; let ok = true; for (let d = -1; d <= 1; d++) if (squareOk(side, cx + d, y)) ok = false; if (ok) return cx; }
+      return null;
+    }
     function checkDeploy(side, slot, x, y) {
       if (st.over) return 'game over';
       if (side !== 'w' && side !== 'b') return 'bad side';
       const hand = st.hands[side].hand; if (!(slot >= 0 && slot < hand.length)) return 'bad slot';
       const c = CARDS[hand[slot]]; if (st.mat[side] < c.cost * K.MAT_PTS) return 'not enough Material';
       if (c.kind === 'spell') { if (!inB(x, y)) return 'off the board'; if (hand[slot] === 'barr' && (!walkable(x, y) || unitAt(x, y))) return 'blocked'; return ''; }
-      if (c.kind === 'phalanx') { if (x < 1 || x > K.W - 2) return 'needs 3 free squares in a row'; for (let d = -1; d <= 1; d++) if (squareOk(side, x + d, y)) return 'needs 3 free squares in a row'; return ''; }
+      if (c.kind === 'phalanx') return phalanxX(side, x, y) == null ? 'needs 3 free squares in a row' : '';
       return squareOk(side, x, y);
     }
     function validate(side, cmd) {
@@ -316,9 +335,9 @@ const Royale = (() => {
     }
     function applyDeploy(side, cmd) {
       const h = st.hands[side], card = h.hand[cmd.slot], info = CARDS[card];
-      st.mat[side] -= info.cost * K.MAT_PTS; h.hand[cmd.slot] = h.queue.shift(); h.queue.push(card);
+      st.mat[side] -= info.cost * K.MAT_PTS; h.hand[cmd.slot] = h.queue.shift(); h.queue.push(card); ev({ e: 'play', side, card, cost: info.cost });
       if (info.kind === 'piece') { const u = place(side, card, cmd.x, cmd.y); ev({ e: 'deploy', id: u.id, side, t: card, x: cmd.x, y: cmd.y }); }
-      else if (info.kind === 'phalanx') [-1, 0, 1].forEach(d => { const u = place(side, 'p', cmd.x + d, cmd.y, { ready: st.tick + info.delay }); ev({ e: 'deploy', id: u.id, side, t: 'p', x: u.x, y: u.y }); });
+      else if (info.kind === 'phalanx') { const cx = phalanxX(side, cmd.x, cmd.y); [-1, 0, 1].forEach(d => { const u = place(side, 'p', cx + d, cmd.y, { ready: st.tick + info.delay }); ev({ e: 'deploy', id: u.id, side, t: 'p', x: u.x, y: u.y }); }); }
       else { st.spells.push({ id: nextId++, side, card, x: cmd.x, y: cmd.y, at: st.tick + info.delay }); ev({ e: 'cast', side, card, x: cmd.x, y: cmd.y }); }
     }
     function applyCommand(c) {
@@ -340,6 +359,7 @@ const Royale = (() => {
       else if (sp.card === 'barr') [-1, 0, 1].forEach(d => { const x = sp.x + d; if (walkable(x, sp.y) && !unitAt(x, sp.y)) st.barr.push({ x, y: sp.y, until: st.tick + info.life }); });
     }
 
+    const matRate = tick => { let r = K.REGEN; (K.MAT_RATE || []).forEach(p => { if (tick >= p[0]) r = p[1]; }); return r; };
     function score(s) { const ts = st.towers.filter(t => t.side === s && t.hp > 0); return [ts.length, ts.reduce((a, t) => a + t.hp, 0)]; }
     function timeUp() {
       const a = score('w'), b = score('b');
@@ -364,8 +384,8 @@ const Royale = (() => {
         if (!u.idle && doAct(u)) u.ready = st.tick + u.cd;
       }
       if (K.TOWERS_FIRE) for (const t of st.towers) towerFire(t);
-      const dbl = st.tick >= K.DOUBLE_FROM;
-      ['w', 'b'].forEach(s => { st.mat[s] = Math.min(K.MAT_MAX * K.MAT_PTS, st.mat[s] + (dbl ? K.REGEN2 : K.REGEN)); });
+      const rate = matRate(st.tick);
+      ['w', 'b'].forEach(s => { st.mat[s] = Math.min(K.MAT_MAX * K.MAT_PTS, st.mat[s] + rate); });
       st.tick++;
       if (!st.over && st.tick === K.REGULAR) timeUp();
       if (!st.over && st.tick >= K.REGULAR + K.OVERTIME) end(null, 'draw');
@@ -385,7 +405,7 @@ const Royale = (() => {
     const view = side => { const c = JSON.parse(JSON.stringify(st)); ['w', 'b'].forEach(x => { if (x !== side) c.hands[x] = { hand: [], queue: [] }; }); return c; };   // hands other than your own stay hidden (a spectator sees none)
     const record = () => ({ v: 1, seed, decks, cfg: opts.cfg || {}, shuffle: doShuffle, ticks: st.tick, commands: log.map(c => ({ tick: c.tick, side: c.side, cmd: Object.assign({}, c.cmd) })) });
     return { K, st, step, loadState, view, command, check: checkDeploy, can: validate, snapshot, record, status: () => ({ over: st.over, winner: st.winner, reason: st.reason }),
-             events: () => events, _: { place, unitAt, towerAt, walkable, attackSquares } };
+             events: () => events, phalanxX, matRate, _: { place, unitAt, towerAt, walkable, attackSquares } };
   }
 
   // Re-simulate a record exactly (same commands on the same ticks).
@@ -432,6 +452,6 @@ const Royale = (() => {
     };
     return B;
   }
-  return { create, replay, bot, IMPLEMENTED, CONSTANTS: K0, DEFS, CARDS, CARD_IDS, ORDERS, SPELLS, DEFAULT_DECK, KN };
+  return { create, replay, bot, IMPLEMENTED, CONSTANTS: K0, DEFS, KING, MOVES_INFO: { b: 'diag', r: 'orth', q: 'all', n: 'knight', [CAMEL]: 'camel' }, CARDS, CARD_IDS, ORDERS, SPELLS, DEFAULT_DECK, KN };
 })();
 if (typeof module !== 'undefined') module.exports = Royale;
