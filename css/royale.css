@@ -150,3 +150,61 @@
 
 /* after a match: a solid backdrop for the report, and no Pause */
 #royaleUI.rover_ .rpanel { background:rgba(12,13,15,.95); } #royaleUI.rover_ .rpause { display:none; }
+
+/* ===== revision 17: match classic chess (same background, panels and green), new menu / play / deck / guide pieces ===== */
+#royaleUI { background:var(--bg,#262421); color:var(--fg,#eee); }
+#royaleUI button { background:var(--panel,#2d2f2b); border:1px solid var(--line,#4a4d46); border-radius:6px; } #royaleUI button:hover { background:#3a3d37; }
+#royaleUI button.primary, #royaleUI .rguide, #royaleUI .ropt { background:#779556; border-color:#779556; color:#fff; font-weight:bold; } #royaleUI button.primary:hover, #royaleUI .rguide:hover, #royaleUI .ropt:hover { background:#8aa866; border-color:#8aa866; }
+#royaleUI button.on, #royaleUI .rseg2 button.on { background:#5f8f3a; border-color:#5f8f3a; color:#fff; }
+#royaleUI button.danger { background:#8d3030; border-color:#d46a6a; }
+#royaleUI .rbar { height:49px; min-height:49px; padding:0 12px; background:var(--panel2,#1b1a18); border-bottom:1px solid var(--line,#4a4d46); box-shadow:none; }
+#royaleUI .rspacer { flex:1; }
+#royaleUI .rguide { width:34px; height:30px; padding:0; font-size:1.05rem; } #royaleUI .ropt { width:36px; height:30px; padding:0; font-size:1.1rem; }
+#royaleUI .rpause, #royaleUI .rquit { height:30px; padding:0 12px; }
+#royaleUI .rside { background:var(--panel2,#1b1a18); } #royaleUI .rleft { border-right-color:var(--line,#4a4d46); } #royaleUI .rright { border-left-color:var(--line,#4a4d46); }
+#royaleUI .rmat, #royaleUI .rtow, #royaleUI .rcardbox, #royaleUI .rdetail, #royaleUI .rhelpblock, #royaleUI .rstats, #royaleUI .rrtcol { background:var(--panel,#2d2f2b); border-color:var(--line,#4a4d46); }
+#royaleUI .rcard { background:var(--panel,#2d2f2b); border-color:var(--line,#4a4d46); } #royaleUI .rcard.sel { border-color:#e0a800; background:#4a4020; box-shadow:0 0 0 2px #e0a800, 0 4px 12px #000a; }
+#royaleUI .rpanel.solid { background:var(--bg,#262421); } #royaleUI.rover_ .rpanel { background:rgba(38,36,33,.96); }
+#royaleUI .roverbox, #royaleUI .rsetrow { background:var(--panel,#2d2f2b); border-color:var(--line,#4a4d46); } #royaleUI .roverbox { background:var(--panel2,#1b1a18); }
+#royaleUI .rcode, #royaleUI .rname, #royaleUI .rchatin { background:#1b1a18; border:1px solid var(--line,#4a4d46); }
+/* profile chip and avatars (same look as the profile in classic chess) */
+#royaleUI .rav { display:inline-flex; align-items:center; justify-content:center; flex:none; width:28px; height:28px; border-radius:50%; background:#6b7f4e center/cover no-repeat; color:#fff; font-weight:bold; font-size:.85rem; overflow:hidden; }
+#royaleUI .rprof { display:flex; align-items:center; gap:7px; height:30px; padding:0 12px 0 2px; border-radius:20px; background:var(--panel,#2d2f2b); border:1px solid var(--line,#4a4d46); font-size:.85rem; max-width:200px; }
+#royaleUI .rprofname { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#royaleUI .rtowhead { grid-column:1 / 3; display:flex; align-items:center; gap:8px; margin-bottom:2px; } #royaleUI .rtowlab { grid-column:auto; font-size:.9rem; letter-spacing:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; opacity:1; }
+#royaleUI .rtbar.kingbar { grid-column:1 / 3; height:15px; } #royaleUI .rtbar.kingbar .rtfill { background:#ffd24a; } #royaleUI .rtbar.kingbar .rtnum { mix-blend-mode:normal; color:#fff; text-shadow:0 0 3px #000, 0 0 3px #000; }
+/* guide drawer: slides in from the right, over the board, from anywhere */
+#royaleUI .rdrawer { position:absolute; top:49px; right:0; bottom:0; width:min(420px, 92vw); z-index:15; background:var(--panel2,#1b1a18); border-left:1px solid var(--line,#4a4d46); box-shadow:-10px 0 30px #0009; display:flex; flex-direction:column; animation:rslide .18s ease-out; } #royaleUI .rdrawer.hidden { display:none; }
+@keyframes rslide { from { transform:translateX(30px); opacity:0; } to { transform:none; opacity:1; } }
+#royaleUI .rdrawerhead { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-bottom:1px solid var(--line,#4a4d46); font-size:1.1rem; } #royaleUI .rdrawerbody { padding:12px 14px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; text-align:left; }
+/* sub-screen header: Back at the TOP */
+#royaleUI .rphead { display:flex; align-items:center; gap:14px; width:100%; position:sticky; top:-18px; margin-top:-18px; padding:14px 0 8px; background:var(--bg,#262421); z-index:3; } #royaleUI .rphead h2 { margin:0; } #royaleUI .rback { padding:6px 14px; }
+/* main menu */
+#royaleUI .rdeckstrip { width:min(34em, 100%); display:flex; flex-direction:column; gap:6px; } #royaleUI .rdeckhead { display:flex; justify-content:space-between; align-items:baseline; font-size:.9rem; opacity:.9; } #royaleUI .rdeckhead small { opacity:.7; } #royaleUI .rdeckhead small.bad { color:#ff8a8a; opacity:1; }
+#royaleUI .rstripcards { display:grid; grid-template-columns:repeat(8, 1fr); gap:6px; }
+#royaleUI .rstripcard { position:relative; aspect-ratio:3 / 4; padding:0 !important; display:flex; align-items:center; justify-content:center; border-radius:10px !important; background:var(--panel,#2d2f2b); } #royaleUI .rstripcard.empty { border-style:dashed !important; opacity:.6; } #royaleUI .rstripcard .g svg { width:2rem; height:2rem; }
+#royaleUI .rstripcard .cs { position:absolute; left:3px; top:3px; width:1.3rem; height:1.3rem; border-radius:50%; background:#f3ecd6; color:#222; font-weight:800; font-size:.75rem; display:flex; align-items:center; justify-content:center; }
+#royaleUI .rplayrow { width:min(34em, 100%); } #royaleUI .rplayrow .rbig { flex:1; min-height:64px; font-size:1.4rem; justify-content:center; }
+#royaleUI .rdeckicon { position:relative; flex:none; width:72px; padding:0 !important; display:flex; align-items:center; justify-content:center; border-radius:12px !important; } #royaleUI .rdeckicon svg { width:34px; height:34px; } #royaleUI .rdeckicon i.bad { position:absolute; top:-6px; right:-6px; width:20px; height:20px; border-radius:50%; background:#c0392b; color:#fff; font-style:normal; font-weight:bold; display:flex; align-items:center; justify-content:center; font-size:.8rem; }
+/* play screen */
+#royaleUI .rplaycols { width:100%; display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:14px; text-align:left; align-items:start; } @media (max-width:860px) { #royaleUI .rplaycols { grid-template-columns:1fr; } }
+#royaleUI .rplayleft, #royaleUI .rplayright { display:flex; flex-direction:column; gap:12px; } #royaleUI .rcardbox { width:auto; } #royaleUI .rdecknote { display:flex; align-items:center; gap:8px; font-size:.9rem; opacity:.9; margin:0; max-width:none; text-align:left; } #royaleUI .rhr { border:0; border-top:1px solid var(--line,#4a4d46); width:100%; margin:2px 0; }
+#royaleUI .rseg2 { display:inline-flex; } #royaleUI .rseg2 button { border-radius:0; padding:5px 12px; } #royaleUI .rseg2 button:first-child { border-radius:6px 0 0 6px; } #royaleUI .rseg2 button:last-child { border-radius:0 6px 6px 0; } #royaleUI .rseg2 button + button { margin-left:-1px; }
+#royaleUI .roptwrap { display:flex; flex-direction:column; gap:8px; align-items:stretch; } #royaleUI .roptwrap > .rsmall { align-self:flex-start; }
+#royaleUI .rswatches { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; } #royaleUI .rswatch { width:42px; height:28px; padding:0 !important; display:flex; overflow:hidden; font-size:.7rem; align-items:center; justify-content:center; } #royaleUI .rswatch i { flex:1; height:100%; } #royaleUI .rswatch.on { box-shadow:0 0 0 2px #5f8f3a; border-color:#fff; }
+/* deck screen */
+#royaleUI .rdecklib { display:flex; flex-wrap:wrap; gap:6px; } #royaleUI .rdeckchip { padding:5px 12px; } #royaleUI .rdeckchip.rnew { border-style:dashed; } #royaleUI .rdeckchip.on { background:#5f8f3a; border-color:#5f8f3a; color:#fff; }
+#royaleUI .rdeckname { display:flex; align-items:center; gap:8px; flex-wrap:wrap; } #royaleUI .rdecknamefixed { opacity:.75; font-size:.85rem; } #royaleUI .rname { font:inherit; color:inherit; height:2em; padding:0 10px; border-radius:6px; width:12em; }
+#royaleUI .rprio { display:flex; flex-direction:column; gap:2px; font-size:.84rem; line-height:1.35; background:rgba(0,0,0,.2); border-radius:8px; padding:6px 8px; } #royaleUI .rprio b { font-size:.72rem; letter-spacing:.1em; text-transform:uppercase; opacity:.65; }
+#royaleUI .rdeckcard.on { background:#2f4a2a; border-color:#779556; } #royaleUI .rdeckcard.focus { box-shadow:0 0 0 2px #e0a800; border-color:#e0a800; } #royaleUI .rdeckcard .tick { background:#779556; }
+#royaleUI .rg { background:var(--rl,#f0d9b5); } #royaleUI .rg.d { background:var(--rd,#b58863); } #royaleUI .rg.dep { background:#e6c04a !important; }
+#royaleUI .rpat { position:relative; } #royaleUI .rpat.tower11 { width:min(16em, 100%); } #royaleUI .rpat.tower8 { width:min(11em, 100%); }
+#royaleUI .rpaticon { position:absolute; pointer-events:none; } #royaleUI .rpaticon svg { position:absolute; inset:0; width:100%; height:100%; color:#f4f1e6; filter:drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000) drop-shadow(0 1px 2px #000a); margin:0; }
+#royaleUI .rg.ft::after { display:none; }
+/* dragging a card: just the icon, swaying with the pointer */
+#royaleUI .rdragghost { margin:0; width:48px; height:48px; border:0; border-radius:0; background:none; box-shadow:none; opacity:.95; transform:translate(-50%, -55%) scale(1.08); filter:drop-shadow(0 8px 6px #0009); }
+#royaleUI .rdragghost .g svg { width:100%; height:100%; color:#f4f1e6; filter:drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000); } #royaleUI .rdragghost.dark .g svg { color:#222; filter:drop-shadow(0 0 1px #eee) drop-shadow(0 0 1px #eee); }
+/* fixes after the first look */
+#royaleUI .roverbox > .roptwrap { flex:1 1 auto; min-height:0; overflow-y:auto; padding-right:4px; } #royaleUI .roptwrap .rsettings { overflow:visible; flex:none; }
+#royaleUI .rsetrow { flex-wrap:wrap; } #royaleUI .rsettext { flex:1 1 13em; } #royaleUI .rsetrow .rseg2, #royaleUI .rsetrow .rswatches { margin-left:auto; }
+#royaleUI .rpaticon svg { inset:-8%; width:116%; height:116%; }

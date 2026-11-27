@@ -21,7 +21,9 @@ const Royale = (() => {
     SLIDE_REACH: 3, STEP: { b: 2, r: 2, q: 2, k: 1 },                             // sliders attack up to 3 squares away but travel 2 per action (pacing assumption, tune)
     ORDER_COOLDOWN: 8,                                                      // per-piece wait between orders (2 s); 0 disables
     PROMO_FALLBACK: true, PROMO_HEALTH_FRAC: 1,                             // a pawn whose chosen piece is taken falls back to the best available; promoted pieces start at full Health
-    KING_DELAY: 4, KING_RECALL: 6, KING_COOLDOWN: 40, FORWARD_ROWS: 3,      // King: lands after 1 s, recall channel 1.5 s, 10 s before he can go out again; a lost Bastion opens 3 ranks past the river
+    KING_DELAY: 4, KING_RECALL: 6, KING_COOLDOWN: 40, FORWARD_ROWS: 3,
+    KING_HP: 14, KING_OUT_LOCK: 20, KING_LOW: 0.3, KING_REGEN: 1, KING_REGEN_CD: 4, KING_REGEN_IDLE: 12,   // King: own Health (shared with the Fortress only while he is home); cannot be recalled for 5 s after going out unless his Health is low (30%); at home he heals KING_REGEN every 1 s once the Fortress has not been hit for 3 s (KING_REGEN 0 = no healing)
+    FORTRESS_RANGE: 4,                                                    // the Fortress reaches 4 squares (all the way to the board edge files); Bastions keep TOWER_RANGE      // King: lands after 1 s, recall channel 1.5 s, 10 s before he can go out again; a lost Bastion opens 3 ranks past the river
     REACH: { k: 1 }, KNIGHT_MEMORY: 2                                                        // a knight will not return to the last N squares it left
   };
   // cd / delay in ticks (x 0.25 s). The five classic pieces all use a 1.0 s cooldown for now (user's call); later/custom pieces get their own intervals. Camel code = the existing Camel piece code (so skins and names carry over).
@@ -32,9 +34,9 @@ const Royale = (() => {
     b:     { name: 'Bishop', cost: 3, hp: 3, dmg: 2, cd: 4, init: 4, delay: 4 },
     r:     { name: 'Rook',   cost: 4, hp: 4, dmg: 3, cd: 4, init: 2, delay: 5 },
     q:     { name: 'Queen',  cost: 7, hp: 5, dmg: 4, cd: 4, init: 4, delay: 6 },
-    [CAMEL]: { name: 'Camel', cost: 2, hp: 1, dmg: 2, cd: 2, init: 5, delay: 2 }
+    [CAMEL]: { name: 'Camel', cost: 2, hp: 1, dmg: 2, cd: 4, init: 5, delay: 2 }
   };
-  const KING = { name: 'King', hp: 12, dmg: 2, cd: 4, init: 3, delay: 4 };     // the royal: not a card; hp is mirrored from the Fortress pool
+  const KING = { name: 'King', hp: 14, dmg: 3, cd: 4, init: 3, delay: 4 };     // the royal: not a card; hp is mirrored from the Fortress pool
   // spells: r = Chebyshev radius of the area (1 = 3x3, 2 = 5x5), delay = cast delay in ticks
   const SPELLS = {
     surge: { name: 'Surge', cost: 2, r: 1, delay: 2 }, stampede: { name: 'Stampede', cost: 4, r: 2, delay: 2 },
@@ -64,7 +66,8 @@ const Royale = (() => {
     const decks = { w: (opts.decks && opts.decks.w || DEFAULT_DECK).slice(), b: (opts.decks && opts.decks.b || DEFAULT_DECK).slice() };
     ['w', 'b'].forEach(s => { if (decks[s].length < K.HAND + 1) throw new Error('deck needs at least ' + (K.HAND + 1) + ' cards'); decks[s].forEach(c => { if (!CARDS[c]) throw new Error('unknown card ' + c); }); });
 
-    const st = { tick: 0, units: [], towers: [], mat: { w: K.MAT_START * K.MAT_PTS, b: K.MAT_START * K.MAT_PTS }, hands: {}, over: false, winner: null, reason: '', sudden: false, spells: [], barr: [], king: { w: { out: false, cd: 0 }, b: { out: false, cd: 0 } } };
+    function newKing() { return { out: false, cd: 0, hp: K.KING_HP, dead: false, lock: 0, hurt: -999 }; }
+    const st = { tick: 0, units: [], towers: [], mat: { w: K.MAT_START * K.MAT_PTS, b: K.MAT_START * K.MAT_PTS }, hands: {}, over: false, winner: null, reason: '', sudden: false, spells: [], barr: [], king: { w: newKing(), b: newKing() } };
     let nextId = 1, nextBorn = 1, pending = [], events = [];
     const log = [];
     ['w', 'b'].forEach((s, i) => { const order = doShuffle ? shuffle(decks[s].slice(), rng(seed * 2 + i + 1)) : decks[s].slice(); st.hands[s] = { hand: order.slice(0, K.HAND), queue: order.slice(K.HAND) }; });
@@ -156,13 +159,15 @@ const Royale = (() => {
     const ev = e => { e.tick = st.tick; events.push(e); };
     function moveTo(u, x, y) { ev({ e: 'move', id: u.id, fx: u.x, fy: u.y, tx: x, ty: y }); u.x = x; u.y = y; return true; }
     function end(winner, reason) { if (st.over) return; st.over = true; st.winner = winner; st.reason = reason; ev({ e: 'end', winner, reason }); }
-    function dealDamage(v, dmg) {                                        // returns true if v died. The King has no Health of his own: his Health IS the Fortress pool
+    function dealDamage(v, dmg) {                                        // returns true if v died. The King out of his Fortress has his own Health; a hit interrupts his recall
+      v.hp -= dmg;
       if (v.king) {
-        const F = fortressOf(v.side); F.hp -= dmg; v.hp = Math.max(0, F.hp); v.recallAt = 0;
-        if (F.hp <= 0) { ev({ e: 'towerDown', tower: F.id }); end(other(v.side), 'fortress destroyed'); return true; }
+        const k = st.king[v.side]; k.hp = Math.max(0, v.hp); v.recallAt = 0;
+        if (v.hp <= 0) { k.dead = true; k.out = false; const F = fortressOf(v.side); if (!F || F.hp <= 0) end(other(v.side), 'king defeated'); return true; }
+        if (v.hp <= K.KING_LOW * v.maxhp) k.lock = 0;                    // hurt badly: he may be recalled at once
         return false;
       }
-      v.hp -= dmg; return v.hp <= 0;
+      return v.hp <= 0;
     }
     // A slider (bishop, rook, queen) that attacks from a distance first slides to the square next to its target (like the Juggernaut in Promotion Chess), then strikes.
     // Leapers (knight, camel) and pawns strike from where they stand. 'hold' pieces never leave their half to do it.
@@ -180,11 +185,18 @@ const Royale = (() => {
       if (dead) { v.dead = true; st.units = st.units.filter(w => w !== v); ev({ e: 'kill', id: u.id, target: v.id, dmg: u.dmg }); if (!st.over) moveTo(u, v.x, v.y); }   // a killing blow is a normal capture: the attacker moves onto the square
       return true;
     }
+    // The Fortress falls. If the King is home it falls with him and the game ends; if he is out, the game goes on until he is dead (he can no longer come home or heal).
+    function fortressFalls(F) {
+      const k = st.king[F.side], ku = kingUnit(F.side); if (ku) ku.recallAt = 0;
+      if (k.out && ku) { ev({ e: 'fugitive', side: F.side }); return; }
+      end(other(F.side), 'fortress destroyed');
+    }
     function hitTower(u, t, hold) {
       const line = reach(u).filter(s => s.tower === t).sort((a, b) => cheb(u, a) - cheb(u, b))[0];
       if (line && !approach(u, line.x, line.y, hold)) return false;
       t.hp -= u.dmg; ev({ e: 'towerHit', id: u.id, tower: t.id, dmg: u.dmg, left: Math.max(0, t.hp) });
-      if (t.hp <= 0) { ev({ e: 'towerDown', tower: t.id }); if (t.kind === 'fortress') end(u.side, 'fortress destroyed'); }
+      if (t.kind === 'fortress') st.king[t.side].hurt = st.tick;
+      if (t.hp <= 0) { ev({ e: 'towerDown', tower: t.id }); if (t.kind === 'fortress') fortressFalls(t); }
       if (st.sudden && !st.over) end(u.side, 'sudden death');
       return true;
     }
@@ -218,6 +230,15 @@ const Royale = (() => {
       if (!u.goal) return false; if (u.x === u.goal.x && u.y === u.goal.y) { u.goal = null; return false; }
       const g = u.goal, step = firstStep(u, (x, y) => x === g.x && y === g.y); if (step) return moveTo(u, step.x, step.y); u.goal = null; return false;
     }
+    // Slide one square sideways toward the nearest file where the way forward is open (the shorter way round a tower or Barricade).
+    function walkAround(u, f) {
+      const ny = u.y + f; let best = null;
+      for (const dir of [-1, 1]) for (let k = 1; k < K.W; k++) {
+        const x = u.x + dir * k; if (!inB(x, u.y) || !walkable(x, u.y)) break;
+        if (walkable(x, ny) && !towerAt(x, ny) && !st.barr.some(b => b.x === x && b.y === ny)) { if (!best || k < best.k || (k === best.k && dir === (u.lastDx || 0))) best = { k, dir }; break; }
+      }
+      if (!best) return false; const nx = u.x + best.dir; if (!canStand(nx, u.y)) return false; u.lastDx = best.dir; return moveTo(u, nx, u.y);
+    }
     function actPawn(u) {
       if (u.y === lastRank(u.side)) return promote(u);
       const f = fwd(u.side), ahead = unitAt(u.x, u.y + f), enemyAhead = !!ahead && ahead.side !== u.side;
@@ -226,7 +247,8 @@ const Royale = (() => {
       if (enemyAhead) return sidestep(u, true, false);                  // head-on: only a SAFE sidestep, otherwise a standoff
       const nx = u.x, ny = u.y + f;
       if (canStand(nx, ny)) return moveTo(u, nx, ny);
-      if (inB(nx, ny) && ny === K.RIVER_Y && !isBridge(nx)) return sidestep(u, false, true);   // river ahead: shuffle toward the nearest bridge
+      if (inB(nx, ny) && ny === K.RIVER_Y && !isBridge(nx)) return sidestep(u, false, true);
+      if (inB(nx, ny) && (towerAt(nx, ny) || st.barr.some(b => b.x === nx && b.y === ny))) return walkAround(u, f);   // a tower or Barricade in the way: go around it, do not wait forever   // river ahead: shuffle toward the nearest bridge
       return false;                                                     // friend / tower ahead or last rank: wait (promotion comes in R5)
     }
     function actKnight(u) {                                              // Charge: ignores everything but the enemy Fortress
@@ -279,15 +301,21 @@ const Royale = (() => {
     }
     function towerFire(t) {                                              // Fortress garrison / Bastion: hits the weakest enemy within TOWER_RANGE on its own timer
       if (st.over || t.hp <= 0 || t.ready > st.tick) return;
-      if (t.kind === 'fortress' && st.king[t.side].out) return;            // the garrison is silent while the King is away
-      const gap = v => Math.max(Math.max(t.x0 - v.x, 0, v.x - (t.x0 + t.w - 1)), Math.max(t.y0 - v.y, 0, v.y - (t.y0 + t.h - 1)));
-      const c = st.units.filter(v => v.side !== t.side && gap(v) <= K.TOWER_RANGE).sort((a, b) => a.hp - b.hp || gap(a) - gap(b) || a.id - b.id); if (!c.length) return;
+      if (t.kind === 'fortress' && st.king[t.side].out) return;            // the garrison is silent while the King is away (a fallen King no longer silences it)
+      const gap = v => Math.max(Math.max(t.x0 - v.x, 0, v.x - (t.x0 + t.w - 1)), Math.max(t.y0 - v.y, 0, v.y - (t.y0 + t.h - 1))), range = t.kind === 'fortress' ? K.FORTRESS_RANGE : K.TOWER_RANGE;
+      const c = st.units.filter(v => v.side !== t.side && gap(v) <= range).sort((a, b) => (v => (v.king ? 99 : costOf(v.t)))(b) - (v => (v.king ? 99 : costOf(v.t)))(a) || a.hp - b.hp || gap(a) - gap(b) || a.id - b.id); if (!c.length) return;   // priority: the most valuable (highest Material cost) piece in range
       const v = c[0], dmg = t.kind === 'fortress' ? K.FORTRESS_DMG : K.BASTION_DMG, dead = dealDamage(v, dmg); ev({ e: 'towerFire', tower: t.id, target: v.id, dmg, left: Math.max(0, v.hp) });
       if (dead) { v.dead = true; st.units = st.units.filter(w => w !== v); ev({ e: 'kill', tower: t.id, target: v.id, dmg }); }
       t.ready = st.tick + (t.kind === 'fortress' ? K.FORTRESS_CD : K.BASTION_CD);
     }
     const BEHAVIOUR = { p: actPawn, n: actKnight, b: actBishop, r: actRook, q: actQueen, [CAMEL]: actCamel, k: actKing };
-    const doAct = u => { if (u.stance === 'hold' && u.t !== 'k') return holdAct(u); const b = BEHAVIOUR[u.t]; return b ? b(u) : false; };
+    // The enemy Fortress is gone but their King is still out: pieces that have nothing else to do go after him (pawns keep promoting).
+    function huntKing(u) {
+      if (enemyFortress(u)) return false; const k = kingUnit(other(u.side)); if (!k) return false;
+      const near = unitsOf(reach(u)).filter(v => v.king); if (near.length) return hitUnit(u, near[0]);
+      const step = firstStep(u, (x, y) => geom(u.t, x, y).some(q => q.x === k.x && q.y === k.y)); return step ? moveTo(u, step.x, step.y) : false;
+    }
+    const doAct = u => { if (u.stance === 'hold' && u.t !== 'k') return holdAct(u); const b = BEHAVIOUR[u.t]; const r = b ? b(u) : false; return r || (u.t !== 'p' && u.t !== 'k' ? huntKing(u) : false); };
     const actNow = u => { if (u.dead || u.idle || st.over || (u.frozenUntil || 0) > st.tick) return; doAct(u); };   // a spell's free action: cooldown untouched
 
     // ---- commands (validated when issued AND again when applied, so a replay behaves identically)
@@ -316,9 +344,9 @@ const Royale = (() => {
       if (st.over) return 'game over'; if (!cmd) return 'unknown command';
       switch (cmd.type) {
         case 'deploy': return checkDeploy(side, cmd.slot, cmd.x, cmd.y);
-        case 'kingOut': { const k = st.king[side], F = fortressOf(side); if (k.out) return 'the King is already out'; if (st.tick < k.cd) return 'the King is still recovering'; if (!F || F.hp <= 0) return 'no Fortress'; return squareOk(side, cmd.x, cmd.y); }
+        case 'kingOut': { const k = st.king[side], F = fortressOf(side); if (k.dead) return 'the King has fallen'; if (k.out) return 'the King is already out'; if (st.tick < k.cd) return 'the King is still recovering'; if (!F || F.hp <= 0) return 'no Fortress'; return squareOk(side, cmd.x, cmd.y); }
         case 'kingOrder': return kingUnit(side) && inB(cmd.x, cmd.y) ? '' : 'the King is not out';
-        case 'recall': { const k = kingUnit(side); return !k ? 'the King is not out' : k.recallAt ? 'already recalling' : ''; }
+        case 'recall': { const k = kingUnit(side), F = fortressOf(side); if (!k) return 'the King is not out'; if (k.recallAt) return 'already recalling'; if (!F || F.hp <= 0) return 'there is no Fortress to return to'; const ks = st.king[side]; if (st.tick < ks.lock && k.hp > K.KING_LOW * k.maxhp) return 'the King only just left: recall in ' + Math.ceil((ks.lock - st.tick) * K.TICK_MS / 1000) + ' s'; return ''; }
         case 'order': return mine(side, cmd.ids).some(u => ORDERS[u.t] && ORDERS[u.t].includes(cmd.order) && st.tick >= (u.orderReady || 0)) ? '' : 'no selected piece can take that order';
         case 'promoteTo': return ['n', 'b', 'r', 'q', 'auto'].includes(cmd.piece) && mine(side, cmd.ids).some(u => u.t === 'p') ? '' : 'select pawns first';
         default: return 'unknown command';
@@ -330,7 +358,7 @@ const Royale = (() => {
       log.push(c); pending.push(c); return { ok: true };
     }
     function place(side, t, x, y, extra) {                               // used by deploy and by tests
-      const d = DEFS[t] || KING, u = Object.assign({ id: nextId++, born: nextBorn++, side, t, x, y, hp: d.hp, maxhp: d.hp, dmg: d.dmg, cd: d.cd, init: d.init, ready: st.tick + d.delay }, extra || {});
+      const d = DEFS[t] || KING, u = Object.assign({ id: nextId++, born: nextBorn++, side, t, x, y, hp: d.hp, maxhp: d.hp, dmg: d.dmg, cd: d.cd, init: d.init, ready: st.tick + d.delay }, extra || {}); u.dep = st.tick; u.arrive = u.ready;
       st.units.push(u); return u;
     }
     function applyDeploy(side, cmd) {
@@ -344,7 +372,7 @@ const Royale = (() => {
       const { side, cmd } = c; if (validate(side, cmd)) return;       // state changed since it was issued: silently dropped
       switch (cmd.type) {
         case 'deploy': return applyDeploy(side, cmd);
-        case 'kingOut': { const F = fortressOf(side), u = place(side, 'k', cmd.x, cmd.y, { king: true, hp: F.hp, maxhp: F.maxhp, ready: st.tick + K.KING_DELAY }); st.king[side].out = true; return ev({ e: 'kingOut', id: u.id, side, x: cmd.x, y: cmd.y }); }
+        case 'kingOut': { const ks = st.king[side], u = place(side, 'k', cmd.x, cmd.y, { king: true, hp: ks.hp, maxhp: K.KING_HP, ready: st.tick + K.KING_DELAY }); ks.out = true; ks.lock = st.tick + K.KING_OUT_LOCK; return ev({ e: 'kingOut', id: u.id, side, x: cmd.x, y: cmd.y }); }
         case 'kingOrder': kingUnit(side).goal = { x: cmd.x, y: cmd.y }; return ev({ e: 'order', side, order: 'move' });
         case 'recall': kingUnit(side).recallAt = st.tick + K.KING_RECALL; return ev({ e: 'recallStart', side });
         case 'order': mine(side, cmd.ids).forEach(u => { if (ORDERS[u.t] && ORDERS[u.t].includes(cmd.order) && st.tick >= (u.orderReady || 0)) { u.stance = cmd.order; u.orderReady = st.tick + K.ORDER_COOLDOWN; } }); return ev({ e: 'order', side, order: cmd.order });
@@ -374,9 +402,12 @@ const Royale = (() => {
       const q = pending; pending = []; q.forEach(applyCommand);
       st.barr = st.barr.filter(b => b.until > st.tick);
       const due = st.spells.filter(sp => sp.at <= st.tick); st.spells = st.spells.filter(sp => sp.at > st.tick); due.forEach(castSpell);
+      ['w', 'b'].forEach(sd => {                                          // a King at home heals while his Fortress has been left alone
+        const ks = st.king[sd], F = fortressOf(sd); if (ks.out || ks.dead || !F || F.hp <= 0 || !K.KING_REGEN || ks.hp >= K.KING_HP) return;
+        if (st.tick - ks.hurt >= K.KING_REGEN_IDLE && st.tick % K.KING_REGEN_CD === 0) { ks.hp = Math.min(K.KING_HP, ks.hp + K.KING_REGEN); ev({ e: 'kingHeal', side: sd, hp: ks.hp }); }
+      });
       st.units.filter(u => u.king).forEach(k => {
-        const F = fortressOf(k.side); k.hp = Math.max(0, F.hp);
-        if (k.recallAt && st.tick >= k.recallAt) { k.dead = true; st.units = st.units.filter(w => w !== k); st.king[k.side] = { out: false, cd: st.tick + K.KING_COOLDOWN }; ev({ e: 'kingHome', side: k.side }); }
+        if (k.recallAt && st.tick >= k.recallAt) { k.dead = true; st.units = st.units.filter(w => w !== k); Object.assign(st.king[k.side], { out: false, cd: st.tick + K.KING_COOLDOWN, hp: k.hp }); ev({ e: 'kingHome', side: k.side }); }
       });
       const order = st.units.filter(u => u.ready <= st.tick).sort((a, b) => b.init - a.init || a.cd - b.cd || a.born - b.born);
       for (const u of order) {
@@ -396,8 +427,8 @@ const Royale = (() => {
       tick: st.tick, over: st.over, winner: st.winner, reason: st.reason, sudden: st.sudden,
       mat: { w: Math.floor(st.mat.w / K.MAT_PTS), b: Math.floor(st.mat.b / K.MAT_PTS) }, matPts: { w: st.mat.w, b: st.mat.b },
       hands: { w: { hand: st.hands.w.hand.slice(), next: st.hands.w.queue[0] }, b: { hand: st.hands.b.hand.slice(), next: st.hands.b.queue[0] } },
-      units: st.units.map(u => ({ id: u.id, side: u.side, t: u.t, x: u.x, y: u.y, hp: u.hp, maxhp: u.maxhp, ready: u.ready, cd: u.cd, stance: u.stance || 'attack', king: !!u.king, promoted: !!u.promoted, promoteTo: u.promoteTo || null, frozen: (u.frozenUntil || 0) > st.tick, recalling: !!u.recallAt, goal: u.goal || null })),
-      spells: st.spells.map(p => ({ side: p.side, card: p.card, x: p.x, y: p.y, at: p.at })), barr: st.barr.map(b => ({ x: b.x, y: b.y, until: b.until })), king: { w: { out: st.king.w.out, cd: st.king.w.cd }, b: { out: st.king.b.out, cd: st.king.b.cd } },
+      units: st.units.map(u => ({ id: u.id, side: u.side, t: u.t, x: u.x, y: u.y, hp: u.hp, maxhp: u.maxhp, ready: u.ready, cd: u.cd, stance: u.stance || 'attack', king: !!u.king, promoted: !!u.promoted, promoteTo: u.promoteTo || null, frozen: (u.frozenUntil || 0) > st.tick, recalling: !!u.recallAt, goal: u.goal || null, dep: u.dep, arrive: u.arrive })),
+      spells: st.spells.map(p => ({ side: p.side, card: p.card, x: p.x, y: p.y, at: p.at })), barr: st.barr.map(b => ({ x: b.x, y: b.y, until: b.until })), king: { w: Object.assign({ maxhp: K.KING_HP }, st.king.w), b: Object.assign({ maxhp: K.KING_HP }, st.king.b) },
       towers: st.towers.map(t => ({ id: t.id, side: t.side, kind: t.kind, x0: t.x0, y0: t.y0, w: t.w, h: t.h, hp: t.hp, maxhp: t.maxhp }))
     });
     // Network play: the host runs the sim and sends view(side) every tick; the guest's copy never steps, it only loads those states (so can/check/snapshot work there).
