@@ -159,7 +159,7 @@ function renderRoster() {
   { const full = n >= maxSeats() || !!MODES[mode].match4, hardOk = !MODES[mode].bug && !MODES[mode].match && !MODES[mode].match4;      // every mode that has bots has a Hard bot except these
     const hb = $('lvlHard'); hb.disabled = !hardOk; hb.title = hardOk ? 'Looks several moves ahead (up to the thinking time set below)' : 'The hard bot is not available in this mode (Easy and Normal are)'; if (!hardOk && lobbyBotLvl === 'hard') { lobbyBotLvl = 'normal'; }
     document.querySelectorAll('#botLvl button').forEach(b => b.classList.toggle('on', b.dataset.l === lobbyBotLvl));
-    $('addBotBtn').disabled = $('fillBotsBtn').disabled = full; $('addBotBtn').textContent = '+ Add ' + ({ easy: 'an Easy', normal: 'a Normal', hard: 'a Hard' })[lobbyBotLvl] + ' bot'; }
+    $('addBotBtn').disabled = $('fillBotsBtn').disabled = full; $('addBotBtn').textContent = '+ Add bot'; $('addBotBtn').title = 'Adds a bot of the difficulty chosen next to this button (' + lobbyBotLvl + ')'; }
   let ok = n >= 2;
   if (tOn) {
     const cnt = Array(teamCount()).fill(0); rows.forEach(row => cnt[normTeam(row.team)]++);

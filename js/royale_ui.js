@@ -31,7 +31,7 @@ const RoyaleUI = (() => {
     surge: 'Every friendly piece in a 3x3 area gets one free action right away (its cooldown is not reset).',
     stampede: 'Like Surge, but a 5x5 area.',
     zug: 'Freezes enemy pieces in a 3x3 area for 2.5 s. Frozen pieces can still be hit.',
-    barr: 'Blocks 3 squares in a row for 8 s. It blocks your own pieces too; leapers jump over it.'
+    barr: 'Blocks 3 squares in a row for 8 s, on your side of the river or on a bridge. A piece standing on a square gets 1 s to leave before it is skipped. It blocks your own pieces too; leapers jump over it.'
   };
   // What each piece goes for, in order, and what it does when stuck. Shown on the card details.
   const PRIORITY = {
@@ -53,16 +53,17 @@ const RoyaleUI = (() => {
     p: { mv: [[0, 1]], at: [[1, 1], [-1, 1]] }, n: { mv: KN_ }, b: { mv: rays(DIAG, 3) }, r: { mv: rays(ORTH, 3) }, q: { mv: rays(ORTH.concat(DIAG), 3) }, '\u03b3': { mv: CAM_ },
     k: { mv: ORTH.concat(DIAG) }, ph: { dep: [[-1, 0], [0, 0], [1, 0]] }, surge: { dep: block(1) }, stampede: { dep: block(2) }, zug: { dep: block(1) }, barr: { dep: [[-1, 0], [0, 0], [1, 0]] }
   };
-  const DEFAULT_SETTINGS = { cd: false, hp: true, flash: true, nums: true, sound: true, lowWarn: true, boardTheme: 'same' };      // YOUR options: how the screen looks and sounds on this device
-  const DEFAULT_GAME = { orderCd: 2, fb: true, autoRecall: false, kingHeal: 'normal' };                                          // GAME options: rules of the matches you start (set on the Play screen)
+  const DEFAULT_SETTINGS = { cd: false, hp: true, flash: true, nums: true, sound: true, lowWarn: true, fb: true, autoRecall: false, boardTheme: 'same' };      // YOUR options: how the screen looks and sounds on this device
+  const DEFAULT_GAME = { orderCd: 2, kingHeal: 'normal' };                                          // GAME options: rules of the matches you start (set on the Play screen)
   const SETTING_TEXT = {
     cd: ['Cooldown bars under pieces', 'Shows how soon each piece acts again. Off by default.'], hp: ['Health bars', 'Black-and-white health bars on pieces with more than 1 Health.'],
     flash: ['Attack effects', 'Slashes, shots, flashes and rings where things are hit or destroyed.'], nums: ['Damage numbers', 'Small numbers float up when something takes damage.'],
-    sound: ['Sounds', 'Uses the game sound setting too.'], lowWarn: ['Low-health warning', 'Flashes the screen when your Fortress drops to 30%.']
+    sound: ['Sounds', 'Uses the game sound setting too.'], lowWarn: ['Low-health warning', 'Flashes the screen when your Fortress drops to 30%.'],
+    fb: ['Promotion fall-back', 'ON: a pawn whose chosen piece is already alive takes the best available one. OFF: it waits on the back rank.'],
+    autoRecall: ['Auto-recall the King', 'Recalls the King once each time he or your Fortress drops to 30%. It cannot beat the recall lock.']
   };
   const GAME_TEXT = {
-    orderCd: ['Order cooldown', 'How long a piece must wait between orders (2 s or none).'], fb: ['Promotion fall-back', 'ON: a pawn whose chosen piece is already alive takes the best available one. OFF: it waits on the back rank.'],
-    autoRecall: ['Auto-recall the King', 'Safe mode: the King is recalled by himself when your Fortress or he drops to 30%. A recall can still be interrupted.'],
+    orderCd: ['Order cooldown', 'How long a piece must wait between orders (2 s or none).'],
     kingHeal: ['King healing', 'A King at home heals once his Fortress has not been hit for a few seconds: Off, Normal (1 Health per second) or Fast (3 per second).']
   };
   const BOARD_THEMES = [['same', 'Same as chess'], ['classic', 'Classic', '#f0d9b5', '#b58863'], ['green', 'Green', '#eeeed2', '#769656'], ['blue', 'Blue', '#dee3e6', '#8ca2ad'], ['slate', 'Slate', '#c9c9c9', '#6f6f6f'], ['rose', 'Rose', '#f3dede', '#b86f7a']];
@@ -71,6 +72,7 @@ const RoyaleUI = (() => {
   let sim = null, bot = null, timer = null, raf = 0, sel = -1, kingMode = false, level = 'normal', paused = false, cell = 20, lastTime = 0, before = {}, fx = [], mode = 'menu', optPaused = false, overlayOn = false;
   let deck = null, picked = new Set(), groups = {}, hover = null, drag = null, cardDrag = null, suppressAt = -1e9, lastClick = null, settings = null, me = 'w', net = null, netRole = null, netInfo = '', rid = 0, stats = null, sideOf = {}, unitOf = {}, lowWarned = false, autoRecallAt = -99;
   let spec = false, specN = 0, names = { w: '', b: '' }, chat = [], lastRoom = null, matchTok = '', graceTimer = null, graceLeft = 0, reconTimer = null, reconTries = 0, reconnecting = false, byeSeen = false, roomShown = '', chatWrap = null, chatEl = null, chatIn = null, oppEl = null, lastChatAt = 0, hostChatAt = {}, guestHello = null;
+  let infoBtn = null, infoShown = false, ending = false, endDelay = 2400, shakeUntil = 0, deckDrag = null, deckSuppress = -1e9, lastEmoteAt = 0, emoRow = null, emoBtn = null, prevKingLow = false, prevFortLow = false, rematchAsked = false, guestWantsRematch = false, deckSlots = [];
   let focusCard = 'p', tipOpen = false, lastFinal = null, game = null, decks = [], activeDeck = 'default', pfps = { w: '', b: '' }, drawer = null, drawerBody = null, drawerOn = false, profChip = null, guideBtn = null, palette = null, paletteAt = -1e9, towerPlayers = {}, kingBars = {}, ghostTilt = 0, ghostLast = null, deployAt = {}, deckDelConfirm = '';
   const icons = new Map(), hitAt = {}, towerHitAt = {}, shakeAt = {};
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -100,7 +102,7 @@ const RoyaleUI = (() => {
     const g = Object.assign({}, DEFAULT_GAME);
     try {
       const raw = JSON.parse(localStorage.getItem('cwfRoyaleGame') || 'null'), old = JSON.parse(localStorage.getItem('cwfRoyale') || '{}'), src = raw || old;
-      if (src.orderCd === 0 || src.orderCd === 2) g.orderCd = src.orderCd; if (typeof src.fb === 'boolean') g.fb = src.fb; if (typeof src.autoRecall === 'boolean') g.autoRecall = src.autoRecall; if (['off', 'normal', 'fast'].indexOf(src.kingHeal) >= 0) g.kingHeal = src.kingHeal;
+      if (src.orderCd === 0 || src.orderCd === 2) g.orderCd = src.orderCd; if (['off', 'normal', 'fast'].indexOf(src.kingHeal) >= 0) g.kingHeal = src.kingHeal;
     } catch (e) { /* defaults */ }
     return g;
   }
@@ -154,6 +156,7 @@ const RoyaleUI = (() => {
     bar.appendChild(oppEl); bar.appendChild(timerEl);
     pauseBtn = el('button', 'rpause', 'Pause'); pauseBtn.addEventListener('click', togglePause); bar.appendChild(pauseBtn);
     profChip = el('div', 'rprof'); profChip.av = el('span', 'rav'); profChip.nm = el('span', 'rprofname'); profChip.appendChild(profChip.av); profChip.appendChild(profChip.nm); profChip.title = 'Your name and picture come from your profile in classic chess'; bar.appendChild(profChip);
+    infoBtn = el('button', 'rinfobtn', '\u2630'); infoBtn.title = 'Players, orders, King and emotes'; infoBtn.addEventListener('click', () => { root.className = root.className.indexOf(' rshowinfo') >= 0 ? root.className.replace(' rshowinfo', '') : root.className + ' rshowinfo'; infoShown = root.className.indexOf(' rshowinfo') >= 0; }); bar.appendChild(infoBtn);
     guideBtn = el('button', 'rguide', '?'); guideBtn.title = 'Guide: how to play'; guideBtn.addEventListener('click', () => (drawerOn ? closeDrawer() : openGuide())); bar.appendChild(guideBtn);
     optBtn = el('button', 'ropt', '\u2699'); optBtn.title = 'Options'; optBtn.addEventListener('click', () => (overlayOn ? closeOverlay() : openOptions())); bar.appendChild(optBtn);
     quitBtn = el('button', 'rquit', 'Quit match'); quitBtn.title = 'End this match and go back to the Chess Royale menu'; quitBtn.addEventListener('click', quit); bar.appendChild(quitBtn); root.appendChild(bar);
@@ -194,6 +197,8 @@ const RoyaleUI = (() => {
     [['auto', 'Auto'], ['n', 'n'], ['b', 'b'], ['r', 'r'], ['q', 'q']].forEach(p => { const b = el('button', 'rbtn'); if (p[0] === 'auto') b.textContent = 'Auto'; else { const g = el('span', 'g'); setIcon(g, p[1]); b.appendChild(g); b.title = Royale.DEFS[p[1]].name; } b.addEventListener('click', () => sendPromoteTo(p[0])); promoRow.appendChild(b); });
     right.appendChild(promoRow);
     kingBtn = el('button', 'rbtn rking', 'Send King'); kingBtn.title = 'Send your King out to fight for free (the Fortress goes quiet while he is away)'; kingBtn.addEventListener('click', kingButton); right.appendChild(kingBtn);
+    emoBtn = el('button', 'rbtn remo', '\uD83D\uDE00 Emotes'); emoBtn.title = 'Send a reaction'; emoRow = el('div', 'remorow hidden'); emotes().forEach(em => { const b = el('button', '', em); b.addEventListener('click', () => sendEmote(em)); emoRow.appendChild(b); });
+    emoBtn.addEventListener('click', () => { emoRow.className = 'remorow' + (emoRow.className.indexOf('hidden') >= 0 ? '' : ' hidden'); }); right.appendChild(emoBtn); right.appendChild(emoRow);
     chatWrap = el('div', 'rchat'); chatEl = el('div', 'rchatlines'); chatIn = el('input', 'rchatin'); chatIn.placeholder = 'Chat (Enter to send)'; chatIn.maxLength = 200;
     chatIn.addEventListener('keydown', e => { if (e.key === 'Enter') { if (sendChat(chatIn.value)) chatIn.value = ''; } e.stopPropagation(); });
     chatWrap.appendChild(chatEl); chatWrap.appendChild(chatIn); chatWrap.style.display = 'none'; right.appendChild(chatWrap);
@@ -207,7 +212,7 @@ const RoyaleUI = (() => {
   }
   function syncRoot() {
     const menuish = mode !== 'play' && mode !== 'over';
-    root.className = (visible ? '' : 'hidden') + (low ? ' rlow' : '') + (spec ? ' rspec' : '') + (menuish ? ' rmenu' : '') + (mode === 'over' ? ' rover_' : '');
+    root.className = (visible ? '' : 'hidden') + (infoShown ? ' rshowinfo' : '') + (low ? ' rlow' : '') + (spec ? ' rspec' : '') + (menuish ? ' rmenu' : '') + (mode === 'over' ? ' rover_' : '');
     if (quitBtn) quitBtn.textContent = mode === 'over' ? 'Back to menu' : 'Quit match';
   }
   // A panel covers the board area. Buttons: { label, go, on (green = the main action), danger, title }.
@@ -232,7 +237,7 @@ const RoyaleUI = (() => {
     let fp = null;
     if (tower) {                                                           // an even board for the Bastion (8 wide), 11 wide for the Fortress; the icon covers the squares the tower covers
       fp = code === 'fortress' ? [4, 6] : [3, 4]; const R = code === 'fortress' ? K.FORTRESS_RANGE : K.TOWER_RANGE;
-      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const gx = Math.max(fp[0] - i, 0, i - fp[1]), gy = Math.max(fp[0] - j, 0, j - fp[1]); if (gx === 0 && gy === 0) cells[j * N + i] = 'ft'; else if (Math.max(gx, gy) <= R) cells[j * N + i] = 'at'; }
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const gx = Math.max(fp[0] - i, 0, i - fp[1]), gy = Math.max(fp[0] - j, 0, j - fp[1]); if (gx === 0 && gy === 0) cells[j * N + i] = 'ft'; else if (code === 'fortress' ? (gx <= K.FORTRESS_RANGE && gy <= K.FORTRESS_RANGE_Y) : Math.max(gx, gy) <= R) cells[j * N + i] = 'at'; }
     } else {
       (P.mv || []).forEach(d => put(d[0], d[1], 'mv')); (P.at || []).forEach(d => put(d[0], d[1], 'at')); (P.dep || []).forEach(d => put(d[0], d[1], 'dep'));
       if (!P.dep) at(0, 0, code);
@@ -247,9 +252,9 @@ const RoyaleUI = (() => {
   const KIND = { piece: 'Piece', phalanx: 'Formation', spell: 'Spell' };
   function cardFacts(id) {                                              // rows for the details panel, built from the real numbers
     const K = Royale.CONSTANTS, C = Royale.CARDS[id], rows = [];
-    if (id === 'fortress') return { name: 'Fortress', tag: 'Tower \u00B7 3x3', rows: [['Health', K.FORTRESS_HP], ['Damage', K.FORTRESS_DMG], ['Fires every', secs(K.FORTRESS_CD)], ['Range', K.FORTRESS_RANGE + ' squares from its edge (the edge files too)'], ['While the King is out', 'It stops firing'], ['If it falls', 'You lose, unless the King is out: then the match goes on until he is defeated']], prio: PRIORITY.fortress, text: 'Your main tower. Destroy the enemy Fortress to win. The King lives inside it and heals there.', pat: 'fortress', legend: 'Red dots: the squares it can hit.' };
-    if (id === 'bastion') return { name: 'Bastion', tag: 'Tower \u00B7 2x2', rows: [['Health', K.BASTION_HP], ['Damage', K.BASTION_DMG], ['Fires every', secs(K.BASTION_CD)], ['Range', K.TOWER_RANGE + ' squares from its edge']], prio: PRIORITY.bastion, text: 'Each side has two, guarding the bridges. Destroying them wins on towers at time up and opens the way to the Fortress.', pat: 'bastion', legend: 'Red dots: the squares it can hit.' };
-    if (id === 'k') return { name: 'King', tag: 'Your King', rows: [['Health', K.KING_HP + ' (his own once he is out; at home he shares the Fortress\u2019s)'], ['Damage', Royale.KING.dmg], ['Acts every', secs(Royale.KING.cd)], ['Reach', 'The 8 squares next to him'], ['Steps', 'One square per action'], ['Goes out after', secs(K.KING_DELAY)], ['Recall', secs(K.KING_RECALL) + ', not in the first ' + secs(K.KING_OUT_LOCK) + ' (unless he is below 30%)'], ['Rests for', secs(K.KING_COOLDOWN) + ' after coming home'], ['Heals at home', '1 Health per second once the Fortress has been left alone for ' + secs(K.KING_REGEN_IDLE) + ' (a game option)']], prio: PRIORITY.k, text: 'Tough and hard-hitting, but he only covers the 3x3 around him. If your Fortress falls while he is out the match goes on until he is dead; he can no longer come home or heal.', pat: 'k', legend: 'Green: where he can step and hit.' };
+    if (id === 'fortress') return { name: 'Fortress', tag: 'Tower \u00B7 3x3', rows: [['Health', K.FORTRESS_HP], ['Damage', K.FORTRESS_DMG], ['Fires every', secs(K.FORTRESS_CD)], ['Range', K.FORTRESS_RANGE + ' squares sideways (the edge files too), ' + K.FORTRESS_RANGE_Y + ' forward; never across the river'], ['While the King is out', 'It stops firing'], ['If it falls', 'You lose, unless the King is out: then the match goes on until he is defeated']], prio: PRIORITY.fortress, text: 'Your main tower. Destroy the enemy Fortress to win. The King lives inside it and heals there.', pat: 'fortress', legend: 'Red dots: the squares it can hit.' };
+    if (id === 'bastion') return { name: 'Bastion', tag: 'Tower \u00B7 2x2', rows: [['Health', K.BASTION_HP], ['Damage', K.BASTION_DMG], ['Fires every', secs(K.BASTION_CD)], ['Range', K.TOWER_RANGE + ' squares from its edge; never across the river']], prio: PRIORITY.bastion, text: 'Each side has two, guarding the bridges. Destroying them wins on towers at time up and opens the way to the Fortress.', pat: 'bastion', legend: 'Red dots: the squares it can hit.' };
+    if (id === 'k') return { name: 'King', tag: 'Your King', rows: [['Health', K.KING_HP + ' (his own once he is out; at home he shares the Fortress\u2019s)'], ['Damage', Royale.KING.dmg], ['Acts every', secs(Royale.KING.cd)], ['Reach', 'The 8 squares next to him'], ['Steps', 'One square per action'], ['Goes out after', secs(K.KING_DELAY)], ['Recall', secs(K.KING_RECALL) + ', not in the first ' + secs(K.KING_OUT_LOCK) + ' (unless he is below 30%)'], ['Rests for', secs(K.KING_COOLDOWN) + ' after coming home'], ['Heals at home', '1 Health per second once the Fortress has been left alone for ' + secs(K.KING_REGEN_IDLE) + ' (a game option)']], prio: PRIORITY.k, text: 'Tough and hard-hitting, but he only covers the 3x3 around him. If your Fortress falls while he is out the match goes on until he is dead; he can no longer come home or heal. If he is killed you lose at once.', pat: 'k', legend: 'Green: where he can step and hit.' };
     rows.push(['Cost', C.cost + ' Material']);
     if (C.kind === 'piece') {
       const D = Royale.DEFS[id], ord = Royale.ORDERS[id], reach = { p: 'One step forward, hits diagonally forward', n: 'Leaps (2,1) over anything', b: 'Diagonals, up to ' + K.SLIDE_REACH + ' squares', r: 'Files and ranks, up to ' + K.SLIDE_REACH + ' squares', q: 'Any direction, up to ' + K.SLIDE_REACH + ' squares', '\u03b3': 'Leaps (3,1) over anything' }[id];
@@ -321,12 +326,12 @@ const RoyaleUI = (() => {
     const dup = el('button', 'rsmall', 'Duplicate'); dup.addEventListener('click', () => { if (newDeck(E.name + ' copy', E.cards)) deckPanel(); else deckPanel('You can keep up to ' + MAX_DECKS + ' decks.'); }); nr.appendChild(dup);
     if (!E.locked) { const del = el('button', 'rsmall danger', deckDelConfirm === E.id ? 'Really delete?' : 'Delete'); del.addEventListener('click', () => { if (deckDelConfirm === E.id) { deckDelConfirm = ''; deleteDeck(E.id); } else deckDelConfirm = E.id; deckPanel(); }); nr.appendChild(del); }
     wrap.appendChild(nr);
-    const top = el('div', 'rdecktop'), slots = el('div', 'rslots');
-    for (let i = 0; i < 8; i++) { const id = deck[i], sl = el('button', 'rslot' + (id ? ' full' : '')); if (id) { const g = el('span', 'g'); setIcon(g, id); sl.appendChild(g); sl.appendChild(el('small', '', Royale.CARDS[id].cost)); sl.title = Royale.CARDS[id].name + ' (click to remove)'; sl.addEventListener('click', () => { focusCard = id; toggleDeck(id); }); } else sl.title = 'Empty slot'; slots.appendChild(sl); }
+    const top = el('div', 'rdecktop'), slots = el('div', 'rslots'); deckSlots = [];
+    for (let i = 0; i < 8; i++) { const id = deck[i], sl = el('button', 'rslot' + (id ? ' full' : '')); if (id) { const g = el('span', 'g'); setIcon(g, id); sl.appendChild(g); sl.appendChild(el('small', '', Royale.CARDS[id].cost)); sl.title = Royale.CARDS[id].name + ' (click to remove)'; sl.addEventListener('click', () => { if (now() - deckSuppress < 350) return; focusCard = id; toggleDeck(id); }); sl.addEventListener('pointerdown', ev => deckDown({ from: 'slot', id }, ev)); } else sl.title = 'Empty slot'; sl.setAttribute('data-slot', String(i)); deckSlots.push(sl); slots.appendChild(sl); }
     top.appendChild(el('b', 'rdeckcount' + (deck.length === 8 ? ' ok' : ''), 'Cards ' + deck.length + '/8')); top.appendChild(slots); wrap.appendChild(top);
     const body = el('div', 'rdeckbody'), grid = el('div', 'rdeck');
     const tile = (id, ref) => { const inDeck = deck.indexOf(id) >= 0, b = el('button', 'rdeckcard' + (inDeck ? ' on' : '') + (focusCard === id ? ' focus' : '') + (ref ? ' ref' : '')), g = el('span', 'g'); setIcon(g, id); b.appendChild(g); b.appendChild(el('span', 'nm', nameOf(id))); if (!ref) b.appendChild(el('small', 'cs', String(Royale.CARDS[id].cost))); if (inDeck) b.appendChild(el('i', 'tick', '\u2713'));
-      b.setAttribute('data-card', id); b.addEventListener('click', () => { if (focusCard === id && !ref) { toggleDeck(id); return; } focusCard = id; deckPanel(); }); return b; };
+      b.setAttribute('data-card', id); if (!ref) b.addEventListener('pointerdown', ev => deckDown({ from: 'grid', id }, ev)); b.addEventListener('click', () => { if (now() - deckSuppress < 350) return; if (focusCard === id && !ref) { toggleDeck(id); return; } focusCard = id; deckPanel(); }); return b; };
     Royale.CARD_IDS.forEach(id => grid.appendChild(tile(id, false)));
     const refRow = el('div', 'rdeck rref'); ['fortress', 'bastion', 'k'].forEach(id => refRow.appendChild(tile(id, true)));
     const left = el('div', 'rdeckleft'); left.appendChild(el('h3', 'rsec', 'Cards')); left.appendChild(grid); left.appendChild(el('h3', 'rsec', 'Always in play')); left.appendChild(refRow);
@@ -339,6 +344,29 @@ const RoyaleUI = (() => {
     if (msg) wrap.appendChild(el('p', 'rnetmsg', msg));
     showPanel('Deck', '', [wrap], [], { back: { label: 'Done', go: menu } });
   }
+  // drag cards: rearrange inside the deck, drag one in from the list, or drag one out (drop it anywhere that is not a slot)
+  const slotAt = e => { for (let i = 0; i < deckSlots.length; i++) { const r = deckSlots[i].getBoundingClientRect(); if (e.clientX >= r.left - 3 && e.clientX <= r.right + 3 && e.clientY >= r.top - 6 && e.clientY <= r.bottom + 6) return i; } return -1; };
+  function deckDown(src, e) {
+    if (e.button != null && e.button !== 0) return; deckDrag = { src, x0: e.clientX, y0: e.clientY, on: false }; const b = e.currentTarget;
+    if (b && b.setPointerCapture && e.pointerId != null) { try { b.setPointerCapture(e.pointerId); } catch (err) { /* not fatal */ } }
+    const mv = ev => deckMove(ev), up = ev => { if (b && b.removeEventListener) { b.removeEventListener('pointermove', mv); b.removeEventListener('pointerup', up); b.removeEventListener('pointercancel', up); } deckUp(ev); };
+    if (b && b.addEventListener) { b.addEventListener('pointermove', mv); b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); }
+  }
+  function deckMove(e) {
+    const d = deckDrag; if (!d) return; if (!d.on && Math.hypot(e.clientX - d.x0, e.clientY - d.y0) > 7) { d.on = true; setIcon(dragGhost.g, d.src.id); dragGhost.className = 'rdragghost'; }
+    if (d.on) { dragGhost.style.left = e.clientX + 'px'; dragGhost.style.top = e.clientY + 'px'; dragGhost.style.width = dragGhost.style.height = '54px'; const j = slotAt(e); deckSlots.forEach((sl, i) => { sl.className = sl.className.replace(' drop', '') + (i === j ? ' drop' : ''); }); }
+  }
+  function deckUp(e) { const d = deckDrag; deckDrag = null; dragGhost.className = 'rdragghost hidden'; if (!d || !d.on) return; deckSuppress = now(); deckDrop(d.src, slotAt(e)); }
+  function deckDrop(src, j) {                                            // j = the slot it was dropped on (-1: off the slots)
+    const id = src.id; let note = '';
+    if (activeDeck === 'default') { if (!newDeck('Custom deck', Royale.DEFAULT_DECK)) return deckPanel('You can keep up to ' + MAX_DECKS + ' decks.'); note = 'The Default deck cannot be changed, so this is a copy called \u201CCustom deck\u201D.'; }
+    const from = deck.indexOf(id);
+    if (j < 0) { if (src.from === 'slot' && from >= 0) deck.splice(from, 1); }                       // dragged out
+    else if (from >= 0) { if (j >= deck.length) { deck.splice(from, 1); deck.push(id); } else { const o = deck[j]; deck[j] = id; deck[from] = o; } }      // rearranged: the two swap
+    else if (j >= deck.length) { if (deck.length < 8) deck.push(id); }
+    else if (deck.length < 8) deck.splice(j, 0, id); else deck[j] = id;                                // a new card into a full deck replaces the one it lands on
+    focusCard = id; saveDecks(); deckPanel(note);
+  }
   function toggleDeck(id) {
     let note = ''; if (activeDeck === 'default') { if (!newDeck('Custom deck', Royale.DEFAULT_DECK)) return deckPanel('You can keep up to ' + MAX_DECKS + ' decks.'); note = 'The Default deck cannot be changed, so this is a copy called \u201CCustom deck\u201D (rename it any time).'; }
     const i = deck.indexOf(id); if (i >= 0) deck.splice(i, 1); else if (deck.length < 8) deck.push(id); focusCard = id; saveDecks(); deckPanel(note);
@@ -347,11 +375,11 @@ const RoyaleUI = (() => {
     const K = Royale.CONSTANTS, P = (h, t) => { const d = el('div', 'rhelpblock'); d.appendChild(el('b', '', h)); d.appendChild(el('p', 'rhelp', t)); return d; };
     return [P('The goal', 'Break the enemy Fortress (the big tower at the far end) before yours falls. At time up the side with more towers, then more tower health, wins; a tie goes to sudden death.'),
       P('Material and cards', 'Cards cost Material, which refills over time and speeds up as the match goes on: x1.5 after 1:00, x2 after 2:00 and x3 in overtime. Pieces then fight on their own; spells, orders and the King are yours to aim.'),
-      P('Playing a card', 'Press Q, W, E or R, or click a card, then click a lit square on your half. Or drag the card onto the board. A ghost shows where it will land. Spells can go anywhere.'),
+      P('Playing a card', 'Press Q, W, E or R, or click a card, then click a lit square on your half. Or drag the card onto the board. A ghost shows where it will land. If the square is taken the placement waits (orange, up to 3 s) and nothing is spent until it is placed. Spells can go anywhere on your side; a Barricade can also go on a bridge.'),
       P('How pieces attack', 'Pawns, knights and the Camel hit from where they stand. Bishops, rooks and queens slide next to their target and then hit it. Each piece has a Priority (see it in the Deck screen). Towers shoot the most valuable piece in range. A slash or shot line shows who is hitting whom (gold = yours, red = theirs).'),
       P('Selecting pieces', 'Click, shift-click to add, drag a box over empty squares, double-click a piece to select every piece of that type, A for all. Ctrl+1 to 5 saves a group, 1 to 5 brings it back, Escape clears.'),
       P('Orders', 'Attack, Hold (guard your half) and Promote (pawns run for the back rank). Knights, rooks and the Camel follow their own plan and take no orders.'),
-      P('The King', 'Send King, then click a square. He has his own Health once he is out (at home he shares the Fortress\u2019s), hits the 8 squares around him, and heals at home. After going out he cannot be recalled for ' + secs(K.KING_OUT_LOCK) + ' (unless he is below 30%). While he is out your Fortress stops shooting. If your Fortress falls while he is out, the match goes on until he is defeated.'),
+      P('The King', 'Send King, then click a square. He has his own Health once he is out (at home he shares the Fortress\u2019s), hits the 8 squares around him, and heals at home. After going out he cannot be recalled for ' + secs(K.KING_OUT_LOCK) + ' (unless he is below 30%). While he is out your Fortress stops shooting. If your Fortress falls while he is out, the match goes on until he is defeated. If he is killed you lose at once.'),
       P('Friends', 'Host a match, send the link, and press Start when they have joined. If someone drops, the match waits up to a minute. Spectators can use the Watch link. Chat appears on the right in friend matches. Use the Games button (top left) to go back to classic chess.')];
   }
   function openGuide() { holdForOverlay(); drawerBody.innerHTML = ''; guideBlocks().forEach(n => drawerBody.appendChild(n)); drawer.className = 'rdrawer'; drawerOn = true; }
@@ -424,10 +452,10 @@ const RoyaleUI = (() => {
   function resetUi() {
     sel = -1; kingMode = false; picked = new Set(); groups = {}; hover = null; drag = null; cardDrag = null; lastClick = null; fx = []; before = {}; paused = false; optPaused = false; pauseBtn.textContent = 'Pause'; toast(''); infoEl.textContent = '';
     [hitAt, towerHitAt, shakeAt, deployAt].forEach(m => Object.keys(m).forEach(k => { delete m[k]; })); closeOverlay(true); dragGhost.className = 'rdragghost hidden';
-    stats = newStats(); sideOf = {}; unitOf = {}; low = false; lowWarned = false; autoRecallAt = -99; mode = 'play'; lastTime = now(); hidePanel(); chatWrap.style.display = net ? '' : 'none'; resize();
+    stats = newStats(); sideOf = {}; unitOf = {}; low = false; lowWarned = false; autoRecallAt = -99; prevKingLow = false; prevFortLow = false; ending = false; shakeUntil = 0; rematchAsked = false; guestWantsRematch = false; if (canvas) canvas.style.transform = ''; mode = 'play'; lastTime = now(); hidePanel(); chatWrap.style.display = net ? '' : 'none'; resize();
   }
   const kingCfg = () => (game.kingHeal === 'off' ? { KING_REGEN: 0 } : game.kingHeal === 'fast' ? { KING_REGEN: 3, KING_REGEN_IDLE: 4 } : {});
-  const matchCfg = oppFb => Object.assign({ PROMO_FALLBACK: { w: game.fb, b: oppFb }, ORDER_COOLDOWN: game.orderCd * 4 }, kingCfg());
+  const matchCfg = oppFb => Object.assign({ PROMO_FALLBACK: { w: settings.fb, b: oppFb }, ORDER_COOLDOWN: game.orderCd * 4 }, kingCfg());
   function newSeed() { return (Math.floor(now() * 1000) % 65535) + 1; }
   function startBot() {
     leaveNet(); const seed = newSeed(); me = 'w'; names = { w: '', b: '' }; pfps = { w: '', b: '' }; sim = Royale.create({ seed, decks: { w: deck.slice(), b: Royale.DEFAULT_DECK.slice() }, cfg: matchCfg(true) }); bot = Royale.bot(level, seed + 1);
@@ -476,6 +504,8 @@ const RoyaleUI = (() => {
       onSpectator: () => { specN = net.specCount; updateOpp(); if (sim && mode === 'play') { net.sendSpecs(startMsg(false)); net.sendSpecs({ type: 'ry_state', st: sim.view('s'), ev: [] }); } else net.sendSpecs({ type: 'ry_wait', name: names.w, pfp: pfps.w }); },
       onSpecClose: () => { specN = net ? net.specCount : 0; updateOpp(); },
       onCmd: m => { if (!sim || mode !== 'play' || graceTimer || !m.cmd || typeof m.cmd !== 'object') return; const res = sim.command('b', cleanCmd(m.cmd)); if (net) net.send({ type: 'ry_res', rid: m.rid, ok: res.ok, reason: res.reason || '' }); },
+      onReact: m => { const t = now(); if (typeof m.e !== 'string' || emotes().indexOf(m.e) < 0 || t - (hostChatAt.react || 0) < 600) return; hostChatAt.react = t; showEmote('b', m.e); net.sendAll({ type: 'ry_react', e: m.e, from: 'b' }); },
+      onRematch: () => rematchWanted(),
       onChat: (m, who) => { const t = now(), txt = cleanTxt(m.text, 200); if (!txt || (hostChatAt[who] && t - hostChatAt[who] < 600)) return; hostChatAt[who] = t; broadcastChat(who === 'guest' ? 'b' : 's', who === 'guest' ? (names.b || 'Guest') : 'Spectator', txt); },
       onClose: () => guestDropped(), onError: e => { netInfo = e; menu(); } }, { code: typed });
     if (!net) { netInfo = netInfo || 'Could not open a room.'; menu(); }
@@ -500,7 +530,7 @@ const RoyaleUI = (() => {
   }
   function connect() {
     net = RoyaleNet.join(lastRoom.code, {
-      onOpen: () => { if (net) net.send({ type: 'ry_hello', deck: deck.slice(), fb: game.fb, name: myNameSafe(), pfp: myPfp(), tok: myTok(), spec: lastRoom.spec }); },
+      onOpen: () => { if (net) net.send({ type: 'ry_hello', deck: deck.slice(), fb: settings.fb, name: myNameSafe(), pfp: myPfp(), tok: myTok(), spec: lastRoom.spec }); },
       onMsg: onNetMsg, onClose: () => connLost(),
       onError: e => { if (reconnecting) { scheduleRecon(e); return; } leaveNet(); netInfo = e; me = 'w'; menu(); } });
   }
@@ -526,6 +556,7 @@ const RoyaleUI = (() => {
       before = {}; const pos = {}; sim.st.units.forEach(u => { before[u.id] = [u.x, u.y]; pos[u.id] = [u.x, u.y]; });
       noteSides(); sim.loadState(m.st); lastTime = now(); handleEvents(Array.isArray(m.ev) ? m.ev : [], pos); afterStep();
     } else if (m.type === 'ry_res' && m.ok === false) toast(cap(String(m.reason || 'That did not work')));
+    else if (m.type === 'ry_react' && typeof m.e === 'string' && emotes().indexOf(m.e) >= 0) showEmote(m.from === 'b' ? 'b' : 'w', m.e);
     else if (m.type === 'ry_chat' && typeof m.text === 'string') addChat(['w', 'b', 's'].indexOf(m.who) >= 0 ? m.who : 's', cleanTxt(m.name, 24), cleanTxt(m.text, 200));
     else if (m.type === 'ry_bye') byeSeen = true;
   }
@@ -560,6 +591,7 @@ const RoyaleUI = (() => {
       else if (e.e === 'promote' && e.id != null) { const u = curU(e.id); if (u) { st(u.side).promos++; if (unitOf[e.id]) unitOf[e.id].t = e.to; if (fl) push({ k: 'promo', x: u.x, y: u.y }); if (u.side === me) sfxSafe('ping'); } }
       else if (e.e === 'towerDown') { const tw = twr(e.tower), c = towerCentre(e.tower); if (tw) st(other(tw.side)).towersDown++; if (c && fl) push({ k: 'boom', x: c[0], y: c[1] }); }
       else if (e.e === 'kingHome' && e.side === me) toast('Your King is home.');
+      else if (e.e === 'premoveCancel' && e.side === me) toast('No free square: placement cancelled, nothing was spent.');
       if (e.e === 'hit' || e.e === 'kill' || e.e === 'towerHit' || e.e === 'towerFire') {
         const a = e.tower && e.e !== 'towerHit' ? null : unitOf[e.id], tw = e.tower ? twr(e.tower) : null, tgtU = e.target != null ? (unitOf[e.target] || (curU(e.target) ? { side: curU(e.target).side } : null)) : null;
         const dmg = e.dmg || 0, A = e.e === 'towerFire' || (e.e === 'kill' && e.tower != null) ? (towerCentre(e.tower)) : (e.id != null ? at(e.id) : null);
@@ -588,10 +620,35 @@ const RoyaleUI = (() => {
   }
   function afterStep() {
     picked.forEach(id => { if (!sim.st.units.some(u => u.id === id)) picked.delete(id); });
-    hud(); if (sim.st.over && mode === 'play') over();
+    hud(); if (sim.st.over && mode === 'play' && !ending) finishMatch();
   }
   const barsOf = (s, side) => { const f = s.towers.find(t => t.side === side && t.kind === 'fortress'), b = s.towers.filter(t => t.side === side && t.kind === 'bastion').sort((p, q) => p.x0 - q.x0); return { f, b }; };
+  function askRematch(e) { if (rematchAsked || !net) return; rematchAsked = true; net.send({ type: 'ry_rematch' }); const b = e && (e.currentTarget || e.target); if (b) { b.textContent = 'Rematch requested\u2026'; b.className = ''; } }
+  function rematchWanted() {                                             // host: the guest asked
+    guestWantsRematch = true; toast('Your friend wants a rematch');
+    const hit = n => { if ((n.tagName || n.tag || '').toLowerCase() === 'button' && /^Rematch/.test(n.textContent)) { n.textContent = 'Rematch (your friend asked)'; return true; } return Array.from(n.children || []).some(hit); }; if (mode === 'over') hit(panelBody);
+  }
+  const EMOTE_LIST = ['\uD83D\uDC4D', '\uD83D\uDE02', '\uD83D\uDE2E', '\uD83D\uDE22', '\uD83D\uDE21', '\uD83D\uDD25', '\uD83E\uDD1D', '\uD83D\uDC4F'];
+  const emotes = () => (typeof REACTS !== 'undefined' && Array.isArray(REACTS) && REACTS.length ? REACTS : EMOTE_LIST);
+  function showEmote(side, e) {                                          // a little burst of the emoji from the sender's side of the board, like reactions in classic chess
+    if (!root || !wrapEl) return; const r = wrapEl.getBoundingClientRect(), mine = spec ? side === 'w' : side === me, ax = r.left + r.width / 2, ay = mine ? r.bottom - Math.min(90, r.height * 0.12) : r.top + Math.min(90, r.height * 0.12), dir = mine ? -1 : 1;
+    const tag = el('div', 'rreact tag', playerInfo(side).name); tag.style.left = ax + 'px'; tag.style.top = ay + 'px'; root.appendChild(tag); const bits = [tag];
+    for (let i = 0; i < 6; i++) { const b = el('div', 'rreact', e); b.style.left = (ax + (Math.random() - 0.5) * 120) + 'px'; b.style.top = ay + 'px'; root.appendChild(b); bits.push(b);
+      if (b.animate) b.animate([{ transform: 'translateY(0) scale(.5)', opacity: 0 }, { opacity: 1, offset: 0.15 }, { transform: 'translateY(' + (dir * (120 + Math.random() * 90)) + 'px) scale(' + (1.2 + Math.random() * 0.6) + ')', opacity: 0 }], { duration: 1500 + Math.random() * 500, delay: i * 90, easing: 'ease-out', fill: 'both' }); }
+    later(() => { bits.forEach(b => { try { if (b.parentNode && root.removeChild) root.removeChild(b); } catch (err) { /* already gone */ } }); }, 2600);
+  }
+  function sendEmote(e) {
+    if (emotes().indexOf(e) < 0 || spec || mode !== 'play' && mode !== 'over') return; const t = now(); if (t - lastEmoteAt < 900) return; lastEmoteAt = t; showEmote(me, e);
+    if (net && netRole === 'host') net.sendAll({ type: 'ry_react', e, from: me }); else if (net && netRole === 'guest') net.send({ type: 'ry_react', e });
+    else if (bot && Math.random() < 0.5) later(() => showEmote(other(me), ['\uD83D\uDE02', '\uD83D\uDC4D', '\uD83D\uDD25', '\uD83E\uDD1D'][Math.floor(Math.random() * 4)]), 900 + Math.random() * 900);
+  }
+  function finishMatch() {                                               // the Fortress (or King) falls: a short show, then the report
+    ending = true; stopTicking(); const loser = sim.st.winner ? other(sim.st.winner) : null, F = loser ? sim.st.towers.find(w => w.side === loser && w.kind === 'fortress') : null, t0 = now();
+    if (settings.flash && F) { const cx = F.x0 + (F.w - 1) / 2, cy = F.y0 + (F.h - 1) / 2; for (let i = 0; i < 7; i++) fx.push({ k: 'boom', x: cx + (Math.random() - 0.5) * 2.4, y: cy + (Math.random() - 0.5) * 2, t0: t0 + i * 230 }); fx.push({ k: 'flashscreen', x: 0, y: 0, t0 }); shakeUntil = t0 + 1500; }
+    if (endDelay <= 0 || typeof setTimeout !== 'function') over(); else later(() => { if (mode === 'play' && ending) over(); }, endDelay);
+  }
   function over() {
+    ending = false; if (canvas) canvas.style.transform = '';
     mode = 'over'; stopTicking(); closeOverlay(true); syncRoot(); const w = sim.st.winner, r = sim.st.reason, viewer = netRole === 'spec', A = viewer ? 'w' : me, B = other(A), s = sim.snapshot(), sa = stats[A], sb = stats[B];
     const dur = Math.round(sim.st.tick * TICK() / 1000), mm = Math.floor(dur / 60) + ':' + String(dur % 60).padStart(2, '0'), who = viewer ? { A: 'White', B: 'Black' } : { A: 'You', B: 'Opponent' };
     sfxSafe(w === me ? 'ping' : 'check');
@@ -614,9 +671,12 @@ const RoyaleUI = (() => {
     const fav = top(sa.byCard, (k, v) => nameOf(k) + ' (x' + v + ')'), mvp = top(sa.byPiece, (k, v) => nameOf(k) + ' (' + v + ' damage)');
     if (fav) hl.appendChild(el('span', 'rchip', (viewer ? 'White\u2019s' : 'Your') + ' favourite card: ' + fav)); if (mvp) hl.appendChild(el('span', 'rchip', (viewer ? 'White\u2019s' : 'Your') + ' top piece: ' + mvp));
     if (hl.children.length) rep.appendChild(hl);
-    const viewerRole = netRole === 'guest' || netRole === 'spec';
-    const btns = viewerRole ? [{ label: 'Menu', on: true, go: menu }] : [{ label: netRole === 'host' ? 'Rematch' : 'Play again', on: true, go: () => (netRole === 'host' ? startHosted() : startBot()) }, { label: 'Menu', go: menu }];
-    showPanel(title, netRole === 'guest' ? 'The host can start a rematch.' : '', [rep], btns);
+    let btns, note = '';
+    if (netRole === 'spec') btns = [{ label: 'Menu', on: true, go: menu }];
+    else if (netRole === 'guest') { btns = [{ label: 'Ask for a rematch', on: true, go: askRematch }, { label: 'Menu', go: menu }]; note = 'The host starts the rematch.'; }
+    else if (netRole === 'host') btns = [{ label: 'Rematch', on: true, go: startHosted }, { label: 'Menu', go: menu }];
+    else btns = [{ label: 'Rematch: Easy', on: level === 'easy', go: () => { level = 'easy'; startBot(); } }, { label: 'Rematch: Normal', on: level === 'normal', go: () => { level = 'normal'; startBot(); } }, { label: 'Menu', go: menu }];
+    showPanel(title, note, [rep], btns);
   }
   const stopTicking = () => { if (timer) clearInterval(timer); timer = null; };
   const fail = res => { toast(res.ok ? '' : cap(res.reason)); return res.ok; };
@@ -625,7 +685,8 @@ const RoyaleUI = (() => {
     if (netRole === 'guest') { const why = sim.can(me, cmd); if (why) return { ok: false, reason: why }; if (net) net.send({ type: 'ry_cmd', cmd, rid: ++rid }); return { ok: true }; }
     return sim.command(me, cmd);
   }
-  function pick(i) { if (mode !== 'play' || spec) return; sel = sel === i ? -1 : i; kingMode = false; toast(''); hud(); }
+  const isWaiting = i => { const h = sim && sim.st.hands[me]; return !!h && (sim.st.premoves || []).some(p => p.side === me && p.card === h.hand[i]); };
+  function pick(i) { if (mode !== 'play' || spec) return; if (isWaiting(i)) { toast('That card is waiting for its square'); return; } sel = sel === i ? -1 : i; kingMode = false; toast(''); hud(); }
   function kingButton() {
     if (mode !== 'play' || paused) return; const k = sim.snapshot().king[me];
     if (k.out) { fail(submit({ type: 'recall' })); } else if (sim.st.tick < k.cd) { toast('The King is still recovering'); } else { kingMode = !kingMode; sel = -1; toast(kingMode ? 'Click a lit square to send the King out' : ''); }
@@ -635,7 +696,7 @@ const RoyaleUI = (() => {
   const overCanvas = e => { const r = canvas.getBoundingClientRect(); return e.clientX >= r.left && e.clientX < r.left + r.width && e.clientY >= r.top && e.clientY < r.top + r.height && r.width > 0; };
   function cardDown(i, e) {
     if (mode !== 'play' || paused || spec || (e.button != null && e.button !== 0)) return;
-    cardDrag = { i, x0: e.clientX, y0: e.clientY, on: false }; const b = hand[i].b; if (b.setPointerCapture && e.pointerId != null) { try { b.setPointerCapture(e.pointerId); } catch (err) { /* not fatal */ } }
+    if (isWaiting(i)) return; cardDrag = { i, x0: e.clientX, y0: e.clientY, on: false }; const b = hand[i].b; if (b.setPointerCapture && e.pointerId != null) { try { b.setPointerCapture(e.pointerId); } catch (err) { /* not fatal */ } }
   }
   function cardMove(e) {
     const d = cardDrag; if (!d) return;
@@ -718,7 +779,7 @@ const RoyaleUI = (() => {
     if (stats && stats.tickSeen !== s.tick) { stats.tickSeen = s.tick; ['w', 'b'].forEach(x => { if (s.mat[x] >= K.MAT_MAX) stats[x].full++; }); }
     hand.forEach((c, i) => { const id = h.hand[i]; if (!id) return; const d = Royale.CARDS[id];
       if (c.card !== id) { c.card = id; setIcon(c.g, id); c.n.textContent = d.name; c.b.title = d.name + ' (cost ' + d.cost + '). ' + (CARD_TEXT[id] || '') + (d.kind === 'piece' ? ' Health ' + d.hp + ', Damage ' + d.dmg + ', acts every ' + secs(d.cd) + '.' : ''); }
-      c.c.textContent = String(d.cost); c.k.textContent = HOT[i] + ' \u00B7 ' + KIND[d.kind]; c.b.className = 'rcard' + (sel === i ? ' sel' : '') + (s.mat[me] < d.cost ? ' poor' : ''); });
+      c.c.textContent = String(d.cost); c.k.textContent = HOT[i] + ' \u00B7 ' + KIND[d.kind]; c.b.className = 'rcard' + (sel === i ? ' sel' : '') + (s.mat[me] < d.cost ? ' poor' : '') + ((s.premoves || []).some(p => p.side === me && p.card === id) ? ' wait' : ''); });
     if (h.next) { if (nextEl.card !== h.next) { nextEl.card = h.next; setIcon(nextEl.g, h.next); nextEl.nm.textContent = Royale.CARDS[h.next].name; } }
     const left = s.tick < K.REGULAR ? Math.ceil((K.REGULAR - s.tick) * K.TICK_MS / 1000) : 0;
     timerEl.textContent = s.tick < K.REGULAR ? Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') : 'OVERTIME';
@@ -742,8 +803,8 @@ const RoyaleUI = (() => {
     const F = s.towers.find(t => t.side === me && t.kind === 'fortress'), danger = !!F && F.hp > 0 && F.hp / F.maxhp <= 0.3;
     if (danger !== low) { low = danger && settings.lowWarn; syncRoot(); }
     if (danger && !lowWarned) { lowWarned = true; if (settings.lowWarn) { toast('Your Fortress is in danger!'); sfxSafe('check'); } }
-    const kingLow = !!kUnit && kUnit.hp <= K.KING_LOW * kUnit.maxhp;
-    if ((danger || kingLow) && game.autoRecall && kg.out && mode === 'play' && s.tick - autoRecallAt >= 8) { const ku = kUnit; if (ku && !ku.recalling) { autoRecallAt = s.tick; submit({ type: 'recall' }); } }
+    const kingLow = !!kUnit && kUnit.hp <= K.KING_LOW * kUnit.maxhp, edge = (kingLow && !prevKingLow) || (danger && !prevFortLow); prevKingLow = kingLow; prevFortLow = danger;
+    if (edge && settings.autoRecall && kg.out && kUnit && !kUnit.recallAt && mode === 'play') submit({ type: 'recall' });       // once each time he or the Fortress drops to 30%, not over and over
   }
   function resize() {
     if (!canvas || !wrapEl) return; const r = wrapEl.getBoundingClientRect(), K = Royale.CONSTANTS, pad = 20;
@@ -751,13 +812,14 @@ const RoyaleUI = (() => {
     canvas.style.width = cell * K.W + 'px'; canvas.style.height = cell * K.H + 'px'; canvas.width = cell * K.W * dpr; canvas.height = cell * K.H * dpr; ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
   // ---- drawing
-  const FX_MS = { freeze: 750, ring: 380, num: 750, slash: 340, shot: 340, promo: 950, boom: 800, spell: 380 };
+  const FX_MS = { flashscreen: 700, freeze: 750, ring: 380, num: 750, slash: 340, shot: 340, promo: 950, boom: 800, spell: 380 };
   function render() {
     if (cardDrag && cardDrag.on && dragGhost) { ghostTilt *= 0.9; dragGhost.style.transform = 'translate(-50%, -55%) rotate(' + ghostTilt.toFixed(1) + 'deg) scale(1.08)'; }
     if (!sim || !ctx) return; const K = Royale.CONSTANTS, s = sim.st, t = now(), f = Math.min(1, (t - lastTime) / TICK());
     const X = x => (me === 'w' ? x : K.W - 1 - x) * cell, Y = y => (me === 'w' ? K.H - 1 - y : y) * cell;           // top-left pixel of the square (x, y); works for fractions too
     const RX = (x0, w) => (me === 'w' ? x0 : K.W - x0 - w) * cell, RY = (y0, h) => (me === 'w' ? K.H - y0 - h : y0) * cell;      // top-left pixel of a w x h block of squares starting at (x0, y0)
     const CX = x => X(x) + cell / 2, CY = y => Y(y) + cell / 2;
+    if (canvas) canvas.style.transform = shakeUntil > t ? 'translate(' + (Math.random() * 8 - 4).toFixed(1) + 'px, ' + (Math.random() * 8 - 4).toFixed(1) + 'px)' : '';
     const card = sel >= 0 ? s.hands[me].hand[sel] : null, info = card ? Royale.CARDS[card] : null, playing = mode === 'play';
     const text = (str, x, y, size, fill, stroke, align) => { ctx.font = 'bold ' + Math.floor(size) + 'px sans-serif'; ctx.textAlign = align || 'center'; ctx.textBaseline = 'middle'; if (stroke) { ctx.lineWidth = Math.max(2, size / 4); ctx.strokeStyle = stroke; ctx.lineJoin = 'round'; ctx.strokeText(str, x, y); } ctx.fillStyle = fill; ctx.fillText(str, x, y); };
     const iconDraw = (code, col, cx, cy, sz) => { const img = iconImage(code, col); if (!img) return false; try { ctx.drawImage(img, cx - sz / 2, cy - sz / 2, sz, sz); return true; } catch (e) { return false; } };
@@ -793,15 +855,22 @@ const RoyaleUI = (() => {
     ctx.globalAlpha = 0.6; for (let x = 0; x < K.W; x++) { const xx = me === 'w' ? x : K.W - 1 - x; text(String.fromCharCode(97 + x), X(x) + cell - 5, cell * K.H - 6, cell * 0.2, (xx + (me === 'w' ? 0 : K.H - 1)) % 2 ? PAL.l : PAL.d, null, 'right'); }
     for (let y = 0; y < K.H; y++) if (y !== K.RIVER_Y) text(String(y + 1), 4, Y(y) + 8, cell * 0.2, (y) % 2 ? PAL.l : PAL.d, null, 'left'); ctx.globalAlpha = 1;
     // lit squares for the card or King being placed
-    const lit = (x, y) => (playing && !spec && ((info && info.kind !== 'spell' && !sim.check(me, sel, x, y)) || (kingMode && !sim.can(me, { type: 'kingOut', x, y }))));
+    const lit = (x, y) => (playing && !spec && ((info && info.kind !== 'spell' && !sim.can(me, { type: 'deploy', slot: sel, x, y })) || (kingMode && !sim.can(me, { type: 'kingOut', x, y }))));
     if (playing) for (let y = 0; y < K.H; y++) for (let x = 0; x < K.W; x++) {
-      if (info && info.kind === 'spell') { ctx.fillStyle = 'rgba(255,215,0,.10)'; ctx.fillRect(X(x), Y(y), cell, cell); }
-      else if (lit(x, y)) { ctx.fillStyle = 'rgba(120,255,120,.26)'; ctx.fillRect(X(x), Y(y), cell, cell); ctx.fillStyle = 'rgba(30,120,30,.55)'; ctx.beginPath(); ctx.arc(CX(x), CY(y), cell * 0.07, 0, Math.PI * 2); ctx.fill(); }
+      if (info && info.kind === 'spell') { if (card !== 'barr' || !sim.can(me, { type: 'deploy', slot: sel, x, y })) { ctx.fillStyle = card === 'barr' ? 'rgba(255,215,0,.22)' : 'rgba(255,215,0,.10)'; ctx.fillRect(X(x), Y(y), cell, cell); } }
+      else if (lit(x, y)) { ctx.fillStyle = info && sim.check(me, sel, x, y) ? 'rgba(255,150,40,.34)' : 'rgba(120,255,120,.26)'; ctx.fillRect(X(x), Y(y), cell, cell); ctx.fillStyle = 'rgba(30,120,30,.55)'; ctx.beginPath(); ctx.arc(CX(x), CY(y), cell * 0.07, 0, Math.PI * 2); ctx.fill(); }
     }
-    s.barr.forEach(b => { ctx.fillStyle = '#5a3b1a'; ctx.fillRect(X(b.x) + 1, Y(b.y) + 1, cell - 2, cell - 2); ctx.fillStyle = '#8a5d2b'; ctx.fillRect(X(b.x) + 4, Y(b.y) + cell / 2 - 2, cell - 8, 4); });
+    const ruins = w => {                                                    // what is left of a destroyed tower: scorch, rubble and broken wall. Purely visual: nothing blocks the squares.
+      const rx = RX(w.x0, w.w), ry = RY(w.y0, w.h), pw = w.w * cell, ph = w.h * cell; let seed = w.x0 * 31 + w.y0 * 17 + 7; const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+      ctx.fillStyle = 'rgba(25,18,12,.32)'; ctx.beginPath(); ctx.ellipse(rx + pw / 2, ry + ph * 0.62, pw * 0.46, ph * 0.32, 0, 0, Math.PI * 2); ctx.fill();
+      for (let i = 0; i < 10; i++) { const sz = cell * (0.1 + rnd() * 0.16); ctx.save(); ctx.translate(rx + pw * (0.1 + rnd() * 0.8), ry + ph * (0.3 + rnd() * 0.62)); ctx.rotate(rnd() * 3); ctx.fillStyle = '#6d6a66'; ctx.fillRect(-sz, -sz * 0.6, sz * 2, sz * 1.2); ctx.strokeStyle = '#9d988f'; ctx.lineWidth = 1; ctx.strokeRect(-sz, -sz * 0.6, sz * 2, sz * 1.2); ctx.restore(); }
+      const col = w.side === 'w' ? '#d9d4c3' : '#3a3a3a', edge = w.side === 'w' ? '#4a4338' : '#bbb';
+      [[0.14, 0.4], [0.62, 0.3]].forEach(o => { const x0 = rx + pw * o[0], wd = pw * (w.w > 2 ? 0.22 : 0.3), y1 = ry + ph * 0.88; ctx.fillStyle = col; ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x0, y1); ctx.lineTo(x0, ry + ph * (0.55 + o[1] * 0.2)); ctx.lineTo(x0 + wd * 0.35, ry + ph * (0.62 + o[1] * 0.1)); ctx.lineTo(x0 + wd * 0.65, ry + ph * (0.5 + o[1] * 0.25)); ctx.lineTo(x0 + wd, ry + ph * 0.7); ctx.lineTo(x0 + wd, y1); ctx.closePath(); ctx.fill(); ctx.stroke(); });
+    };
+    s.barr.forEach(b => { const left = b.until - s.tick; ctx.globalAlpha = left < 8 && Math.floor(t / 120) % 2 ? 0.45 : 1; outlined('barr', '#f1dfae', '#3a2410', CX(b.x), CY(b.y), cell * 0.98); ctx.globalAlpha = 1; });
     // ---- towers: just their shape, as big as the squares they cover, in their side's colour with an outline (no filled square)
     s.towers.forEach(w => {
-      if (w.hp <= 0) return; const rx = RX(w.x0, w.w), ry = RY(w.y0, w.h), pw = w.w * cell, ph = w.h * cell, away = w.kind === 'fortress' && s.king[w.side].out, col = w.side === 'w' ? LIGHT : DARK, edge = w.side === 'w' ? DARK : LIGHT;
+      if (w.hp <= 0) { ruins(w); return; } const rx = RX(w.x0, w.w), ry = RY(w.y0, w.h), pw = w.w * cell, ph = w.h * cell, away = w.kind === 'fortress' && s.king[w.side].out, col = w.side === 'w' ? LIGHT : DARK, edge = w.side === 'w' ? DARK : LIGHT;
       const flash = towerHitAt[w.id] && t - towerHitAt[w.id] < 320 ? 1 - (t - towerHitAt[w.id]) / 320 : 0, sh = flash ? Math.sin(t / 22) * cell * 0.04 : 0, cx = rx + pw / 2 + sh, cy = ry + ph / 2 - cell * 0.12, sz = Math.min(pw, ph) * 0.96;
       ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(rx + pw / 2, ry + ph * 0.78, pw * 0.36, ph * 0.09, 0, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = away ? 0.4 : 1; let ok = false; [[-1.6, 0], [1.6, 0], [0, -1.6], [0, 1.6], [-1.2, -1.2], [1.2, 1.2], [-1.2, 1.2], [1.2, -1.2]].forEach(o => { ok = iconDraw(w.kind, edge, cx + o[0], cy + o[1], sz) || ok; });
@@ -836,16 +905,21 @@ const RoyaleUI = (() => {
     if (playing && !spec && hover) {
       if (info && info.kind === 'spell') { area(hover.x, hover.y, card === 'barr' ? null : info.r, 'rgba(' + SPELL_COL[card] + ',.9)', 2); if (!dragging) spellIcon(card, hover.x, hover.y); }
       else if (info || kingMode) {
-        const ok = kingMode ? !sim.can(me, { type: 'kingOut', x: hover.x, y: hover.y }) : !sim.check(me, sel, hover.x, hover.y), col = ok ? 'rgba(90,255,90,.95)' : 'rgba(255,80,80,.95)';
-        const spots = []; if (!kingMode && info.kind === 'phalanx') { const c0 = sim.phalanxX(me, hover.x, hover.y), cc = c0 == null ? hover.x : c0; [-1, 0, 1].forEach(d => spots.push([cc + d, hover.y])); } else spots.push([hover.x, hover.y]);
+        const ok = kingMode ? !sim.can(me, { type: 'kingOut', x: hover.x, y: hover.y }) : !sim.can(me, { type: 'deploy', slot: sel, x: hover.x, y: hover.y }), waiting = ok && !kingMode && !!sim.check(me, sel, hover.x, hover.y), col = ok ? (waiting ? 'rgba(255,160,50,.95)' : 'rgba(90,255,90,.95)') : 'rgba(255,80,80,.95)';
+        const spots = []; if (!kingMode && info.kind === 'phalanx') { const c0 = sim.phalanxX(me, hover.x, hover.y) ?? sim.phalanxX(me, hover.x, hover.y, true), cc = c0 == null ? hover.x : c0; [-1, 0, 1].forEach(d => spots.push([cc + d, hover.y])); } else spots.push([hover.x, hover.y]);
         spots.forEach(p => { if (!dragging) { ctx.globalAlpha = 0.6; badge(CX(p[0]), CY(p[1]), cell * 0.42, kingMode ? 'k' : (info.kind === 'phalanx' ? 'p' : card), me, kingMode); ctx.globalAlpha = 1; } ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.strokeRect(X(p[0]) + 2, Y(p[1]) + 2, cell - 4, cell - 4); if (!ok) { ctx.beginPath(); ctx.moveTo(X(p[0]) + cell * 0.25, Y(p[1]) + cell * 0.25); ctx.lineTo(X(p[0]) + cell * 0.75, Y(p[1]) + cell * 0.75); ctx.moveTo(X(p[0]) + cell * 0.75, Y(p[1]) + cell * 0.25); ctx.lineTo(X(p[0]) + cell * 0.25, Y(p[1]) + cell * 0.75); ctx.stroke(); } });
       }
     }
+    (s.premoves || []).forEach(p => {                                       // your placements waiting for a free square: orange, with a countdown ring (like a premove in chess)
+      if (p.side !== me) return; const c0 = p.card === 'ph' ? (sim.phalanxX(me, p.x, p.y, true) ?? p.x) : p.x, xs = p.card === 'ph' ? [-1, 0, 1].map(d => c0 + d) : [p.x], frac = Math.max(0, Math.min(1, (p.until - s.tick) / K.PREMOVE_TICKS));
+      xs.forEach(x => { ctx.fillStyle = 'rgba(255,150,40,.38)'; ctx.fillRect(X(x), Y(p.y), cell, cell); ctx.strokeStyle = 'rgba(255,170,60,.95)'; ctx.lineWidth = 3; ctx.strokeRect(X(x) + 2, Y(p.y) + 2, cell - 4, cell - 4); ctx.globalAlpha = 0.55; badge(CX(x), CY(p.y), cell * 0.42, p.card === 'ph' ? 'p' : p.card, me, false); ctx.globalAlpha = 1; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(CX(x), CY(p.y), cell * 0.46, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * frac); ctx.stroke(); });
+    });
     if (drag && (drag.x0 !== drag.x1 || drag.y0 !== drag.y1)) { const x0 = Math.min(drag.x0, drag.x1), x1 = Math.max(drag.x0, drag.x1), y0 = Math.min(drag.y0, drag.y1), y1 = Math.max(drag.y0, drag.y1); ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 2; ctx.strokeRect(RX(x0, x1 - x0 + 1), RY(y0, y1 - y0 + 1), cell * (x1 - x0 + 1), cell * (y1 - y0 + 1)); }
     // ---- effects: slashes and shots show who is hitting whom (gold = your side, red = theirs)
     fx = fx.filter(e => t - e.t0 < FX_MS[e.k]);
     fx.forEach(e => {
-      const k = (t - e.t0) / FX_MS[e.k];
+      const k = (t - e.t0) / FX_MS[e.k]; if (k < 0) return;
+      if (e.k === 'flashscreen') { ctx.fillStyle = 'rgba(255,255,255,' + (0.55 * (1 - k)) + ')'; ctx.fillRect(0, 0, K.W * cell, K.H * cell); return; }
       if (e.k === 'num') { const nx = CX(e.x), ny = Y(e.y) + cell * 0.2 - k * cell * 0.7; ctx.globalAlpha = 1 - k; text(e.text, nx, ny, cell * 0.5, e.mine ? '#ff6b6b' : '#fff', '#000'); ctx.globalAlpha = 1; return; }
       if (e.k === 'slash') {
         const ax = CX(e.from[0]), ay = CY(e.from[1]), bx = CX(e.to[0]), by = CY(e.to[1]), p = Math.min(1, k * 2.4), ex = ax + (bx - ax) * p, ey = ay + (by - ay) * p;
@@ -881,5 +955,5 @@ const RoyaleUI = (() => {
   if (typeof document !== 'undefined' && typeof location !== 'undefined' && document.readyState) setTimeout(autoJoin, 0);
   return { open, close, quit, _: { get sim() { return sim; }, get mode() { return mode; }, get msg() { return msgEl.textContent; }, get panelOpen() { return panel.className.indexOf('hidden') < 0; }, get rootOpen() { return visible; }, get cell() { return cell; }, get me() { return me; }, get netRole() { return netRole; }, get canvas() { return canvas; }, get panelEl() { return panel; }, get overlayEl() { return overlay; }, get overlayOn() { return overlayOn; }, get paused() { return paused; }, get ghost() { return dragGhost; }, get hand() { return hand; },
     get picked() { return Array.from(picked); }, get deck() { return deck.slice(); }, get kingMode() { return kingMode; }, get sel() { return sel; }, get selText() { return selInfo.textContent; }, get kingText() { return kingBtn.textContent; }, get info() { return infoEl.textContent; }, get settings() { return settings; }, get lowFlag() { return low; }, get stats() { return stats; }, get names() { return names; }, get chat() { return chat.slice(); }, get specN() { return specN; }, get spec() { return spec; }, get opp() { return oppEl.textContent; }, get chatShown() { return chatWrap.style.display !== 'none'; }, get panelText() { return panelBody.textContent || ''; }, get hover() { return hover; }, get fx() { return fx.slice(); },
-    get root() { return root; }, start: startBot, startBot, hostMatch, joinRoom, tick, render, pick, menu, settingsPanel: openOptions, openOptions, closeOverlay, helpPanel: openGuide, openGuide, closeDrawer, deckPanel, friendsPanel: playPanel, playPanel, quit, togglePause, cellAt, key: onKey, selectAll, sendOrder, sendPromoteTo, kingButton, onNetMsg, cleanCmd, sendChat, cardDown, cardMove, cardUp, setLevel: l => { level = l; }, setDeck: d => { decks = decks.filter(x => x.id !== '_test'); decks.push({ id: '_test', name: 'Test deck', cards: d.slice() }); activeDeck = '_test'; syncDeck(); }, setSetting: (k, v) => { settings[k] = v; }, setGame: (k, v) => { game[k] = v; }, get game() { return game; }, get drawerOn() { return drawerOn; }, get decks() { return decks.slice(); }, get activeDeck() { return activeDeck; }, get pfps() { return pfps; }, get palette() { return boardColors(); }, newDeck, renameDeck, deleteDeck, toggleDeck, optionsBox, gameOptionsText: GAME_TEXT, userOptionsText: SETTING_TEXT } };
+    get root() { return root; }, start: startBot, startBot, hostMatch, joinRoom, tick, render, pick, menu, sendEmote, showEmote, deckDrop, deckDown, askRematch, finishMatch, setEndDelay: n => { endDelay = n; }, get ending() { return ending; }, settingsPanel: openOptions, openOptions, closeOverlay, helpPanel: openGuide, openGuide, closeDrawer, deckPanel, friendsPanel: playPanel, playPanel, quit, togglePause, cellAt, key: onKey, selectAll, sendOrder, sendPromoteTo, kingButton, onNetMsg, cleanCmd, sendChat, cardDown, cardMove, cardUp, setLevel: l => { level = l; }, setDeck: d => { decks = decks.filter(x => x.id !== '_test'); decks.push({ id: '_test', name: 'Test deck', cards: d.slice() }); activeDeck = '_test'; syncDeck(); }, setSetting: (k, v) => { settings[k] = v; }, setGame: (k, v) => { game[k] = v; }, get game() { return game; }, get drawerOn() { return drawerOn; }, get decks() { return decks.slice(); }, get activeDeck() { return activeDeck; }, get pfps() { return pfps; }, get palette() { return boardColors(); }, newDeck, renameDeck, deleteDeck, toggleDeck, optionsBox, gameOptionsText: GAME_TEXT, userOptionsText: SETTING_TEXT } };
 })();

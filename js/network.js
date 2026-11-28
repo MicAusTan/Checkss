@@ -93,7 +93,9 @@ function handleMessage(msg) {
       if (wantsDraft()) draft = { kind: firstDraftKind(), mine: null, picked: null };
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
       $('rematchBtn').classList.remove('hidden'); render(); break;
-    case 'move': if (game.move(msg.m)) { sel = null; announce(); render(); } break;
+    case 'move': if (game.move(msg.m)) { sel = null; announce(); render(); } else if (isHost) hostRefreshGuest(); else askResync(); break;       // a move that does not fit means the boards have drifted apart: refresh from the host
+    case 'resync': case 'mcount':                          // the guest asks to be refreshed, or reports how many moves it has: the host answers with the whole game if the counts differ
+      if (isHost && game && !game.multi && !M && !A4 && (msg.type === 'resync' || (ml && ml.items && msg.n !== ml.items.length))) hostRefreshGuest(); break;
     case 'resign':
       over = resignText(msg.color); addChat('', over, 'event');
       overRes = msg.color === 'w' ? 'b' : 'w'; render(); break;
@@ -255,3 +257,7 @@ function joinFail(type) {                                         // the first c
   $('lobbyMsg').textContent = nf ? 'Room not found.' : 'Could not connect: ' + type;
 }
 
+
+// ---- keeping two players in step: the host is the truth. Every few seconds the guest tells the host how many moves it has; a difference (a lost message, a missed move) gets the whole game re-sent.
+function hostRefreshGuest() { try { if (conn && conn.open) conn.send({ type: 'resume', rec: buildRecord(), color: myColor === 'w' ? 'b' : 'w', draft: draftFor(myColor === 'w' ? 'b' : 'w'), clk: clkSnap(), resync: true }); } catch (e) { /* the connection is closing */ } }
+setInterval(() => { try { if (!isHost && conn && conn.open && game && !game.multi && !M && !A4 && !ended() && !replay && !draft && ml && ml.items) conn.send({ type: 'mcount', n: ml.items.length }); } catch (e) { /* not connected */ } }, 5000);

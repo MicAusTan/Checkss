@@ -210,7 +210,7 @@
   #rBtns button { margin-left:6px; } @keyframes rcIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
   #hint { display:inline-block; margin:-4px 0 8px; padding:3px 10px; border-radius:999px; font-size:.88em; background:rgba(120,160,255,.16); border:1px solid rgba(120,160,255,.4); } #hint.hidden { display:none; }
   #hint.think::before { content:''; display:inline-block; width:7px; height:7px; margin-right:6px; border-radius:50%; background:currentColor; animation:hintPulse 1s infinite; } @keyframes hintPulse { 50% { opacity:.2; } }
-  #chatLog { height:110px; overflow-y:auto; background:var(--panel2); border-radius:6px; padding:8px; font-size:.9rem; margin-top:10px; }
+  #chatLog { height:220px; min-height:90px; max-height:75vh; resize:vertical; overflow-y:auto; background:var(--panel2); border-radius:6px; padding:8px; font-size:.9rem; margin-top:10px; }
   #chatLog .sys { opacity:.6; font-style:italic; }
   #chatIn { width:calc(100% - 80px); }
   #promo { display:flex; gap:6px; margin-bottom:8px; }
@@ -442,3 +442,7 @@
   .tmPick { margin-bottom:4px; } .tmBtn { padding:3px 10px; margin:2px 6px 2px 0; font-size:.85rem; } .tmBtn.mine { outline:2px solid #fff; } .tmBtn:disabled { opacity:.55; cursor:default; }
 
   .dc-votes { display:block; margin-top:6px; min-height:1.1em; font-size:.78rem; font-weight:bold; color:#ffd36b; } .dc-votes.none { visibility:hidden; }
+
+/* mode previews keep their proportions (wide boards like Austang Grand were squashed into a square) */
+.mcard canvas, #modeBtn canvas { object-fit:contain; }
+#chatLog { resize:vertical; }

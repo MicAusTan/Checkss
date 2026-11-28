@@ -14,16 +14,17 @@ const Royale = (() => {
     TICK_MS: 250, REGULAR: 720, OVERTIME: 240, DOUBLE_FROM: 480,            // 3:00 + 1:00 overtime; double Material from 2:00
     MAT_START: 5, MAT_MAX: 10, MAT_PTS: 22, REGEN: 2, REGEN2: 4,           // 22 points = 1 Material; +2/tick = 1 per 2.75 s
     MAT_RATE: [[0, 2], [240, 3], [480, 4], [720, 6]],                       // [from tick, points per tick]: x1 until 1:00, x1.5 until 2:00, x2 in the last minute, x3 in overtime (like Clash)
-    HAND: 4, FORTRESS_HP: 24, BASTION_HP: 12,                                // bot matches at 12/6 lasted ~65 s median, at 24/12 ~120 s (regulation is 180 s)
+    HAND: 4, FORTRESS_HP: 28, BASTION_HP: 14,                                // bot matches at 12/6 lasted ~65 s median, at 24/12 ~120 s (regulation is 180 s)
     PAWN_MOVE_MODE: 'slow',                                                 // only 'slow' exists so far
     PAWN_FRONT_BLOCKS_ATTACK: 'enemy',                                      // 'enemy' | 'any'
-    TOWERS_FIRE: true, FORTRESS_DMG: 2, FORTRESS_CD: 12, BASTION_DMG: 2, BASTION_CD: 16, TOWER_RANGE: 3,   // tower fire: Fortress every 3 s, Bastion every 4 s, damage 2, reach 3 squares (= the longest piece reach, so nothing can out-range a tower)
+    TOWERS_FIRE: true, FORTRESS_DMG: 3, FORTRESS_CD: 10, BASTION_DMG: 1, BASTION_CD: 4, TOWER_RANGE: 3,   // tower fire: Fortress every 3 s, Bastion every 4 s, damage 2, reach 3 squares (= the longest piece reach, so nothing can out-range a tower)
     SLIDE_REACH: 3, STEP: { b: 2, r: 2, q: 2, k: 1 },                             // sliders attack up to 3 squares away but travel 2 per action (pacing assumption, tune)
     ORDER_COOLDOWN: 8,                                                      // per-piece wait between orders (2 s); 0 disables
     PROMO_FALLBACK: true, PROMO_HEALTH_FRAC: 1,                             // a pawn whose chosen piece is taken falls back to the best available; promoted pieces start at full Health
     KING_DELAY: 4, KING_RECALL: 6, KING_COOLDOWN: 40, FORWARD_ROWS: 3,
     KING_HP: 14, KING_OUT_LOCK: 20, KING_LOW: 0.3, KING_REGEN: 1, KING_REGEN_CD: 4, KING_REGEN_IDLE: 12,   // King: own Health (shared with the Fortress only while he is home); cannot be recalled for 5 s after going out unless his Health is low (30%); at home he heals KING_REGEN every 1 s once the Fortress has not been hit for 3 s (KING_REGEN 0 = no healing)
-    FORTRESS_RANGE: 4,                                                    // the Fortress reaches 4 squares (all the way to the board edge files); Bastions keep TOWER_RANGE      // King: lands after 1 s, recall channel 1.5 s, 10 s before he can go out again; a lost Bastion opens 3 ranks past the river
+    FORTRESS_RANGE: 4, FORTRESS_RANGE_Y: 3, KING_LOW_CD: 40, PREMOVE_TICKS: 12, BARR_GRACE: 4,   // a deploy onto an occupied square waits up to 3 s (a 'premove'); a Barricade square blocked by a piece waits 1 s
+                                                        // the Fortress reaches 4 squares (all the way to the board edge files); Bastions keep TOWER_RANGE      // King: lands after 1 s, recall channel 1.5 s, 10 s before he can go out again; a lost Bastion opens 3 ranks past the river
     REACH: { k: 1 }, KNIGHT_MEMORY: 2                                                        // a knight will not return to the last N squares it left
   };
   // cd / delay in ticks (x 0.25 s). The five classic pieces all use a 1.0 s cooldown for now (user's call); later/custom pieces get their own intervals. Camel code = the existing Camel piece code (so skins and names carry over).
@@ -34,7 +35,7 @@ const Royale = (() => {
     b:     { name: 'Bishop', cost: 3, hp: 3, dmg: 2, cd: 4, init: 4, delay: 4 },
     r:     { name: 'Rook',   cost: 4, hp: 4, dmg: 3, cd: 4, init: 2, delay: 5 },
     q:     { name: 'Queen',  cost: 7, hp: 5, dmg: 4, cd: 4, init: 4, delay: 6 },
-    [CAMEL]: { name: 'Camel', cost: 2, hp: 1, dmg: 2, cd: 4, init: 5, delay: 2 }
+    [CAMEL]: { name: 'Camel', cost: 4, hp: 3, dmg: 2, cd: 4, init: 5, delay: 2 }
   };
   const KING = { name: 'King', hp: 14, dmg: 3, cd: 4, init: 3, delay: 4 };     // the royal: not a card; hp is mirrored from the Fortress pool
   // spells: r = Chebyshev radius of the area (1 = 3x3, 2 = 5x5), delay = cast delay in ticks
@@ -66,8 +67,8 @@ const Royale = (() => {
     const decks = { w: (opts.decks && opts.decks.w || DEFAULT_DECK).slice(), b: (opts.decks && opts.decks.b || DEFAULT_DECK).slice() };
     ['w', 'b'].forEach(s => { if (decks[s].length < K.HAND + 1) throw new Error('deck needs at least ' + (K.HAND + 1) + ' cards'); decks[s].forEach(c => { if (!CARDS[c]) throw new Error('unknown card ' + c); }); });
 
-    function newKing() { return { out: false, cd: 0, hp: K.KING_HP, dead: false, lock: 0, hurt: -999 }; }
-    const st = { tick: 0, units: [], towers: [], mat: { w: K.MAT_START * K.MAT_PTS, b: K.MAT_START * K.MAT_PTS }, hands: {}, over: false, winner: null, reason: '', sudden: false, spells: [], barr: [], king: { w: newKing(), b: newKing() } };
+    function newKing() { return { out: false, cd: 0, hp: K.KING_HP, dead: false, lock: 0, hurt: -999, lowCd: 0 }; }
+    const st = { tick: 0, barrWait: [], premoves: [], units: [], towers: [], mat: { w: K.MAT_START * K.MAT_PTS, b: K.MAT_START * K.MAT_PTS }, hands: {}, over: false, winner: null, reason: '', sudden: false, spells: [], barr: [], king: { w: newKing(), b: newKing() } };
     let nextId = 1, nextBorn = 1, pending = [], events = [];
     const log = [];
     ['w', 'b'].forEach((s, i) => { const order = doShuffle ? shuffle(decks[s].slice(), rng(seed * 2 + i + 1)) : decks[s].slice(); st.hands[s] = { hand: order.slice(0, K.HAND), queue: order.slice(K.HAND) }; });
@@ -134,10 +135,10 @@ const Royale = (() => {
     const costOf = t => (DEFS[t] || { cost: 9 }).cost;                  // the King counts as the most valuable target
     const cheb = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
     // single-action destinations of a walker/leaper from (x, y): terrain and standing units block
-    function stepOpts(type, x, y) {
+    function stepOpts(type, x, y, ghost) {                              // ghost: plan THROUGH pieces (they will move); only the first step must be a free square
       const m = MOVES[type], out = []; if (!m) return out;
-      if (m.leap) m.leap.forEach(d => { const nx = x + d[0], ny = y + d[1]; if (walkable(nx, ny) && !unitAt(nx, ny)) out.push({ x: nx, y: ny, dx: d[0] }); });
-      if (m.slide) m.slide.forEach(d => { for (let k = 1; k <= stepLen(type); k++) { const nx = x + d[0] * k, ny = y + d[1] * k; if (!walkable(nx, ny) || unitAt(nx, ny)) break; out.push({ x: nx, y: ny, dx: d[0] }); } });
+      if (m.leap) m.leap.forEach(d => { const nx = x + d[0], ny = y + d[1]; if (walkable(nx, ny) && (ghost || !unitAt(nx, ny))) out.push({ x: nx, y: ny, dx: d[0] }); });
+      if (m.slide) m.slide.forEach(d => { for (let k = 1; k <= stepLen(type); k++) { const nx = x + d[0] * k, ny = y + d[1] * k; if (!walkable(nx, ny) || (!ghost && unitAt(nx, ny))) break; out.push({ x: nx, y: ny, dx: d[0] }); } });
       return out;
     }
     // breadth-first search over actions: the first step of a shortest path to any square where goal(x, y) holds (null = already there / no path)
@@ -147,7 +148,7 @@ const Royale = (() => {
       while (layer.length) {
         const next = [];
         for (const n of layer) {
-          const opts = stepOpts(u.t, n.x, n.y); if (pref && !n.first) opts.sort(pref);
+          const opts = stepOpts(u.t, n.x, n.y, !!n.first); if (pref && !n.first) opts.sort(pref);
           for (const o of opts) { const key = o.y * K.W + o.x; if (seen.has(key)) continue; seen.add(key); const f = n.first || o; if (goal(o.x, o.y)) return f; next.push({ x: o.x, y: o.y, first: f }); }
         }
         layer = next;
@@ -163,8 +164,8 @@ const Royale = (() => {
       v.hp -= dmg;
       if (v.king) {
         const k = st.king[v.side]; k.hp = Math.max(0, v.hp); v.recallAt = 0;
-        if (v.hp <= 0) { k.dead = true; k.out = false; const F = fortressOf(v.side); if (!F || F.hp <= 0) end(other(v.side), 'king defeated'); return true; }
-        if (v.hp <= K.KING_LOW * v.maxhp) k.lock = 0;                    // hurt badly: he may be recalled at once
+        if (v.hp <= 0) { k.dead = true; k.out = false; end(other(v.side), 'king defeated'); return true; }       // the King is the piece that matters most: if he dies the game is lost
+        if (v.hp <= K.KING_LOW * v.maxhp && st.tick >= (k.lowCd || 0)) { k.lock = 0; k.lowCd = st.tick + K.KING_LOW_CD; }          // hurt badly: he may be recalled at once (this reset has its own cooldown of 10 s)
         return false;
       }
       return v.hp <= 0;
@@ -302,8 +303,9 @@ const Royale = (() => {
     function towerFire(t) {                                              // Fortress garrison / Bastion: hits the weakest enemy within TOWER_RANGE on its own timer
       if (st.over || t.hp <= 0 || t.ready > st.tick) return;
       if (t.kind === 'fortress' && st.king[t.side].out) return;            // the garrison is silent while the King is away (a fallen King no longer silences it)
-      const gap = v => Math.max(Math.max(t.x0 - v.x, 0, v.x - (t.x0 + t.w - 1)), Math.max(t.y0 - v.y, 0, v.y - (t.y0 + t.h - 1))), range = t.kind === 'fortress' ? K.FORTRESS_RANGE : K.TOWER_RANGE;
-      const c = st.units.filter(v => v.side !== t.side && gap(v) <= range).sort((a, b) => (v => (v.king ? 99 : costOf(v.t)))(b) - (v => (v.king ? 99 : costOf(v.t)))(a) || a.hp - b.hp || gap(a) - gap(b) || a.id - b.id); if (!c.length) return;   // priority: the most valuable (highest Material cost) piece in range
+      const gx = v => Math.max(t.x0 - v.x, 0, v.x - (t.x0 + t.w - 1)), gy = v => Math.max(t.y0 - v.y, 0, v.y - (t.y0 + t.h - 1)), gap = v => Math.max(gx(v), gy(v));
+      const inRange = v => (t.side === 'w' ? v.y <= K.RIVER_Y : v.y >= K.RIVER_Y) && (t.kind === 'fortress' ? gx(v) <= K.FORTRESS_RANGE && gy(v) <= K.FORTRESS_RANGE_Y : gap(v) <= K.TOWER_RANGE);   // towers never shoot across the river
+      const c = st.units.filter(v => v.side !== t.side && inRange(v)).sort((a, b) => (v => (v.king ? 99 : costOf(v.t)))(b) - (v => (v.king ? 99 : costOf(v.t)))(a) || a.hp - b.hp || gap(a) - gap(b) || a.id - b.id); if (!c.length) return;   // priority: the most valuable (highest Material cost) piece in range
       const v = c[0], dmg = t.kind === 'fortress' ? K.FORTRESS_DMG : K.BASTION_DMG, dead = dealDamage(v, dmg); ev({ e: 'towerFire', tower: t.id, target: v.id, dmg, left: Math.max(0, v.hp) });
       if (dead) { v.dead = true; st.units = st.units.filter(w => w !== v); ev({ e: 'kill', tower: t.id, target: v.id, dmg }); }
       t.ready = st.tick + (t.kind === 'fortress' ? K.FORTRESS_CD : K.BASTION_CD);
@@ -327,26 +329,27 @@ const Royale = (() => {
       return '';
     }
     // The Phalanx is 3 pawns side by side. If the square you pick would put one of them out of bounds or on a bad square, the formation slides one square over so all three fit.
-    function phalanxX(side, x, y) {
-      for (const sh of [0, -1, 1]) { const cx = x + sh; if (cx < 1 || cx > K.W - 2) continue; let ok = true; for (let d = -1; d <= 1; d++) if (squareOk(side, cx + d, y)) ok = false; if (ok) return cx; }
+    function phalanxX(side, x, y, allowTaken) {
+      for (const sh of [0, -1, 1]) { const cx = x + sh; if (cx < 1 || cx > K.W - 2) continue; let ok = true; for (let d = -1; d <= 1; d++) { const why = squareOk(side, cx + d, y); if (why && !(allowTaken && why === 'square taken')) ok = false; } if (ok) return cx; }
       return null;
     }
-    function checkDeploy(side, slot, x, y) {
+    function checkDeploy(side, slot, x, y, allowWait) {
       if (st.over) return 'game over';
       if (side !== 'w' && side !== 'b') return 'bad side';
       const hand = st.hands[side].hand; if (!(slot >= 0 && slot < hand.length)) return 'bad slot';
       const c = CARDS[hand[slot]]; if (st.mat[side] < c.cost * K.MAT_PTS) return 'not enough Material';
-      if (c.kind === 'spell') { if (!inB(x, y)) return 'off the board'; if (hand[slot] === 'barr' && (!walkable(x, y) || unitAt(x, y))) return 'blocked'; return ''; }
-      if (c.kind === 'phalanx') return phalanxX(side, x, y) == null ? 'needs 3 free squares in a row' : '';
-      return squareOk(side, x, y);
+      if (c.kind === 'spell') { if (!inB(x, y)) return 'off the board'; if (hand[slot] === 'barr') { if (side === 'w' ? y > K.RIVER_Y : y < K.RIVER_Y) return 'only on your side of the river'; if (!walkable(x, y)) return 'blocked'; } return ''; }
+      if (allowWait && st.premoves.some(p => p.side === side && p.card === hand[slot])) return 'that card is already waiting to be placed';
+      if (c.kind === 'phalanx') { if (phalanxX(side, x, y) != null) return ''; return allowWait && phalanxX(side, x, y, true) != null ? '' : 'needs 3 free squares in a row'; }
+      const why = squareOk(side, x, y); return allowWait && why === 'square taken' ? '' : why;
     }
     function validate(side, cmd) {
       if (st.over) return 'game over'; if (!cmd) return 'unknown command';
       switch (cmd.type) {
-        case 'deploy': return checkDeploy(side, cmd.slot, cmd.x, cmd.y);
+        case 'deploy': return checkDeploy(side, cmd.slot, cmd.x, cmd.y, true);
         case 'kingOut': { const k = st.king[side], F = fortressOf(side); if (k.dead) return 'the King has fallen'; if (k.out) return 'the King is already out'; if (st.tick < k.cd) return 'the King is still recovering'; if (!F || F.hp <= 0) return 'no Fortress'; return squareOk(side, cmd.x, cmd.y); }
         case 'kingOrder': return kingUnit(side) && inB(cmd.x, cmd.y) ? '' : 'the King is not out';
-        case 'recall': { const k = kingUnit(side), F = fortressOf(side); if (!k) return 'the King is not out'; if (k.recallAt) return 'already recalling'; if (!F || F.hp <= 0) return 'there is no Fortress to return to'; const ks = st.king[side]; if (st.tick < ks.lock && k.hp > K.KING_LOW * k.maxhp) return 'the King only just left: recall in ' + Math.ceil((ks.lock - st.tick) * K.TICK_MS / 1000) + ' s'; return ''; }
+        case 'recall': { const k = kingUnit(side), F = fortressOf(side); if (!k) return 'the King is not out'; if (k.recallAt) return 'already recalling'; if (!F || F.hp <= 0) return 'there is no Fortress to return to'; const ks = st.king[side]; if (st.tick < ks.lock) return 'the King only just left: recall in ' + Math.ceil((ks.lock - st.tick) * K.TICK_MS / 1000) + ' s'; return ''; }
         case 'order': return mine(side, cmd.ids).some(u => ORDERS[u.t] && ORDERS[u.t].includes(cmd.order) && st.tick >= (u.orderReady || 0)) ? '' : 'no selected piece can take that order';
         case 'promoteTo': return ['n', 'b', 'r', 'q', 'auto'].includes(cmd.piece) && mine(side, cmd.ids).some(u => u.t === 'p') ? '' : 'select pawns first';
         default: return 'unknown command';
@@ -371,7 +374,10 @@ const Royale = (() => {
     function applyCommand(c) {
       const { side, cmd } = c; if (validate(side, cmd)) return;       // state changed since it was issued: silently dropped
       switch (cmd.type) {
-        case 'deploy': return applyDeploy(side, cmd);
+        case 'deploy': {
+          if (!checkDeploy(side, cmd.slot, cmd.x, cmd.y, false)) return applyDeploy(side, cmd);
+          const card = st.hands[side].hand[cmd.slot]; st.premoves.push({ id: nextId++, side, card, x: cmd.x, y: cmd.y, until: st.tick + K.PREMOVE_TICKS }); return ev({ e: 'premove', side, card, x: cmd.x, y: cmd.y });   // the square is taken: wait for it
+        }
         case 'kingOut': { const ks = st.king[side], u = place(side, 'k', cmd.x, cmd.y, { king: true, hp: ks.hp, maxhp: K.KING_HP, ready: st.tick + K.KING_DELAY }); ks.out = true; ks.lock = st.tick + K.KING_OUT_LOCK; return ev({ e: 'kingOut', id: u.id, side, x: cmd.x, y: cmd.y }); }
         case 'kingOrder': kingUnit(side).goal = { x: cmd.x, y: cmd.y }; return ev({ e: 'order', side, order: 'move' });
         case 'recall': kingUnit(side).recallAt = st.tick + K.KING_RECALL; return ev({ e: 'recallStart', side });
@@ -379,12 +385,21 @@ const Royale = (() => {
         case 'promoteTo': return mine(side, cmd.ids).forEach(u => { if (u.t === 'p') u.promoteTo = cmd.piece === 'auto' ? null : cmd.piece; });
       }
     }
+    // A placement that was waiting for its square: the card and the Material are only taken when it is really deployed; after 3 s without a free square it is cancelled and nothing was spent.
+    function processPremoves() {
+      st.premoves = st.premoves.filter(p => {
+        const slot = st.hands[p.side].hand.indexOf(p.card);
+        if (slot < 0 || st.tick > p.until) { ev({ e: 'premoveCancel', side: p.side, card: p.card, x: p.x, y: p.y }); return false; }
+        if (!checkDeploy(p.side, slot, p.x, p.y, false)) { applyDeploy(p.side, { slot, x: p.x, y: p.y }); ev({ e: 'premoveDone', side: p.side, card: p.card, x: p.x, y: p.y }); return false; }
+        return true;
+      });
+    }
     function castSpell(sp) {
       const info = SPELLS[sp.card], inArea = u => Math.max(Math.abs(u.x - sp.x), Math.abs(u.y - sp.y)) <= info.r;
       ev({ e: 'spell', card: sp.card, side: sp.side, x: sp.x, y: sp.y });
       if (sp.card === 'surge' || sp.card === 'stampede') st.units.filter(u => u.side === sp.side && inArea(u)).sort(initOrder).forEach(u => actNow(u));
       else if (sp.card === 'zug') st.units.filter(u => u.side !== sp.side && inArea(u)).forEach(u => { u.ready = st.tick + info.freeze + Math.max(0, u.ready - st.tick); u.frozenUntil = st.tick + info.freeze; });   // freeze pauses the timer: it resumes where it left off
-      else if (sp.card === 'barr') [-1, 0, 1].forEach(d => { const x = sp.x + d; if (walkable(x, sp.y) && !unitAt(x, sp.y)) st.barr.push({ x, y: sp.y, until: st.tick + info.life }); });
+      else if (sp.card === 'barr') [-1, 0, 1].forEach(d => { const x = sp.x + d; if (!walkable(x, sp.y)) return; if (!unitAt(x, sp.y)) st.barr.push({ x, y: sp.y, until: st.tick + info.life }); else st.barrWait.push({ x, y: sp.y, until: st.tick + K.BARR_GRACE, life: info.life }); });   // a piece on the square: wait 1 s for it to leave
     }
 
     const matRate = tick => { let r = K.REGEN; (K.MAT_RATE || []).forEach(p => { if (tick >= p[0]) r = p[1]; }); return r; };
@@ -401,6 +416,8 @@ const Royale = (() => {
       if (st.over) return events;
       const q = pending; pending = []; q.forEach(applyCommand);
       st.barr = st.barr.filter(b => b.until > st.tick);
+      st.barrWait = st.barrWait.filter(w => { if (st.tick > w.until) return false; if (walkable(w.x, w.y) && !unitAt(w.x, w.y)) { st.barr.push({ x: w.x, y: w.y, until: st.tick + w.life }); return false; } return true; });
+      processPremoves();
       const due = st.spells.filter(sp => sp.at <= st.tick); st.spells = st.spells.filter(sp => sp.at > st.tick); due.forEach(castSpell);
       ['w', 'b'].forEach(sd => {                                          // a King at home heals while his Fortress has been left alone
         const ks = st.king[sd], F = fortressOf(sd); if (ks.out || ks.dead || !F || F.hp <= 0 || !K.KING_REGEN || ks.hp >= K.KING_HP) return;
@@ -428,7 +445,7 @@ const Royale = (() => {
       mat: { w: Math.floor(st.mat.w / K.MAT_PTS), b: Math.floor(st.mat.b / K.MAT_PTS) }, matPts: { w: st.mat.w, b: st.mat.b },
       hands: { w: { hand: st.hands.w.hand.slice(), next: st.hands.w.queue[0] }, b: { hand: st.hands.b.hand.slice(), next: st.hands.b.queue[0] } },
       units: st.units.map(u => ({ id: u.id, side: u.side, t: u.t, x: u.x, y: u.y, hp: u.hp, maxhp: u.maxhp, ready: u.ready, cd: u.cd, stance: u.stance || 'attack', king: !!u.king, promoted: !!u.promoted, promoteTo: u.promoteTo || null, frozen: (u.frozenUntil || 0) > st.tick, recalling: !!u.recallAt, goal: u.goal || null, dep: u.dep, arrive: u.arrive })),
-      spells: st.spells.map(p => ({ side: p.side, card: p.card, x: p.x, y: p.y, at: p.at })), barr: st.barr.map(b => ({ x: b.x, y: b.y, until: b.until })), king: { w: Object.assign({ maxhp: K.KING_HP }, st.king.w), b: Object.assign({ maxhp: K.KING_HP }, st.king.b) },
+      premoves: st.premoves.map(p => ({ side: p.side, card: p.card, x: p.x, y: p.y, until: p.until })), spells: st.spells.map(p => ({ side: p.side, card: p.card, x: p.x, y: p.y, at: p.at })), barr: st.barr.map(b => ({ x: b.x, y: b.y, until: b.until })), king: { w: Object.assign({ maxhp: K.KING_HP }, st.king.w), b: Object.assign({ maxhp: K.KING_HP }, st.king.b) },
       towers: st.towers.map(t => ({ id: t.id, side: t.side, kind: t.kind, x0: t.x0, y0: t.y0, w: t.w, h: t.h, hp: t.hp, maxhp: t.maxhp }))
     });
     // Network play: the host runs the sim and sends view(side) every tick; the guest's copy never steps, it only loads those states (so can/check/snapshot work there).

@@ -208,3 +208,34 @@
 #royaleUI .roverbox > .roptwrap { flex:1 1 auto; min-height:0; overflow-y:auto; padding-right:4px; } #royaleUI .roptwrap .rsettings { overflow:visible; flex:none; }
 #royaleUI .rsetrow { flex-wrap:wrap; } #royaleUI .rsettext { flex:1 1 13em; } #royaleUI .rsetrow .rseg2, #royaleUI .rsetrow .rswatches { margin-left:auto; }
 #royaleUI .rpaticon svg { inset:-8%; width:116%; height:116%; }
+
+/* ===== revision 18 ===== */
+#royaleUI .rcard.wait { opacity:.6; border-style:dashed; border-color:#ff9a2e; background:#4a3418; cursor:default; } #royaleUI .rcard.wait::after { content:'waiting'; position:absolute; right:6px; bottom:3px; font-size:.65rem; color:#ffb35c; }
+#royaleUI .rcard { position:relative; }
+#royaleUI .rslot.drop { outline:2px solid #e0a800; outline-offset:2px; background:#4a4020 !important; } #royaleUI .rdeckcard:not(.ref), #royaleUI .rslot.full { cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none; }
+#royaleUI .remo { margin-top:4px; } #royaleUI .remorow { display:grid; grid-template-columns:repeat(4, 1fr); gap:5px; } #royaleUI .remorow.hidden { display:none; } #royaleUI .remorow button { font-size:1.35rem; padding:3px 0; }
+#royaleUI .rreact { position:fixed; z-index:40; pointer-events:none; font-size:2rem; transform:translate(-50%, -50%); text-shadow:0 2px 6px #0008; } #royaleUI .rreact.tag { font-size:.8rem; background:#000b; color:#fff; padding:2px 10px; border-radius:999px; transform:translate(-50%, -190%); animation:rtagfade 2.4s ease-out forwards; }
+@keyframes rtagfade { 0%, 70% { opacity:1; } 100% { opacity:0; } }
+#royaleUI .rinfobtn { display:none; width:34px; height:30px; padding:0; }
+#royaleUI { touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+
+/* phones and small windows: the board on top, your hand and Material underneath, the other column on a toggle */
+@media (max-width: 900px) {
+  #royaleUI .rgap { width:104px; } #royaleUI .ropp, #royaleUI .rprofname { display:none; } #royaleUI .rprof { padding:0 2px; } #royaleUI .rtimer { min-width:3.2em; font-size:1rem; } #royaleUI .rpause, #royaleUI .rquit { padding:0 8px; font-size:.8rem; } #royaleUI .rinfobtn { display:inline-flex; align-items:center; justify-content:center; }
+  #royaleUI .rbar { gap:6px; padding:0 8px; }
+  #royaleUI .rmain { flex-direction:column; position:relative; }
+  #royaleUI .rwrap { order:1; flex:1 1 auto; min-height:0; }
+  #royaleUI .rleft { order:2; width:auto; flex:none; flex-direction:row; align-items:stretch; gap:6px; padding:6px; overflow-x:auto; overflow-y:hidden; border-right:0; border-top:1px solid var(--line,#4a4d46); }
+  #royaleUI .rleft .rmat { flex:none; width:104px; padding:6px 8px; } #royaleUI .rmatnum { font-size:2rem; } #royaleUI .rmatbig { margin:0 0 4px; } #royaleUI .rpip { height:9px; } #royaleUI .rmatlabel { font-size:.6rem; }
+  #royaleUI .rhand { flex-direction:row; gap:6px; } #royaleUI .rcard { width:84px; flex-direction:column; justify-content:center; gap:2px; padding:5px; text-align:center; } #royaleUI .rcard .rcardtxt { align-items:center; } #royaleUI .rcard .k { display:none; } #royaleUI .rcard .n { font-size:.78rem; } #royaleUI .rcard .c { position:absolute; top:3px; right:3px; width:1.5rem; height:1.5rem; font-size:.8rem; }
+  #royaleUI .rcard.sel { transform:translateY(-4px); }
+  #royaleUI .rnext, #royaleUI .rhint { display:none; }
+  #royaleUI .rright { position:absolute; top:0; right:0; bottom:0; width:min(300px, 88vw); z-index:12; display:none; border-left:1px solid var(--line,#4a4d46); box-shadow:-10px 0 30px #000a; }
+  #royaleUI.rshowinfo .rright { display:flex; } #royaleUI.rmenu .rinfobtn { display:none; }
+  #royaleUI .rdrawer { width:100vw; } #royaleUI .rpanel { padding:12px 10px; } #royaleUI .rhero h1 { font-size:1.7rem; } #royaleUI .rstripcards { gap:4px; } #royaleUI .rstripcard .g svg { width:1.5rem; height:1.5rem; }
+  #royaleUI .rstatrow { grid-template-columns:1fr 4.5em 4.5em; font-size:.82rem; } #royaleUI .rrtowers { grid-template-columns:1fr; }
+}
+@media (max-width: 520px) {
+  #royaleUI .rprof, #royaleUI .rpause { display:none; } #royaleUI .rquit { font-size:0; padding:0 10px; } #royaleUI .rquit::after { content:'Quit'; font-size:.8rem; }
+  #royaleUI .rleft .rmat { width:80px; } #royaleUI .rcard { width:64px; padding:4px 2px; } #royaleUI .rcard .n { font-size:.66rem; } #royaleUI .rcard .g svg { width:1.6rem; height:1.6rem; } #royaleUI .rmatnum { font-size:1.7rem; }
+}

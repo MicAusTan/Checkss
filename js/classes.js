@@ -215,8 +215,10 @@ function specStatus() {
 let promoHint = false, lastHint = false;                           // Imperial: an original Rook/Bishop/Knight is selected -> tint the zone where it would become a Grand piece
 function render() {
   teamLook(game ? game.teams : (A4 && A4.teams));
+  try {
   promoHint = !!(game && game.imperial && game.inPromo && sel && !sel.drop && !replay && !spectating && (p => p && !p.dead && (p.o || 'pvm'.includes(p.t)) && 'rbnpvmghustfqk'.includes(p.t) && p.c === meId())(game.at(sel.x, sel.y)));
   lastHint = !!(game && game.imperial && game.inLast && sel && !sel.drop && !replay && !spectating && (p => p && !p.dead && 'pvmjdyz'.includes(p.t) && p.c === meId())(game.at(sel.x, sel.y)));
+  } catch (e) { promoHint = false; lastHint = false; }                 // a stale selection must never stop the board from drawing
   animBefore();
   renderCore();
   syncChrome();

@@ -51,9 +51,9 @@ function refreshModeBtn() {
   const d = thumbData(k), box = document.createElement('span');
   if (d) { const cv = document.createElement('canvas'); paintBoard(cv, d, 46); b.appendChild(cv); } else { const ph = document.createElement('span'); ph.textContent = MODE_ICON[k] || '♞'; ph.style.cssText = 'font-size:1.6rem;width:46px;text-align:center'; b.appendChild(ph); }
   const t = document.createElement('span'); t.className = 'mbt'; const n = document.createElement('div'); n.textContent = MODES[k].name; t.appendChild(n); const sub = document.createElement('div'); sub.className = 'mbs'; sub.textContent = modeCount(k) + ' players · ' + (MODE_DESC[k] || ''); t.appendChild(sub); b.appendChild(t);
-  const c = document.createElement('span'); c.className = 'mbc'; c.textContent = 'Change ▾'; b.appendChild(c);
+  const c = document.createElement('span'); c.className = 'mbc'; c.textContent = (typeof isHost !== 'undefined' && isHost) ? '' : 'Change ▾'; b.appendChild(c);
 }
-$('modeBtn').onclick = () => { $('modeSearch').value = ''; renderModeCards(); $('modeModal').classList.remove('hidden'); $('modeSearch').focus(); };
+$('modeBtn').onclick = () => { if (typeof isHost !== 'undefined' && isHost) { $('lobbyMsg').textContent = 'This room is already set up for ' + MODES[$('modeSel').value].name + '. Leave the room to pick a different game.'; return; } $('modeSearch').value = ''; renderModeCards(); $('modeModal').classList.remove('hidden'); $('modeSearch').focus(); };
 $('modeSearch').oninput = renderModeCards; $('modeClose').onclick = () => $('modeModal').classList.add('hidden');
 $('modeModal').addEventListener('click', e => { if (e.target === $('modeModal')) $('modeModal').classList.add('hidden'); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') $('modeModal').classList.add('hidden'); });

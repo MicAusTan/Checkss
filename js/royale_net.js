@@ -44,7 +44,7 @@ const RoyaleNet = (() => {
             if (h.onGuest && h.onGuest(m) === false) { player = null; role = null; refuse(c, 'ry_busy'); }
             return;
           }
-          if (role === 'guest' && c === player) { if (m.type === 'ry_cmd' && h.onCmd) h.onCmd(m); else if (m.type === 'ry_chat' && h.onChat) h.onChat(m, 'guest'); }
+          if (role === 'guest' && c === player) { if (m.type === 'ry_cmd' && h.onCmd) h.onCmd(m); else if (m.type === 'ry_chat' && h.onChat) h.onChat(m, 'guest'); else if (m.type === 'ry_react' && h.onReact) h.onReact(m); else if (m.type === 'ry_rematch' && h.onRematch) h.onRematch(m); }
           else if (role === 'spec' && m.type === 'ry_chat' && h.onChat) h.onChat(m, 'spec');
         });
         c.on('close', () => {

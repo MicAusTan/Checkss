@@ -35,7 +35,7 @@ function sendChat() {
 }
 
 /* ============ BUTTONS ============ */
-$('hostBtn').onclick = host;
+$('hostBtn').onclick = () => { host(); try { refreshModeBtn(); } catch (e) { /* label only */ } };
 let reviewBack = false;                                          // true while Practice is showing the review of the game that just ended here
 Practice.init({ confirm: askConfirm, Engine, glyph: (el, t) => { setGlyph(el, t); }, onExit: () => { if (reviewBack) { reviewBack = false; $('game').classList.remove('hidden'); } else $('lobby').classList.remove('hidden'); } });
 $('practiceBtn').onclick = () => { $('lobby').classList.add('hidden'); Practice.open(); };

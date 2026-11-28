@@ -46,7 +46,7 @@ function copyMoves(ev) {
   const fallback = () => { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) { /* ignore */ } ta.remove(); done(); };
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, fallback); else fallback();
 }
-const canAnalyse = () => !!(game && mode === 'standard' && !game.multi && !M && !draft && !replay && ended() && ml && ml.items && ml.items.length && !(gs && gs.fog));
+const canAnalyse = () => !!(game && mode === 'standard' && !game.multi && !M && !draft && !replay && ended() && ml && ml.items && ml.items.length && !(gs && (gs.fog || gs.classes || gs.traits || gs.teamTrait || gs.c960)));      // custom starts (classes, traits, Chess960, fog) cannot be read by the standard-chess analysis
 function analyseGame() {
   if (!canAnalyse()) return;
   reviewBack = true; $('game').classList.add('hidden');
